@@ -147,6 +147,15 @@ export const AGENT_TOOLS: AgentToolOption[] = [
   },
 ];
 
+/**
+ * The providers the Integration step can run. API, Function and MCP are left
+ * out on purpose: each of those is its own step in the library, so offering
+ * them here too would give one capability two different homes.
+ */
+export const INTEGRATION_PROVIDERS: AgentToolOption[] = AGENT_TOOLS.filter(
+  (tool) => tool.kind !== 'api' && tool.kind !== 'function' && tool.kind !== 'mcp'
+);
+
 export const agentToolOption = (kind: AgentToolKind) =>
   AGENT_TOOLS.find((tool) => tool.kind === kind);
 

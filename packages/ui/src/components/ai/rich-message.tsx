@@ -1,5 +1,7 @@
 "use client"
 
+import type { CSSProperties } from "react"
+
 import { cn } from "@workspace/ui/lib/utils"
 
 /**
@@ -232,7 +234,10 @@ const CardFace = ({
   card: RichCard
   actions?: RichMessageActions
 }) => (
-  <article className="ai-rich-card overflow-hidden rounded-xl border bg-[var(--card,var(--background))]">
+  // The card paints its own surface, so it has to name its own ink too: inside
+  // the dashboard's dark operator bubble the inherited colour is white, which
+  // left titles and button labels white-on-white.
+  <article className="ai-rich-card overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card,var(--background))] text-[var(--card-foreground,var(--foreground))]">
     {card.imageUrl ? (
       // Fixed height, cropped: a row of cards lines up whatever shape the
       // source images happen to be.
@@ -286,11 +291,15 @@ export const RichMessage = ({
         <p className="text-[13.5px] leading-snug">{payload.intro}</p>
       ) : null}
       {/* Horizontal, like every other carousel: one card visible, swipe for more. */}
-      <div className="ai-rich-carousel -mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 pb-1">
+      {/* scroll-px matches px: without it the first card snaps to the padding
+          box and the row sits left of the text above it. */}
+      <div className="ai-rich-carousel -mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 pb-1 scroll-px-1">
         {payload.cards.map((card, index) => (
           <div
-            className="w-[208px] shrink-0 snap-start"
+            className="ai-rich-carousel-card w-[208px] shrink-0 snap-start"
             key={`${card.title ?? "card"}-${index}`}
+            // Position in the set, which staggers the deal-in animation.
+            style={{ "--card-index": index } as CSSProperties}
           >
             <CardFace actions={actions} card={card} />
           </div>

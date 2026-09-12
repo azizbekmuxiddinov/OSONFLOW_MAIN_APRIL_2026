@@ -2,6 +2,7 @@ import { Handle, Position } from 'reactflow';
 import type { NodeProps } from 'reactflow';
 import type { ApiNodeData } from '../lib/types';
 import EditableNodeTitle from './EditableNodeTitle';
+import NodeText from './NodeText';
 import NodePorts from './NodePorts';
 
 const ApiNode = ({ id, data }: NodeProps<ApiNodeData>) => {
@@ -15,7 +16,9 @@ const ApiNode = ({ id, data }: NodeProps<ApiNodeData>) => {
           <span className={`node-api-method method-${(data.method ?? 'GET').toLowerCase()}`}>
             {data.method ?? 'GET'}
           </span>
-          <span className="node-api-url">{url || 'Add a request URL.'}</span>
+          <span className="node-api-url">
+            <NodeText text={url || 'Add a request URL.'} />
+          </span>
         </div>
         <NodePorts
           ports={[

@@ -2,6 +2,7 @@ import { Handle, Position } from 'reactflow';
 import type { NodeProps } from 'reactflow';
 import type { CustomActionNodeData } from '../lib/types';
 import EditableNodeTitle from './EditableNodeTitle';
+import SourceHandle from './SourceHandle';
 
 const CustomActionNode = ({ id, data }: NodeProps<CustomActionNodeData>) => {
   return (
@@ -14,7 +15,7 @@ const CustomActionNode = ({ id, data }: NodeProps<CustomActionNodeData>) => {
         </div>
       </div>
       <Handle type="target" position={Position.Left} className="node-handle" />
-      <Handle type="source" position={Position.Right} className="node-handle" />
+      <SourceHandle className="node-handle" />
     </div>
   );
 };

@@ -1,7 +1,10 @@
 import { Handle, Position } from 'reactflow';
 import type { NodeProps } from 'reactflow';
-import type { ButtonsNodeData } from '../lib/types';
+import { fallbackPorts, type ButtonsNodeData } from '../lib/types';
 import EditableNodeTitle from './EditableNodeTitle';
+import NodeText from './NodeText';
+import NodePorts from './NodePorts';
+import SourceHandle from './SourceHandle';
 
 const ButtonsNode = ({ id, data }: NodeProps<ButtonsNodeData>) => {
   return (
@@ -13,17 +16,16 @@ const ButtonsNode = ({ id, data }: NodeProps<ButtonsNodeData>) => {
         ) : (
           data.buttons.map((button) => (
             <div key={button.id} className="node-button">
-              {button.label}
-              <Handle
+              <NodeText text={button.label} />
+              <SourceHandle
                 id={button.id}
-                type="source"
-                position={Position.Right}
                 className="node-handle node-button-handle"
               />
             </div>
           ))
         )}
       </div>
+      <NodePorts ports={fallbackPorts(data)} />
       <Handle type="target" position={Position.Left} className="node-handle" />
     </div>
   );

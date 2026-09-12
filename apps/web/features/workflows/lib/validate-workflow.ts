@@ -3,6 +3,8 @@ import type { Edge, Node } from 'reactflow';
 import {
   isAgentStepType,
   isTerminalStepType,
+  normalizeConditionPaths,
+  normalizeSetEntries,
   stepPorts,
   type AgentNodeData,
   type ApiNodeData,
@@ -17,6 +19,9 @@ import {
   type MessageNodeData,
   type NodeData,
   type NodeType,
+  type IntegrationNodeData,
+  type ListenNodeData,
+  type McpNodeData,
   type SetVariableNodeData,
   type ToolNodeData,
 } from './types';
@@ -319,23 +324,62 @@ export const validateWorkflow = (
         }
         case 'condition': {
           const data = step.data as ConditionNodeData;
-          if (!data.key?.trim()) {
+          const paths = normalizeConditionPaths(data);
+          /* A path with no clauses never matches, so a Condition made only of
+             empty paths routes nowhere unless an else path catches it. */
+          const usable = paths.filter((path) =>
+            path.clauses.some((clause) => clause.key.trim())
+          );
+
+          if (usable.length === 0) {
             push({
               level: 'warning',
               nodeId: node.id,
               title: `"${stepLabel}" checks no variable`,
-              detail: 'This condition will always compare an empty value.',
+              detail: data.elsePath
+                ? 'Every run will fall through to the else path.'
+                : 'With no filled-in path this step has no way out.',
             });
           }
           break;
         }
         case 'setVariable': {
-          if (!(step.data as SetVariableNodeData).key?.trim()) {
+          const data = step.data as SetVariableNodeData;
+          const entries = [
+            ...normalizeSetEntries(data),
+            ...(data.properties ?? []),
+          ];
+
+          if (!entries.some((entry) => entry.key.trim())) {
             push({
               level: 'warning',
               nodeId: node.id,
               title: `"${stepLabel}" sets no variable name`,
               detail: 'Give this step a variable to write into.',
+            });
+          }
+          break;
+        }
+        case 'listen': {
+          if (!(step.data as ListenNodeData).variableKey?.trim()) {
+            push({
+              level: 'warning',
+              nodeId: node.id,
+              title: `"${stepLabel}" saves the reply nowhere`,
+              detail: 'Name a variable so later steps can read the answer.',
+            });
+          }
+          break;
+        }
+        case 'integration':
+        case 'mcp': {
+          const data = step.data as IntegrationNodeData | McpNodeData;
+          if (!data.toolName?.trim()) {
+            push({
+              level: 'warning',
+              nodeId: node.id,
+              title: `"${stepLabel}" runs no tool`,
+              detail: 'Pick the tool this step should call.',
             });
           }
           break;

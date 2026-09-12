@@ -5,6 +5,7 @@ import type { BlockNodeData } from '../lib/types';
 import { stepPorts } from '../lib/types';
 import EditableNodeTitle from './EditableNodeTitle';
 import StepRow from './StepRow';
+import SourceHandle from './SourceHandle';
 
 /** Lets the canvas tell the inspector which step inside a block is selected. */
 export const BlockStepSelectionContext = createContext<{
@@ -39,7 +40,7 @@ const BlockNode = ({ id, data }: NodeProps<BlockNodeData>) => {
       <Handle type="target" position={Position.Left} className="node-handle" />
       {/* The last step's ports replace the block's own exit when it branches. */}
       {!hasPorts && (
-        <Handle type="source" position={Position.Right} className="node-handle" />
+        <SourceHandle className="node-handle" />
       )}
     </div>
   );

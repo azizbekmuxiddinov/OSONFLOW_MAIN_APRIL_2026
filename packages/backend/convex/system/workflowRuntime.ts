@@ -8,6 +8,8 @@ import {
   asBoolean,
   asString,
   evaluateCondition,
+  evaluateConditionPaths,
+  getSetEntries,
   getCaptureVariableKey,
   getEdgesBySource,
   getNextNodeId,
@@ -364,8 +366,25 @@ const executeFromNode = async (
       []) as TraceEvent[]),
   ]
 
+  /**
+   * Heatmap counters. The trace buffer above is capped, so these are tracked
+   * separately: they are what the canvas reads to show how many runs reached
+   * each step and where the ones that never finished stopped.
+   */
+  let nodeVisits: Record<string, number> = {
+    ...((args.session.nodeVisits as Record<string, number> | undefined) ?? {}),
+  }
+  let lastNodeId: string | undefined = args.session.lastNodeId
+  let reachedEnd = args.session.reachedEnd ?? false
+
   const record = (event: Omit<TraceEvent, "at"> & { at?: number }) => {
     traceBuffer = appendTrace(traceBuffer, event)
+  }
+
+  /** Counts one entry into a node. Called once per step, from the loop head. */
+  const countVisit = (nodeId: string) => {
+    nodeVisits = { ...nodeVisits, [nodeId]: (nodeVisits[nodeId] ?? 0) + 1 }
+    lastNodeId = nodeId
   }
 
   const flushPatch = async (
@@ -381,6 +400,9 @@ const executeFromNode = async (
       pendingStepIndex: currentStepIndex,
       ...patch,
       executionTrace: traceBuffer,
+      nodeVisits,
+      lastNodeId,
+      reachedEnd,
       updatedAt: Date.now(),
     })
   }
@@ -522,6 +544,7 @@ const executeFromNode = async (
       currentStepIndex = 0
     }
 
+    countVisit(node.id)
     record({
       level: "step",
       nodeId: node.id,
@@ -543,7 +566,19 @@ const executeFromNode = async (
       }
 
       case "message": {
-        const text = renderTemplate(stripHtml(asString(data.text)), variables)
+        /* Variants are alternates for the same beat, so one of them is picked
+           at random each run. The main text counts as the first option. */
+        const variants = (Array.isArray(data.variants) ? data.variants : [])
+          .map((variant) => asString(variant))
+          .filter((variant) => variant.trim())
+        const options = [asString(data.text), ...variants].filter((option) =>
+          option.trim()
+        )
+        const chosen =
+          options.length > 0
+            ? options[Math.floor(Math.random() * options.length)]!
+            : ""
+        const text = renderTemplate(stripHtml(chosen), variables)
 
         if (await saveAssistantMessage(ctx, args.conversation.threadId, text)) {
           assistantMessagesSent += 1
@@ -556,6 +591,33 @@ const executeFromNode = async (
           title: "Sent message",
           detail: text.slice(0, 160) || "(empty)",
         })
+
+        /* "Wait for user input" turns a Message into a listening step: it
+           holds the turn and stores the reply, exactly like Listen. */
+        if (data.waitForUserInput === true) {
+          await flushPatch(
+            {
+              status: "waiting",
+              currentNodeId: node.id,
+              pendingNodeId: node.id,
+              pendingButtons: [],
+              waitingMode: "capture",
+              pendingCaptureKey: "last_utterance",
+              pendingPrompt: undefined,
+              pendingAiNodeId: null,
+              variables,
+            },
+            {
+              level: "wait",
+              nodeId: node.id,
+              nodeType: type,
+              title: "Waiting for a reply",
+            }
+          )
+
+          return { handled: true, assistantMessagesSent }
+        }
+
         advance()
         break
       }
@@ -579,16 +641,25 @@ const executeFromNode = async (
       }
 
       case "setVariable": {
-        const key = asString(data.key).trim()
+        const entries = getSetEntries(data)
 
-        if (key) {
-          variables[key] = renderTemplate(asString(data.value), variables)
+        for (const entry of entries) {
+          variables[entry.key] = renderTemplate(entry.value, variables)
           record({
             level: "info",
             nodeId: node.id,
             nodeType: type,
-            title: `Set ${key}`,
-            detail: variables[key] || "(empty)",
+            title: `Set ${entry.key}`,
+            detail: variables[entry.key] || "(empty)",
+          })
+        }
+
+        if (entries.length === 0) {
+          record({
+            level: "warn",
+            nodeId: node.id,
+            nodeType: type,
+            title: "Set has nothing to write",
           })
         }
 
@@ -597,16 +668,31 @@ const executeFromNode = async (
       }
 
       case "condition": {
-        const passed = evaluateCondition(data, variables)
-        const handle = passed ? "true" : "false"
+        const match = evaluateConditionPaths(data, variables)
+
+        if (!match) {
+          /* No path matched and no Else is configured, so there is nowhere
+             to go. Stopping here beats falling through a wire that the
+             author never drew. */
+          record({
+            level: "warn",
+            nodeId: node.id,
+            nodeType: type,
+            title: "No path matched",
+            detail: "Add an else path to catch runs that match nothing.",
+          })
+          currentNodeId = null
+          currentStepIndex = 0
+          break
+        }
+
         record({
           level: "branch",
           nodeId: node.id,
           nodeType: type,
-          title: `Branch → ${handle}`,
-          detail: `${asString(data.key)} ${asString(data.operator) || "equals"} ${asString(data.value)}`,
+          title: `Branch → ${match.label}`,
         })
-        advanceVia(handle)
+        advanceVia(match.handle)
         break
       }
 
@@ -743,6 +829,33 @@ const executeFromNode = async (
         return { handled: true, assistantMessagesSent }
       }
 
+      case "listen": {
+        const captureKey = asString(data.variableKey).trim() || "last_utterance"
+
+        await flushPatch(
+          {
+            status: "waiting",
+            currentNodeId: node.id,
+            pendingNodeId: node.id,
+            pendingButtons: [],
+            waitingMode: "capture",
+            pendingCaptureKey: captureKey,
+            pendingPrompt: undefined,
+            pendingAiNodeId: null,
+            variables,
+          },
+          {
+            level: "wait",
+            nodeId: node.id,
+            nodeType: type,
+            title: "Listening for a reply",
+            detail: `Stores into {{${captureKey}}}`,
+          }
+        )
+
+        return { handled: true, assistantMessagesSent }
+      }
+
       case "callForward": {
         const message = renderTemplate(
           stripHtml(
@@ -781,8 +894,11 @@ const executeFromNode = async (
       }
 
       case "end": {
+        // The one exit that counts as the flow completing; everything else
+        // that stops a run is a drop-off as far as the heatmap is concerned.
+        reachedEnd = true
         const endMessage = renderTemplate(
-          stripHtml(asString(data.description)),
+          stripHtml(asString(data.message) || asString(data.description)),
           variables
         )
 
@@ -1013,6 +1129,11 @@ const executeFromNode = async (
         break
       }
 
+      /* Integration and MCP are the same move as Tool: run one named
+         assistant tool and branch on whether it succeeded. Only the label
+         in the trace differs, so they share the step handler. */
+      case "integration":
+      case "mcp":
       case "tool": {
         await flushPatch(
           {
@@ -1027,7 +1148,12 @@ const executeFromNode = async (
             level: "step",
             nodeId: node.id,
             nodeType: type,
-            title: "Running tool",
+            title:
+              type === "mcp"
+                ? "Running MCP tool"
+                : type === "integration"
+                  ? "Running integration"
+                  : "Running tool",
             detail: asString(data.toolName) || undefined,
           }
         )
@@ -1776,6 +1902,47 @@ export const handleUserMessage = internalMutation({
         )
 
       if (!selectedButton) {
+        /* The step can opt into a "no match" port instead of nagging. When
+           one is wired the run leaves through it, which is what lets an
+           author handle an off-script reply themselves. */
+        const noMatchTarget =
+          pendingData.noMatch === true
+            ? getNextNodeId(edgesBySource, session.pendingNodeId, "noMatch")
+            : null
+
+        if (noMatchTarget) {
+          variables = { ...baseVariables, lastInput: prompt }
+
+          await patchSession(ctx, session._id, {
+            status: "active",
+            ...clearWaitState(),
+            variables,
+          })
+
+          const noMatchSession = (await ctx.db.get(session._id))!
+          const noMatchResult = await executeFromNode(ctx, {
+            conversation,
+            session: noMatchSession,
+            definition,
+            startNodeId: noMatchTarget,
+            variables,
+          })
+
+          await ctx.runMutation(
+            internal.system.conversations.touchCustomerMessage,
+            { conversationId: conversation._id, timestamp: now }
+          )
+
+          if (noMatchResult.assistantMessagesSent > 0) {
+            await ctx.runMutation(
+              internal.system.conversations.touchAssistantMessage,
+              { conversationId: conversation._id, timestamp: now }
+            )
+          }
+
+          return { handled: true }
+        }
+
         await saveAssistantMessage(
           ctx,
           conversation.threadId,

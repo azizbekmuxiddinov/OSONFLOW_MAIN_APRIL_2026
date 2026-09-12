@@ -853,6 +853,24 @@ export default defineSchema({
     ),
     /** Ring-buffer of recent runtime events for debugging published flows. */
     executionTrace: v.optional(v.array(workflowTraceEventValidator)),
+    /**
+     * How many times the run entered each node, keyed by node id. The trace
+     * above is capped at the most recent events, so a long conversation drops
+     * its early steps; these counters never do, which is why the canvas
+     * heatmap reads them rather than replaying the trace.
+     */
+    nodeVisits: v.optional(v.record(v.string(), v.number())),
+    /**
+     * Last node the run actually executed. `currentNodeId` is cleared when a
+     * run finishes, so it cannot answer "where did this conversation stop?".
+     */
+    lastNodeId: v.optional(v.string()),
+    /**
+     * Whether the run left through an End step. Distinguishes a flow that
+     * completed from one that stalled, escalated, or hit an error, which is
+     * the difference between a healthy node and a drop-off on the heatmap.
+     */
+    reachedEnd: v.optional(v.boolean()),
     variables: v.any(),
     startedAt: v.number(),
     updatedAt: v.number(),
@@ -860,7 +878,8 @@ export default defineSchema({
   })
     .index("by_conversation_id", ["conversationId"])
     .index("by_contact_session_id", ["contactSessionId"])
-    .index("by_organization_id", ["organizationId"]),
+    .index("by_organization_id", ["organizationId"])
+    .index("by_workflow_id_and_started_at", ["workflowId", "startedAt"]),
 
   workflowPresence: defineTable({
     organizationId: v.string(),

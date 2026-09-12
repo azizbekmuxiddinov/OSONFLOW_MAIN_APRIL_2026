@@ -2,6 +2,7 @@ import { Handle, Position } from 'reactflow';
 import type { NodeProps } from 'reactflow';
 import type { ImageNodeData } from '../lib/types';
 import EditableNodeTitle from './EditableNodeTitle';
+import SourceHandle from './SourceHandle';
 
 const ImageNode = ({ id, data }: NodeProps<ImageNodeData>) => {
   const title = data.customName?.trim() || 'Image';
@@ -34,7 +35,7 @@ const ImageNode = ({ id, data }: NodeProps<ImageNodeData>) => {
         </div>
       )}
       <Handle type="target" position={Position.Left} className="node-handle" />
-      <Handle type="source" position={Position.Right} className="node-handle" />
+      <SourceHandle className="node-handle" />
     </div>
   );
 };

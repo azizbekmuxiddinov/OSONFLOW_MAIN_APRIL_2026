@@ -197,6 +197,80 @@ export const evaluateCondition = (
   }
 }
 
+/**
+ * Picks the handle a Condition leaves through.
+ *
+ * Paths are tried in order and the first whose clauses all pass wins, which is
+ * what makes the list in the editor read top-to-bottom like an if/else-if
+ * chain. A Condition saved before it supported several paths carries only the
+ * legacy `key`/`operator`/`value` triple, so that shape is evaluated as a
+ * single unnamed path and still routes through "true"/"false".
+ */
+export const evaluateConditionPaths = (
+  data: JsonRecord,
+  variables: RuntimeVariables
+): { handle: string; label: string } | null => {
+  const paths = Array.isArray(data.paths) ? data.paths : []
+
+  if (paths.length === 0) {
+    const passed = evaluateCondition(data, variables)
+    return { handle: passed ? "true" : "false", label: passed ? "true" : "false" }
+  }
+
+  for (const [index, entry] of paths.entries()) {
+    if (!isRecord(entry)) continue
+
+    const clauses = Array.isArray(entry.clauses) ? entry.clauses : []
+    const id = asString(entry.id)
+    const label = asString(entry.name).trim() || `Path ${index + 1}`
+
+    /* A path with no clauses is still unfinished in the editor; treating it
+       as "always true" would silently swallow every run. */
+    if (clauses.length === 0) continue
+
+    const passed = clauses.every((clause) =>
+      isRecord(clause) ? evaluateCondition(clause, variables) : false
+    )
+
+    if (passed && id) return { handle: id, label }
+  }
+
+  return data.elsePath === true ? { handle: "else", label: "else" } : null
+}
+
+/**
+ * The assignments a Set step applies, in the order they should be written.
+ * Falls back to the single legacy pair when the multi-row form is absent.
+ */
+export const getSetEntries = (
+  data: JsonRecord
+): Array<{ key: string; value: string; scope: "variable" | "property" }> => {
+  const read = (
+    source: unknown,
+    scope: "variable" | "property"
+  ): Array<{ key: string; value: string; scope: "variable" | "property" }> =>
+    (Array.isArray(source) ? source : [])
+      .filter(isRecord)
+      .map((entry) => ({
+        key: asString(entry.key).trim(),
+        value: asString(entry.value),
+        scope,
+      }))
+      .filter((entry) => entry.key)
+
+  const variables = read(data.variables, "variable")
+  const properties = read(data.properties, "property")
+
+  if (variables.length === 0 && properties.length === 0) {
+    const key = asString(data.key).trim()
+    return key
+      ? [{ key, value: asString(data.value), scope: "variable" as const }]
+      : []
+  }
+
+  return [...variables, ...properties]
+}
+
 export const matchChoice = (
   choices: WorkflowButton[],
   prompt: string,

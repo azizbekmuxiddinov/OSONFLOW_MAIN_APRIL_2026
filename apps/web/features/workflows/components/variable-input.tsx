@@ -36,12 +36,12 @@ export const VariableInput = ({
   const emit = (editor: HTMLDivElement) =>
     onChange(htmlToTemplateText(editor.innerHTML))
 
-  const { picker, matches, refresh, insert, close } = useVariablePicker({
-    shellRef,
-    editorRef,
-    variables,
-    onInserted: emit,
-  })
+  const { picker, matches, refresh, insert, openForToken, close } =
+    useVariablePicker({
+      editorRef,
+      variables,
+      onInserted: emit,
+    })
 
   useLayoutEffect(() => {
     const editor = editorRef.current
@@ -75,6 +75,18 @@ export const VariableInput = ({
         data-placeholder={placeholder}
         suppressContentEditableWarning
         onInput={handleInput}
+        onClick={(event) => {
+          // A pill is contenteditable="false", so clicking one places no
+          // caret — intercept it and offer the same list typing "{" would.
+          const token = (event.target as HTMLElement).closest?.(
+            ".variable-token"
+          )
+
+          if (token instanceof HTMLElement) {
+            event.preventDefault()
+            openForToken(token)
+          }
+        }}
         onKeyDown={(event) => {
           // Single-line: never let Enter insert a break.
           if (event.key === "Enter") {

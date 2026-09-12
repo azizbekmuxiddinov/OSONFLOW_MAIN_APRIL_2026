@@ -15,6 +15,7 @@ export type NodeType =
   | 'buttons'
   | 'choice'
   | 'capture'
+  | 'listen'
   | 'setVariable'
   | 'condition'
   | 'component'
@@ -22,6 +23,8 @@ export type NodeType =
   | 'tool'
   | 'function'
   | 'api'
+  | 'integration'
+  | 'mcp'
   | 'javascript'
   | 'kbSearch'
   | 'callForward'
@@ -37,16 +40,56 @@ export type BlockColor = 'default' | 'blue' | 'green' | 'orange' | 'purple' | 'r
 export type NodeVisual = {
   customName?: string;
   blockColor?: BlockColor;
+  /**
+   * A hue picked from the slider, as #rrggbb. Kept separate from
+   * `blockColor` rather than widening that union: the presets are named,
+   * saved workflows already carry them, and only one of the two can be in
+   * force — choosing a preset clears this, and moving the slider is what
+   * sets it.
+   */
+  customColor?: string;
 };
+
+/**
+ * Fallback ports every listening step can opt into. `noMatch` fires when the
+ * reply matched no button or path, `noReply` when the user said nothing at
+ * all, and `listenOtherTriggers` lets global triggers interrupt the step
+ * instead of it swallowing the turn. Each enabled flag adds one source port,
+ * which is why they live on the data rather than on the node component.
+ */
+export type ListenFallbacks = {
+  noMatch?: boolean;
+  noReply?: boolean;
+  listenOtherTriggers?: boolean;
+};
+
+/** Port ids the fallback flags contribute, shared by node and runtime. */
+export const NO_MATCH_PORT = 'noMatch';
+export const NO_REPLY_PORT = 'noReply';
+export const ELSE_PORT = 'else';
+export const FAILURE_PORT = 'fail';
 
 export type StartNodeData = NodeVisual & {
   label: 'Start';
 };
 
+/**
+ * A Message is either scripted copy or a one-shot AI generation. The two modes
+ * keep their own text so switching tabs never destroys what the other holds.
+ */
+export type MessageMode = 'scripted' | 'prompt';
+
 export type MessageNodeData = NodeVisual & {
   label: 'Message';
   text: string;
-};
+  mode?: MessageMode;
+  /** Instructions used when `mode` is 'prompt'. */
+  instructions?: string;
+  /** Alternates picked at random each time the step runs. */
+  variants?: string[];
+  /** Turns the step into a listening one: it stops and waits for a reply. */
+  waitForUserInput?: boolean;
+} & ListenFallbacks;
 
 export type ImageNodeData = NodeVisual & {
   label: 'Image';
@@ -65,11 +108,36 @@ export type CardNodeData = NodeVisual & {
   title: string;
   description: string;
   buttons: ButtonOption[];
-};
+} & ListenFallbacks;
 
 export type ButtonsNodeData = NodeVisual & {
   label: 'Buttons';
   buttons: ButtonOption[];
+} & ListenFallbacks;
+
+/**
+ * Listen pauses the flow and stores whatever the user says next. It is the
+ * unconditional counterpart to Buttons: no matching, just capture and move on.
+ */
+export type ListenNodeData = NodeVisual & {
+  label: 'Listen';
+  /** Variable the whole reply is written to. */
+  variableKey: string;
+} & ListenFallbacks;
+
+/** An Integration step runs a provider tool configured in the Tools tab. */
+export type IntegrationNodeData = NodeVisual & {
+  label: 'Integration';
+  provider?: AgentToolKind;
+  toolName?: string;
+  outputVariable?: string;
+};
+
+/** An MCP step calls a tool exposed by a connected MCP server. */
+export type McpNodeData = NodeVisual & {
+  label: 'MCP';
+  toolName?: string;
+  outputVariable?: string;
 };
 
 export type ChoiceNodeData = NodeVisual & {
@@ -85,8 +153,22 @@ export type CaptureNodeData = NodeVisual & {
   prompt?: string;
 };
 
+/** One `name = value` assignment inside a Set step. */
+export type SetEntry = {
+  id: string;
+  key: string;
+  value: string;
+};
+
 export type SetVariableNodeData = NodeVisual & {
   label: 'Set Variable';
+  /**
+   * Multi-assignment form. Absent on workflows saved before Set could write
+   * more than one variable, which still carry the `key`/`value` pair below.
+   */
+  variables?: SetEntry[];
+  /** Writes onto the conversation profile rather than run-scoped variables. */
+  properties?: SetEntry[];
   key: string;
   value: string;
 };
@@ -101,8 +183,34 @@ export type ConditionOperator =
   | 'exists'
   | 'not_exists';
 
+/** One clause of a condition path. Clauses inside a path are ANDed. */
+export type ConditionClause = {
+  id: string;
+  key: string;
+  operator: ConditionOperator;
+  value: string;
+};
+
+/**
+ * A named branch of a Condition. Each path becomes one source port, so the
+ * canvas shows exactly as many outgoing wires as there are paths (plus Else).
+ */
+export type ConditionPath = {
+  id: string;
+  name: string;
+  clauses: ConditionClause[];
+};
+
 export type ConditionNodeData = NodeVisual & {
   label: 'Condition';
+  /**
+   * Multi-path form. When absent the node falls back to the legacy
+   * single-clause `key`/`operator`/`value` triple below, which older saved
+   * workflows still carry and which `normalizeConditionPaths` upgrades.
+   */
+  paths?: ConditionPath[];
+  /** Adds a catch-all port taken when no path matched. */
+  elsePath?: boolean;
   key: string;
   operator: ConditionOperator;
   value: string;
@@ -234,7 +342,7 @@ export type CarouselCard = {
 export type CarouselNodeData = NodeVisual & {
   label: 'Carousel';
   cards: CarouselCard[];
-};
+} & ListenFallbacks;
 
 export type CustomActionNodeData = NodeVisual & {
   label: 'Custom action';
@@ -249,6 +357,19 @@ export type JavascriptNodeData = NodeVisual & {
   code: string;
   /** Comma-free list of variable names the snippet is expected to produce. */
   outputVariables: string[];
+  /**
+   * Named exits the snippet picks between by returning `{ next }`, mirroring
+   * Function. Absent means the single legacy success/error pair is used.
+   */
+  paths?: FunctionPath[];
+  /** Adds the error port taken when the snippet throws. */
+  failurePath?: boolean;
+};
+
+/** The End step can send one last message before it closes the conversation. */
+export type EndNodeData = NodeVisual & {
+  label: 'End';
+  message?: string;
 };
 
 export type ToolArgument = {
@@ -316,6 +437,8 @@ export type GenericNodeData = NodeVisual &
   AgentConfig & {
     label: string;
     description?: string;
+    /** Copy sent by End before it closes the conversation. */
+    message?: string;
     accent?: 'agent' | 'talk' | 'listen' | 'logic' | 'dev' | 'system';
     instructions?: string;
     query?: string;
@@ -336,6 +459,10 @@ export type NodeData =
   | ButtonsNodeData
   | ChoiceNodeData
   | CaptureNodeData
+  | ListenNodeData
+  | IntegrationNodeData
+  | McpNodeData
+  | EndNodeData
   | SetVariableNodeData
   | ConditionNodeData
   | ApiNodeData
@@ -396,13 +523,63 @@ export const isTerminalStepType = (type: NodeType) =>
   type === 'choice' ||
   type === 'condition' ||
   type === 'api' ||
+  type === 'integration' ||
+  type === 'mcp' ||
   type === 'javascript' ||
   type === 'function' ||
   type === 'tool' ||
   type === 'carousel' ||
   type === 'card' ||
+  type === 'listen' ||
   type === 'end' ||
   type === 'callForward';
+
+/**
+ * Upgrades a Condition saved before it supported multiple paths into the
+ * multi-path shape, so the editor and the runtime only ever see `paths`.
+ */
+export const normalizeConditionPaths = (
+  data: ConditionNodeData
+): ConditionPath[] => {
+  if (data.paths?.length) return data.paths;
+  if (!data.key) return [];
+  return [
+    {
+      id: 'true',
+      /* Left unnamed on purpose: the canvas then labels the port with the
+         clause itself ("tier is pro") rather than a meaningless "Path 1". */
+      name: '',
+      clauses: [
+        {
+          id: `${data.key}-legacy`,
+          key: data.key,
+          operator: data.operator,
+          value: data.value,
+        },
+      ],
+    },
+  ];
+};
+
+/** The same upgrade for a Set saved with a single key/value pair. */
+export const normalizeSetEntries = (data: SetVariableNodeData): SetEntry[] => {
+  if (data.variables?.length) return data.variables;
+  if (!data.key) return [];
+  return [{ id: `${data.key}-legacy`, key: data.key, value: data.value }];
+};
+
+/**
+ * Fallback ports contributed by a listening step's toggles. Appended after a
+ * step's own ports so enabling one never renumbers the wires already drawn.
+ */
+export const fallbackPorts = (
+  data: ListenFallbacks
+): Array<{ id: string; label: string }> => {
+  const ports: Array<{ id: string; label: string }> = [];
+  if (data.noMatch) ports.push({ id: NO_MATCH_PORT, label: 'no match' });
+  if (data.noReply) ports.push({ id: NO_REPLY_PORT, label: 'no reply' });
+  return ports;
+};
 
 /** Node types that run an agent turn and can carry exit conditions. */
 export const isAgentStepType = (type: NodeType) =>
@@ -422,42 +599,77 @@ export const stepPorts = (step: BlockStep): Array<{ id: string; label: string }>
   }
 
   switch (step.type) {
-    case 'condition':
-      return [
-        { id: 'true', label: 'true' },
-        { id: 'false', label: 'false' },
-      ];
+    case 'condition': {
+      const data = step.data as ConditionNodeData;
+      const paths = normalizeConditionPaths(data).map((path, index) => ({
+        id: path.id,
+        label: path.name.trim() || `Path ${index + 1}`,
+      }));
+      if (data.elsePath) paths.push({ id: ELSE_PORT, label: 'else' });
+      return paths;
+    }
     case 'function':
       return ((step.data as FunctionNodeData).paths ?? []).map((path) => ({
         id: path.id,
         label: path.name,
       }));
+    case 'javascript': {
+      const data = step.data as JavascriptNodeData;
+      if (data.paths?.length) {
+        const paths = data.paths.map((path) => ({
+          id: path.id,
+          label: path.name,
+        }));
+        if (data.failurePath) paths.push({ id: FAILURE_PORT, label: 'error' });
+        return paths;
+      }
+      return [
+        { id: 'success', label: 'ok' },
+        { id: 'fail', label: 'error' },
+      ];
+    }
     case 'api':
-    case 'javascript':
+    case 'integration':
+    case 'mcp':
     case 'tool':
       return [
         { id: 'success', label: 'ok' },
         { id: 'fail', label: 'error' },
       ];
-    case 'buttons':
-      return ((step.data as ButtonsNodeData).buttons ?? []).map((b) => ({
-        id: b.id,
-        label: b.label,
-      }));
+    case 'buttons': {
+      const data = step.data as ButtonsNodeData;
+      return [
+        ...(data.buttons ?? []).map((b) => ({ id: b.id, label: b.label })),
+        ...fallbackPorts(data),
+      ];
+    }
     case 'choice':
       return ((step.data as ChoiceNodeData).choices ?? []).map((c) => ({
         id: c.id,
         label: c.label,
       }));
-    case 'card':
-      return ((step.data as CardNodeData).buttons ?? []).map((b) => ({
-        id: b.id,
-        label: b.label,
-      }));
-    case 'carousel':
-      return ((step.data as CarouselNodeData).cards ?? []).flatMap((card) =>
-        card.buttons.map((b) => ({ id: b.id, label: b.label }))
-      );
+    case 'listen':
+      return fallbackPorts(step.data as ListenNodeData);
+    case 'card': {
+      const data = step.data as CardNodeData;
+      return [
+        ...(data.buttons ?? []).map((b) => ({ id: b.id, label: b.label })),
+        ...fallbackPorts(data),
+      ];
+    }
+    case 'carousel': {
+      const data = step.data as CarouselNodeData;
+      return [
+        ...(data.cards ?? []).flatMap((card) =>
+          card.buttons.map((b) => ({ id: b.id, label: b.label }))
+        ),
+        ...fallbackPorts(data),
+      ];
+    }
+    case 'message': {
+      const data = step.data as MessageNodeData;
+      return data.waitForUserInput ? fallbackPorts(data) : [];
+    }
     default:
       return [];
   }

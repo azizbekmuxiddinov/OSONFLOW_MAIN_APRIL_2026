@@ -1,4 +1,5 @@
-import { Handle, Position } from 'reactflow';
+import NodeText from './NodeText';
+import SourceHandle from './SourceHandle';
 
 export type NodePort = {
   id: string;
@@ -20,11 +21,11 @@ const NodePorts = ({ ports }: { ports: NodePort[] }) => {
     <div className="node-ports">
       {ports.map((port) => (
         <div key={port.id} className="node-button node-port-row">
-          <span>{port.label}</span>
-          <Handle
+          <span>
+            <NodeText text={port.label} />
+          </span>
+          <SourceHandle
             id={port.id}
-            type="source"
-            position={Position.Right}
             className="node-handle node-button-handle"
           />
         </div>

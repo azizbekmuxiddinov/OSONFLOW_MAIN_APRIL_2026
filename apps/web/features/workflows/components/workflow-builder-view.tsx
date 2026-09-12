@@ -61,6 +61,7 @@ import {
   type KbSearchNodeData,
   type MessageNodeData,
   type NodeData,
+  type NodeVisual,
   type NodeType,
   type PromptNodeData,
   type SetVariableNodeData,
@@ -74,15 +75,30 @@ import {
   type BlockNodeData,
   type BlockStep,
   type FunctionNodeData,
+  type ConditionClause,
+  type ConditionPath,
+  type EndNodeData,
+  type IntegrationNodeData,
+  type ListenFallbacks,
+  type ListenNodeData,
+  type McpNodeData,
+  type MessageMode,
+  type SetEntry,
   type WorkflowDefinition,
   type WorkflowEdgeData,
 } from "../lib/types"
 import {
   API_METHODS,
+  ELSE_PORT,
+  NO_MATCH_PORT,
+  NO_REPLY_PORT,
   isAgentStepType,
   isTerminalStepType,
+  normalizeConditionPaths,
+  normalizeSetEntries,
   stepPorts,
 } from "../lib/types"
+import { INTEGRATION_PROVIDERS } from "../lib/agent-config"
 import {
   validateWorkflow,
   type ValidationIssue,
@@ -93,6 +109,16 @@ import ImageNode from "../nodes/ImageNode"
 import CardNode from "../nodes/CardNode"
 import ButtonsNode from "../nodes/ButtonsNode"
 import CaptureNode from "../nodes/CaptureNode"
+import {
+  InspectorListRow,
+  InspectorListSection,
+  InspectorSection,
+  InspectorSegmented,
+  InspectorToggleRow,
+} from "./inspector-sections"
+import ListenNode from "../nodes/ListenNode"
+import IntegrationNode from "../nodes/IntegrationNode"
+import McpNode from "../nodes/McpNode"
 import ChoiceNode from "../nodes/ChoiceNode"
 import SetVariableNode from "../nodes/SetVariableNode"
 import ConditionNode from "../nodes/ConditionNode"
@@ -107,10 +133,18 @@ import FunctionNode from "../nodes/FunctionNode"
 import GenericStepNode from "../nodes/GenericStepNode"
 import AgentNode from "../nodes/AgentNode"
 import { NodeRenameContext } from "../nodes/NodeRenameContext"
+import { NodeToolbarContext } from "../nodes/NodeToolbarContext"
 import Icon, { type IconName } from "../nodes/StepIcon"
+import { useRouter } from "next/navigation"
 import RunPanel from "./run-panel"
+import ReplayPanel from "./replay-panel"
+import CodeEditorModal from "./code-editor-modal"
+import CodeField from "./code-field"
+import ColorSlider from "./color-slider"
+import { CodeEditorContext } from "../nodes/CodeEditorContext"
 import AgentEditor, { type AgentEditorToolSummary } from "./agent-editor"
 import { MessageEditorInput } from "./message-editor-input"
+import { RichTextField } from "./rich-text-field"
 import { VariableInput } from "./variable-input"
 import { collectWorkflowVariables } from "../lib/variable-tokens"
 
@@ -193,7 +227,22 @@ type DefinitionEdge = WorkflowDefinition["edges"][number]
 type JsonRecord = Record<string, unknown>
 type CategoryId = "agent" | "talk" | "listen" | "logic" | "dev"
 type ConnectCategoryId = CategoryId | "actions"
-type DrawerMode = "run" | "library" | "settings" | null
+type DrawerMode = "run" | "replay" | "library" | "settings" | null
+
+/** Per-node traffic for the canvas overlay, as `workflowAnalytics` returns it. */
+type NodeHeat = {
+  nodeId: string
+  entered: number
+  runsReached: number
+  stoppedHere: number
+  errors: number
+  reachRate: number
+  heat: number
+}
+
+/** Badge numbers stay short so they never widen the node they sit on. */
+const formatHeatCount = (value: number) =>
+  value >= 1000 ? `${Math.round(value / 100) / 10}k` : String(value)
 type MessageFormat = "bold" | "italic" | "underline" | "strike" | "link"
 type CanvasNavigationMode = "trackpad" | "mouse"
 
@@ -384,6 +433,9 @@ const nodeTypes = {
   component: ComponentNode,
   block: BlockNode,
   function: FunctionNode,
+  listen: ListenNode,
+  integration: IntegrationNode,
+  mcp: McpNode,
   ...genericNodeTypes,
 }
 
@@ -643,6 +695,13 @@ const colorOptions: Array<{ value: BlockColor; label: string; hex: string }> = [
   { value: "rose", label: "Rose", hex: "#cb627b" },
 ]
 
+/** Node colours are muted and mid-value, matching the --theme-* presets. */
+const NODE_SLIDER_S = 52
+const NODE_SLIDER_L = 58
+/** Lines sit on the canvas rather than on a card, so they carry more weight. */
+const EDGE_SLIDER_S = 72
+const EDGE_SLIDER_L = 52
+
 const DEFAULT_EDGE_COLOR = "#8b9495"
 /* Defaults retired by an earlier palette change. A saved edge carrying one of
    these was never a deliberate choice, so it is treated as unset and picks up
@@ -766,6 +825,13 @@ const stepsByCategory: Category[] = [
         category: "listen",
         icon: "capture",
       },
+      {
+        type: "listen",
+        label: "Listen",
+        description: "Wait for a reply and save all of it.",
+        category: "listen",
+        icon: "listen",
+      },
     ],
   },
   {
@@ -830,6 +896,20 @@ const stepsByCategory: Category[] = [
         icon: "api",
       },
       {
+        type: "integration",
+        label: "Integration",
+        description: "Run a connected provider tool.",
+        category: "dev",
+        icon: "integration",
+      },
+      {
+        type: "mcp",
+        label: "MCP",
+        description: "Call a tool on an MCP server.",
+        category: "dev",
+        icon: "mcp",
+      },
+      {
         type: "javascript",
         label: "JavaScript",
         description: "Run a JavaScript snippet.",
@@ -889,6 +969,90 @@ const connectCategories: ConnectCategory[] = [
   },
 ]
 
+/* --- step library -----------------------------------------------------
+   The library is one flat panel, not a rail of popovers. Its first group
+   swaps with the mode picker in the header: Scripted lists the steps that
+   send fixed content, Agentic lists the ones that hand a turn to a model.
+   Tools and Logic are shared by both modes and never change. */
+
+type PaletteMode = "scripted" | "agentic"
+
+type PaletteGroup = {
+  id: string
+  label: string
+  /** Only the leading group is swapped by the mode picker. */
+  modal?: boolean
+  steps: StepOption[]
+}
+
+const paletteStep = (
+  type: NodeType,
+  label: string,
+  icon: IconName,
+  description: string,
+  category: CategoryId
+): StepOption => ({ type, label, icon, description, category })
+
+const SCRIPTED_GROUP: PaletteGroup = {
+  id: "scripted",
+  label: "Scripted",
+  modal: true,
+  steps: [
+    paletteStep("message", "Message", "message", "Send a scripted message.", "talk"),
+    paletteStep("card", "Cards", "card", "Show an image, text, and buttons.", "talk"),
+    paletteStep("carousel", "Carousel", "carousel", "Show multiple scrollable cards.", "talk"),
+    paletteStep("buttons", "Buttons", "buttons", "Branch with clickable choices.", "listen"),
+    paletteStep("listen", "Listen", "listen", "Wait for a reply and save all of it.", "listen"),
+  ],
+}
+
+const AGENTIC_GROUP: PaletteGroup = {
+  id: "agentic",
+  label: "Agentic",
+  modal: true,
+  steps: [
+    paletteStep("playbook", "Playbook", "workflow", "Hand off to an agentic playbook with exit paths.", "agent"),
+    paletteStep("crew", "Crew", "crew", "Coordinate multiple AI workers mid-flow.", "agent"),
+  ],
+}
+
+const TOOLS_GROUP: PaletteGroup = {
+  id: "tools",
+  label: "Tools",
+  steps: [
+    paletteStep("api", "API", "api", "Make an HTTP request.", "dev"),
+    paletteStep("function", "Function", "function", "Execute a reusable function tool.", "dev"),
+    paletteStep("integration", "Integration", "integration", "Run a connected provider tool.", "dev"),
+    paletteStep("mcp", "MCP", "mcp", "Call a tool on an MCP server.", "dev"),
+  ],
+}
+
+const LOGIC_GROUP: PaletteGroup = {
+  id: "logic",
+  label: "Logic",
+  steps: [
+    paletteStep("setVariable", "Set", "set", "Set or update variables.", "logic"),
+    paletteStep("condition", "Condition", "condition", "Route by variable conditions.", "logic"),
+    paletteStep("operator", "Operator", "operator", "Run an AI operator inside deterministic logic.", "agent"),
+    paletteStep("javascript", "Code", "javascript", "Run a JavaScript snippet.", "dev"),
+    paletteStep("component", "Workflow", "workflow", "Run another workflow and come back.", "logic"),
+    paletteStep("end", "End", "end", "End the conversation.", "logic"),
+  ],
+}
+
+const paletteGroups = (mode: PaletteMode): PaletteGroup[] => [
+  mode === "agentic" ? AGENTIC_GROUP : SCRIPTED_GROUP,
+  TOOLS_GROUP,
+  LOGIC_GROUP,
+]
+
+const PALETTE_MODE_LABEL: Record<PaletteMode, string> = {
+  scripted: "Scripted",
+  agentic: "Agentic",
+}
+
+const PALETTE_MODE_STORAGE_KEY = "osonflow:workflow-palette-mode"
+
 const createId = (prefix: string) =>
   `${prefix}_${Math.random().toString(36).slice(2, 10)}`
 
@@ -913,7 +1077,15 @@ const createStarterGraph = () => {
 
 const initialGraph = createStarterGraph()
 
+/**
+ * The library entry for a step type. The palette groups are searched first so
+ * a step is named the way the library names it — Code, Workflow, Set — rather
+ * than by the older internal label the connect menu still carries.
+ */
 const getStepOption = (type: NodeType) =>
+  [SCRIPTED_GROUP, AGENTIC_GROUP, TOOLS_GROUP, LOGIC_GROUP]
+    .flatMap((group) => group.steps)
+    .find((step) => step.type === type) ??
   stepsByCategory
     .flatMap((category) => category.steps)
     .find((step) => step.type === type)
@@ -945,7 +1117,7 @@ const createNodeData = (type: NodeType): NodeData => {
     case "start":
       return { label: "Start" }
     case "message":
-      return { label: "Message", text: "" }
+      return { label: "Message", text: "", mode: "scripted", variants: [] }
     case "image":
       return { label: "Image", source: "upload", url: "", alt: "" }
     case "card":
@@ -976,6 +1148,18 @@ const createNodeData = (type: NodeType): NodeData => {
         variableKey: "lastInput",
         prompt: "Please reply with your answer.",
       }
+    /* Listen keeps the whole reply rather than matching it, so it needs no
+       prompt of its own — the step before it does the asking. */
+    case "listen":
+      return {
+        label: "Listen",
+        variableKey: "last_utterance",
+        listenOtherTriggers: true,
+      }
+    case "integration":
+      return { label: "Integration", toolName: "", outputVariable: "" }
+    case "mcp":
+      return { label: "MCP", toolName: "", outputVariable: "" }
     /*
      * Empty rather than "variable"/"value". Those read as placeholder text but
      * were real values, so a fresh Condition compared a variable literally
@@ -983,10 +1167,18 @@ const createNodeData = (type: NodeType): NodeData => {
      * saw a filled-in key and said nothing. Empty is what the checks can catch.
      */
     case "setVariable":
-      return { label: "Set Variable", key: "", value: "" }
+      return {
+        label: "Set Variable",
+        variables: [{ id: createId("set"), key: "", value: "" }],
+        properties: [],
+        key: "",
+        value: "",
+      }
     case "condition":
       return {
         label: "Condition",
+        paths: [{ id: createId("path"), name: "", clauses: [] }],
+        elsePath: false,
         key: "",
         operator: "equals",
         value: "",
@@ -1083,6 +1275,8 @@ const createNodeData = (type: NodeType): NodeData => {
         label: "JavaScript",
         code: "// variables holds the workflow state as strings.\n// Assign to it, or return an object, to set variables.\nreturn { greeting: `Hello ${variables.name ?? \"there\"}` };",
         outputVariables: [],
+        paths: [],
+        failurePath: false,
       }
     case "callForward":
       return {
@@ -1094,6 +1288,7 @@ const createNodeData = (type: NodeType): NodeData => {
       return {
         label: "End",
         description: "Conversation ended.",
+        message: "",
         accent: "logic",
       }
     default: {
@@ -1442,8 +1637,7 @@ const getPointerClientPoint = (
 const connectReleaseBlockerSelector = [
   ".top-actions",
   ".bottom-tools",
-  ".category-rail",
-  ".step-popover",
+  ".step-library",
   ".canvas-navigation-panel",
   ".node-action-menu",
   ".collaboration-strip",
@@ -1549,6 +1743,7 @@ export const WorkflowBuilderView = ({
   initialWorkflowId?: string
 }) => {
   const { userId } = useAuth()
+  const router = useRouter()
   const {
     organization,
     memberships: organizationMemberships,
@@ -1604,7 +1799,6 @@ export const WorkflowBuilderView = ({
   const lastCursorSentAtRef = useRef(0)
   const selectedNodeIdRef = useRef<string | null>(null)
   const nodesRef = useRef<WorkflowNode[]>([])
-  const categoryCloseTimerRef = useRef<number | null>(null)
   const runLaunchTimerRef = useRef<number | null>(null)
   const loadedWorkflowRef = useRef<string | null>(null)
   /**
@@ -1645,7 +1839,7 @@ export const WorkflowBuilderView = ({
     "Route users through deterministic steps with agent handoffs where needed."
   )
   const [presenceNow, setPresenceNow] = useState(() => Date.now())
-  const [status, setStatus] = useState<string>("Ready.")
+  const [, setStatus] = useState<string>("Ready.")
   const [isSavingWorkflow, setIsSavingWorkflow] = useState(false)
   const [isPublishingWorkflow, setIsPublishingWorkflow] = useState(false)
   const [isDeactivatingWorkflow, setIsDeactivatingWorkflow] = useState(false)
@@ -1659,7 +1853,7 @@ export const WorkflowBuilderView = ({
     nodeId: string
     stepId: string
   } | null>(null)
-  const [activeCategory, setActiveCategory] = useState<CategoryId | null>(null)
+  const [paletteMode, setPaletteMode] = useState<PaletteMode>("scripted")
   const [drawerMode, setDrawerMode] = useState<DrawerMode>(null)
   const [nodeMenu, setNodeMenu] = useState<NodeActionMenuState | null>(null)
   const [inspectorMenuOpen, setInspectorMenuOpen] = useState(false)
@@ -1681,6 +1875,15 @@ export const WorkflowBuilderView = ({
   const [isRunLaunching, setIsRunLaunching] = useState(false)
   const [runActiveNodeId, setRunActiveNodeId] = useState<string | null>(null)
   const [runWaitingNodeId, setRunWaitingNodeId] = useState<string | null>(null)
+  /**
+   * Traffic overlay. Off by default: the heat tint competes with the step
+   * accents, so it is something you switch on to answer a question rather than
+   * a permanent state of the canvas.
+   */
+  const [heatmapOn, setHeatmapOn] = useState(false)
+  const [publishMenuOpen, setPublishMenuOpen] = useState(false)
+  /** Node whose code is open in the full-window editor, if any. */
+  const [codeEditorNodeId, setCodeEditorNodeId] = useState<string | null>(null)
   const [viewportVersion, setViewportVersion] = useState(0)
   const [canvasViewport, setCanvasViewport] = useState<Viewport>(
     DEFAULT_CANVAS_VIEWPORT
@@ -1701,9 +1904,19 @@ export const WorkflowBuilderView = ({
     workflowId ? { workflowId, now: presenceNow } : "skip"
   ) as WorkflowPresenceMember[] | undefined
   const library = workflowList ?? []
-  const currentWorkflowIsActive = Boolean(
-    workflowId &&
-    library.some((workflow) => workflow.id === workflowId && workflow.isActive)
+  const currentWorkflowSummary = workflowId
+    ? (library.find((workflow) => workflow.id === workflowId) ?? null)
+    : null
+  const currentWorkflowIsActive = Boolean(currentWorkflowSummary?.isActive)
+  /**
+   * The dot on Publish. Live sync bumps `updatedAt` on every edit and publish
+   * stamps `publishedAt`, so comparing them is enough to say whether what is
+   * live has fallen behind the canvas — no local diffing required.
+   */
+  const hasUnpublishedChanges = Boolean(
+    currentWorkflowSummary &&
+      (!currentWorkflowSummary.publishedAt ||
+        currentWorkflowSummary.updatedAt > currentWorkflowSummary.publishedAt)
   )
   const visiblePresenceMembers = (presenceMembers ?? []).slice(0, 3)
   const hiddenPresenceCount = Math.max(0, (presenceMembers?.length ?? 0) - 3)
@@ -1741,17 +1954,6 @@ export const WorkflowBuilderView = ({
     organizationMemberships?.count ?? organizationCollaborators.length
   const isTrackpadNavigation = canvasNavigationMode === "trackpad"
 
-  const activeCategoryConfig = useMemo(
-    () =>
-      activeCategory
-        ? (stepsByCategory.find((category) => category.id === activeCategory) ??
-          null)
-        : null,
-    [activeCategory]
-  )
-  const activeCategoryIndex = stepsByCategory.findIndex(
-    (category) => category.id === activeCategory
-  )
   const renderedNodeTypes = useMemo(() => nodeTypes, [])
   const renderedEdgeTypes = useMemo(() => edgeTypes, [])
 
@@ -1784,11 +1986,43 @@ export const WorkflowBuilderView = ({
     return selections
   }, [presenceMembers])
 
+  const nodeStats = useQuery(
+    api.private.workflowAnalytics.getNodeStats,
+    heatmapOn && workflowId ? { workflowId } : "skip"
+  )
+
+  const heatByNodeId = useMemo(() => {
+    const byId = new Map<string, NodeHeat>()
+
+    if (!heatmapOn || !nodeStats) {
+      return byId
+    }
+
+    for (const entry of nodeStats.nodes) {
+      byId.set(entry.nodeId, entry)
+    }
+
+    return byId
+  }, [heatmapOn, nodeStats])
+
   const renderedNodes = useMemo(() => {
+    /*
+     * A hand-picked colour is stored on the node itself, unlike every other
+     * condition here, which is transient canvas state. It has to be part of
+     * this guard or the fast path below hands back untouched nodes on an
+     * ordinary canvas — no collaborators, no run, no heatmap — and the colour
+     * silently never reaches the card.
+     */
+    const hasCustomColor = nodes.some(
+      (node) => (node.data as NodeVisual | undefined)?.customColor
+    )
+
     if (
       remoteSelectionByNodeId.size === 0 &&
       !runActiveNodeId &&
-      !runWaitingNodeId
+      !runWaitingNodeId &&
+      heatByNodeId.size === 0 &&
+      !hasCustomColor
     ) {
       return nodes
     }
@@ -1801,14 +2035,31 @@ export const WorkflowBuilderView = ({
           : node.id === runActiveNodeId
             ? "node-run-active"
             : ""
+      const heat = heatByNodeId.get(node.id)
+      const customColor = (node.data as NodeVisual | undefined)?.customColor
 
-      if (!selection && !runClass) {
+      if (!selection && !runClass && !heat && !customColor) {
         return node
       }
 
+      // A step no run has reached is dimmed rather than tinted: on a big flow
+      // the dead branches are the finding, and they only stand out if the
+      // travelled path is the part carrying colour.
+      const heatClass = heat
+        ? heat.runsReached === 0
+          ? "node-heat node-heat-cold"
+          : `node-heat${heat.stoppedHere > 0 ? " node-heat-drop" : ""}`
+        : ""
+
       return {
         ...node,
-        className: [node.className, selection ? "remote-selected-node" : "", runClass]
+        className: [
+          node.className,
+          selection ? "remote-selected-node" : "",
+          runClass,
+          heatClass,
+          customColor ? "node-has-custom-color" : "",
+        ]
           .filter(Boolean)
           .join(" "),
         style: {
@@ -1816,14 +2067,38 @@ export const WorkflowBuilderView = ({
           ...(selection
             ? ({ "--remote-selection-color": selection.color } as CSSProperties)
             : null),
+          ...(customColor
+            ? ({ "--custom-accent": customColor } as CSSProperties)
+            : null),
+          ...(heat
+            ? ({
+                "--heat": heat.heat.toFixed(3),
+                // Quoted because these are read straight back out by `content`.
+                "--heat-label": `"${formatHeatCount(heat.runsReached)}"`,
+                "--drop-label": `"${formatHeatCount(heat.stoppedHere)} left"`,
+              } as CSSProperties)
+            : null),
         } as CSSProperties,
       }
     })
-  }, [nodes, remoteSelectionByNodeId, runActiveNodeId, runWaitingNodeId])
+  }, [
+    heatByNodeId,
+    nodes,
+    remoteSelectionByNodeId,
+    runActiveNodeId,
+    runWaitingNodeId,
+  ])
 
   const menuNode = useMemo(
     () => nodes.find((node) => node.id === nodeMenu?.nodeId) ?? null,
     [nodes, nodeMenu?.nodeId]
+  )
+  const codeEditorNode = useMemo(
+    () =>
+      codeEditorNodeId
+        ? (nodes.find((node) => node.id === codeEditorNodeId) ?? null)
+        : null,
+    [codeEditorNodeId, nodes]
   )
   const menuEdge = useMemo(
     () => edges.find((edge) => edge.id === edgeMenu?.edgeId) ?? null,
@@ -1837,56 +2112,18 @@ export const WorkflowBuilderView = ({
     [connectMenu?.activeCategory]
   )
 
-  const clearCategoryCloseTimer = useCallback(() => {
-    if (categoryCloseTimerRef.current !== null) {
-      window.clearTimeout(categoryCloseTimerRef.current)
-      categoryCloseTimerRef.current = null
+  /* The library panel is always open, so the mode picker is the only thing
+     worth remembering between visits. */
+  useEffect(() => {
+    const stored = window.localStorage.getItem(PALETTE_MODE_STORAGE_KEY)
+    if (stored === "scripted" || stored === "agentic") {
+      setPaletteMode(stored)
     }
   }, [])
-
-  const showCategory = useCallback(
-    (categoryId: CategoryId) => {
-      clearCategoryCloseTimer()
-      setActiveCategory(categoryId)
-    },
-    [clearCategoryCloseTimer]
-  )
-
-  const scheduleCategoryClose = useCallback(() => {
-    if (categoryCloseTimerRef.current !== null) {
-      return
-    }
-
-    categoryCloseTimerRef.current = window.setTimeout(() => {
-      setActiveCategory(null)
-      categoryCloseTimerRef.current = null
-    }, 90)
-  }, [])
-
-  useEffect(() => clearCategoryCloseTimer, [clearCategoryCloseTimer])
 
   useEffect(() => {
-    if (!activeCategory) {
-      return
-    }
-
-    const handlePalettePointerMove = (event: PointerEvent) => {
-      const target = event.target as Element | null
-
-      if (target?.closest(".category-rail, .step-popover")) {
-        clearCategoryCloseTimer()
-        return
-      }
-
-      scheduleCategoryClose()
-    }
-
-    window.addEventListener("pointermove", handlePalettePointerMove, true)
-
-    return () => {
-      window.removeEventListener("pointermove", handlePalettePointerMove, true)
-    }
-  }, [activeCategory, clearCategoryCloseTimer, scheduleCategoryClose])
+    window.localStorage.setItem(PALETTE_MODE_STORAGE_KEY, paletteMode)
+  }, [paletteMode])
 
   useEffect(() => {
     const shellRect = builderShellRef.current?.getBoundingClientRect()
@@ -2069,24 +2306,30 @@ export const WorkflowBuilderView = ({
     const inset = readShellLength("--panel-inset", 14)
     const panel = readShellLength("--panel-w", DEFAULT_PANEL_WIDTH)
 
-    // The step rail down the left, plus a little air.
-    const left = 96
+    // The step rail down the left, plus a little air. During a run the rail
+    // slides away, so the canvas the run centres steps in gets that back.
+    const left =
+      drawerMode === "run" || drawerMode === "replay" ? 28 : 96
     // The inspector and the run chat both dock right at the same width; when
     // both are open they sit side by side. The shell already carries a class
     // for the open inspector, so read that rather than depend on state that is
     // derived further down the component.
     const dockedPanels =
       (shell?.classList.contains("inspector-open") ? 1 : 0) +
-      (drawerMode === "run" ? 1 : 0)
+      (drawerMode === "run" || drawerMode === "replay" ? 1 : 0)
     const right = Math.max(
       left + 240,
       shellWidth - dockedPanels * (panel + inset) - inset
     )
-    const top = 84
+    // Room for the toolbar, which lifts away once a run is on screen.
+    const top =
+      drawerMode === "run" || drawerMode === "replay" ? 28 : 84
     const bottom = Math.max(
       top + 180,
       shellHeight -
-        (drawerMode === "run" ? readShellLength("--dock-h", 264) + inset : 0) -
+        (drawerMode === "run" || drawerMode === "replay"
+          ? readShellLength("--dock-h", 264) + inset
+          : 0) -
         70
     )
 
@@ -2246,7 +2489,11 @@ export const WorkflowBuilderView = ({
   useEffect(() => {
     const focusId = runWaitingNodeId ?? runActiveNodeId
 
-    if (!focusId || !reactFlow || drawerMode !== "run") {
+    if (
+      !focusId ||
+      !reactFlow ||
+      (drawerMode !== "run" && drawerMode !== "replay")
+    ) {
       return
     }
 
@@ -3069,8 +3316,6 @@ export const WorkflowBuilderView = ({
       )
       setStatus(`${getStepOption(type)?.label ?? "Step"} added and connected.`)
     }
-
-    setActiveCategory(null)
   }
 
   const connectToNewNode = (type: NodeType) => {
@@ -3544,6 +3789,7 @@ export const WorkflowBuilderView = ({
     closeInspector()
     setNavigationPanelOpen(false)
     setCollaboratorsPanelOpen(false)
+    setPublishMenuOpen(false)
   }, [closeInspector])
 
   const handlePaneContextMenu = useCallback(
@@ -3586,12 +3832,24 @@ export const WorkflowBuilderView = ({
   )
 
   const setBlockColor = (nodeId: string, color: BlockColor) => {
-    patchNodeData(nodeId, { blockColor: color })
+    // A preset supersedes a hand-picked hue; leaving both set would mean two
+    // colours competing for the same card.
+    patchNodeData(nodeId, { blockColor: color, customColor: undefined })
     setStatus("Block color updated.")
     setNodeMenu(null)
   }
 
-  const setEdgeColor = (edgeId: string, color: string) => {
+  /** Dragging must not close the menu the slider lives in. */
+  const setBlockCustomColor = (nodeId: string, customColor: string) => {
+    patchNodeData(nodeId, { customColor })
+    setStatus("Block color updated.")
+  }
+
+  const setEdgeColor = (
+    edgeId: string,
+    color: string,
+    { close = true }: { close?: boolean } = {}
+  ) => {
     setEdges((next) =>
       next.map((edge) =>
         edge.id === edgeId
@@ -3604,7 +3862,10 @@ export const WorkflowBuilderView = ({
       )
     )
     setStatus("Line color updated.")
-    setEdgeMenu(null)
+
+    if (close) {
+      setEdgeMenu(null)
+    }
   }
 
   const submitEdgeLabel = (event: FormEvent<HTMLFormElement>) => {
@@ -4630,35 +4891,14 @@ export const WorkflowBuilderView = ({
     }
   }
 
-  const handleNew = () => {
-    const graph = createStarterGraph()
-    setNodes(graph.nodes)
-    setEdges(graph.edges)
-    clearSelectedNode()
-    setWorkflowId(null)
-    setLoadWorkflowId(null)
-    syncWorkflowUrl(null)
-    loadedWorkflowRef.current = null
-    hasLoadedWorkflowRef.current = false
-    latestDefinitionRef.current = null
-    lastSyncedDefinitionRef.current = null
-    liveSyncInFlightRef.current = false
-    pendingLiveSyncRef.current = false
-    lastRemoteUpdatedAtRef.current = 0
-    lastFlowCursorRef.current = null
-    if (liveSyncTimerRef.current !== null) {
-      window.clearTimeout(liveSyncTimerRef.current)
-      liveSyncTimerRef.current = null
-    }
-    setWorkflowName("Untitled workflow")
-    setWorkflowDescription("")
-    setStatus("New draft created.")
-    setDrawerMode(null)
-    setNodeMenu(null)
-    setCanvasMenu(null)
-    setEdgeMenu(null)
-    setConnectMenu(null)
-    setCollaboratorsPanelOpen(false)
+  /**
+   * Leaves the builder for the workflow list. The live sync runs on a short
+   * debounce, so anything typed in the last moment is flushed first rather
+   * than left behind in a timer that is about to be unmounted.
+   */
+  const handleExit = () => {
+    flushLiveSyncRef.current?.()
+    router.push("/workflows")
   }
 
   const handleLoad = (id: Id<"workflows">) => {
@@ -4926,10 +5166,81 @@ export const WorkflowBuilderView = ({
     "builder-shell",
     inspectorOpen ? "inspector-open" : "",
     drawerMode ? "drawer-open" : "",
-    drawerMode === "run" ? "run-drawer-open" : "",
+    drawerMode === "run" || drawerMode === "replay" ? "run-drawer-open" : "",
   ]
     .filter(Boolean)
     .join(" ")
+
+  /**
+   * The fallback switches shared by every listening step. Turning one off has
+   * to drop the wire that left through its port, otherwise the edge survives
+   * pointing at a handle the node no longer renders.
+   */
+  const renderFallbackToggles = <T extends ListenFallbacks>(
+    nodeId: string,
+    data: T,
+    apply: (next: T) => void,
+    show: { noMatch?: boolean; noReply?: boolean; triggers?: boolean } = {}
+  ) => {
+    const showNoMatch = show.noMatch !== false
+    const showNoReply = show.noReply !== false
+    const showTriggers = show.triggers !== false
+
+    const setFlag = (key: keyof ListenFallbacks, value: boolean) => {
+      const next = { ...data, [key]: value }
+      apply(next)
+
+      if (!value && (key === "noMatch" || key === "noReply")) {
+        const port = key === "noMatch" ? NO_MATCH_PORT : NO_REPLY_PORT
+        setEdges((edges) =>
+          edges.filter(
+            (edge) => edge.source !== nodeId || edge.sourceHandle !== port
+          )
+        )
+      }
+    }
+
+    return (
+      <>
+        {showNoMatch ? (
+          <InspectorToggleRow
+            label="No match"
+            checked={Boolean(data.noMatch)}
+            onChange={(next) => setFlag("noMatch", next)}
+          />
+        ) : null}
+        {showNoReply ? (
+          <InspectorToggleRow
+            label="No reply"
+            checked={Boolean(data.noReply)}
+            onChange={(next) => setFlag("noReply", next)}
+          />
+        ) : null}
+        {showTriggers ? (
+          <InspectorToggleRow
+            label="Listen for other triggers"
+            checked={data.listenOtherTriggers !== false}
+            onChange={(next) => setFlag("listenOtherTriggers", next)}
+          />
+        ) : null}
+      </>
+    )
+  }
+
+  /** Opens the node menu under the hover toolbar's options button. */
+  const openNodeMenuFromToolbar = useCallback(
+    (nodeId: string, position: { x: number; y: number }) => {
+      setNodeMenu({
+        nodeId,
+        x: position.x,
+        y: position.y,
+        colorOpen: true,
+        renaming: false,
+        renameValue: "",
+      })
+    },
+    []
+  )
 
   const renderInspectorActions = (node: WorkflowNode) => (
     <div
@@ -4965,50 +5276,44 @@ export const WorkflowBuilderView = ({
       ref={builderShellRef}
       style={{ "--panel-w": `${panelWidth}px` } as CSSProperties}
     >
-      <aside className="category-rail" aria-label="Step categories">
-        {stepsByCategory.map((category) => (
-          <button
-            key={category.id}
-            className={`category-tab ${activeCategory === category.id ? "active" : ""}`}
-            onClick={() => showCategory(category.id)}
-            onFocus={() => showCategory(category.id)}
-            onMouseEnter={() => showCategory(category.id)}
-            onMouseLeave={scheduleCategoryClose}
-            title={category.label}
-          >
-            <Icon name={category.icon} size={28} />
-            <span>{category.label}</span>
-          </button>
+      <aside className="step-library" aria-label="Step library">
+        {paletteGroups(paletteMode).map((group) => (
+          <div className="step-group" key={group.id}>
+            {group.modal ? (
+              <button
+                type="button"
+                className="step-group-heading step-group-mode"
+                onClick={() =>
+                  setPaletteMode((current) =>
+                    current === "scripted" ? "agentic" : "scripted"
+                  )
+                }
+                aria-label={`Step mode: ${PALETTE_MODE_LABEL[paletteMode]}. Switch mode.`}
+              >
+                <span>{PALETTE_MODE_LABEL[paletteMode]}</span>
+                <Icon name="chevronDown" size={14} />
+              </button>
+            ) : (
+              <p className="step-group-heading">
+                <span>{group.label}</span>
+              </p>
+            )}
+            {group.steps.map((step) => (
+              <button
+                key={`${group.id}-${step.type}`}
+                className="step-option"
+                draggable
+                onDragStart={(event) => onStepDragStart(event, step)}
+                onClick={() => addStepFromLibrary(step.type)}
+                title={`${step.description} — click to add, or drag onto the canvas`}
+              >
+                <Icon name={step.icon} size={20} />
+                <span>{step.label}</span>
+              </button>
+            ))}
+          </div>
         ))}
       </aside>
-
-      {activeCategoryConfig && (
-        <section
-          className="step-popover"
-          aria-label={`${activeCategoryConfig.label} steps`}
-          style={
-            {
-              "--popover-top": `${8 + Math.max(activeCategoryIndex, 0) * 70}px`,
-            } as CSSProperties
-          }
-          onMouseEnter={clearCategoryCloseTimer}
-          onMouseLeave={scheduleCategoryClose}
-        >
-          {activeCategoryConfig.steps.map((step) => (
-            <button
-              key={step.type}
-              className="step-option"
-              draggable
-              onDragStart={(event) => onStepDragStart(event, step)}
-              onClick={() => addStepFromLibrary(step.type)}
-              title={`${step.description} — click to add, or drag onto the canvas`}
-            >
-              <Icon name={step.icon} size={22} />
-              <span>{step.label}</span>
-            </button>
-          ))}
-        </section>
-      )}
 
       <div className="top-bar">
       <div className="collaboration-strip" aria-label="Workflow collaborators">
@@ -5127,32 +5432,8 @@ export const WorkflowBuilderView = ({
 
 
       <div className="top-actions" aria-label="Workflow actions">
-        <input
-          className="workflow-name-input"
-          value={workflowName}
-          title={workflowName}
-          placeholder="Untitled workflow"
-          aria-label="Workflow name"
-          onChange={(event) => setWorkflowName(event.target.value)}
-          onBlur={() =>
-            setWorkflowName((current) => current.trim() || "Untitled workflow")
-          }
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.currentTarget.blur()
-            }
-          }}
-        />
         <button
-          className="round-button"
-          onClick={handleNew}
-          title="New workflow"
-          aria-label="New workflow"
-        >
-          <Icon name="plus" size={20} />
-        </button>
-        <button
-          className={`toolbar-button run ${isRunLaunching ? "loading" : ""}`}
+          className={`action-button run ${isRunLaunching ? "loading" : ""}`}
           onClick={handleRun}
           aria-label="Run"
           aria-busy={isRunLaunching}
@@ -5164,61 +5445,84 @@ export const WorkflowBuilderView = ({
           )}
           <span>{isRunLaunching ? "Running" : "Run"}</span>
         </button>
-        <button
-          className="toolbar-button"
-          disabled={
-            isSavingWorkflow || isPublishingWorkflow || isDeactivatingWorkflow
-          }
-          onClick={() => void handleSave()}
-          aria-label="Save"
-          aria-busy={isSavingWorkflow}
-        >
-          {isSavingWorkflow ? (
-            <i className="button-spinner" aria-hidden />
-          ) : (
-            <Icon name="publish" size={18} />
-          )}
-          <span>{isSavingWorkflow ? "Saving" : "Save"}</span>
-        </button>
-        <button
-          className="toolbar-button primary"
-          disabled={
-            isSavingWorkflow || isPublishingWorkflow || isDeactivatingWorkflow
-          }
-          onClick={() => void handlePublish()}
-          aria-label="Publish"
-          aria-busy={isPublishingWorkflow}
-        >
-          {isPublishingWorkflow ? (
-            <i className="button-spinner" aria-hidden />
-          ) : (
-            <Icon name="check" size={18} />
-          )}
-          <span>{isPublishingWorkflow ? "Publishing" : "Publish"}</span>
-        </button>
-        {currentWorkflowIsActive && (
+
+        {/* Publish is a split control: the face publishes, the chevron opens
+            the quieter actions that used to have their own toolbar buttons. */}
+        <div className="publish-split">
           <button
-            className="toolbar-button danger"
+            className="action-button publish"
             disabled={
               isSavingWorkflow || isPublishingWorkflow || isDeactivatingWorkflow
             }
-            onClick={handleDeactivate}
-            aria-label="Deactivate workflow"
-            aria-busy={isDeactivatingWorkflow}
+            onClick={() => void handlePublish()}
+            aria-label="Publish"
+            aria-busy={isPublishingWorkflow}
           >
-            {isDeactivatingWorkflow ? (
+            {isPublishingWorkflow ? (
               <i className="button-spinner" aria-hidden />
             ) : (
-              <Icon name="close" size={18} />
+              <Icon name="publish" size={18} />
             )}
-            <span>
-              {isDeactivatingWorkflow ? "Deactivating" : "Deactivate"}
-            </span>
+            <span>{isPublishingWorkflow ? "Publishing" : "Publish"}</span>
           </button>
-        )}
-        <span className="workflow-status-pill" aria-live="polite">
-          {status}
-        </span>
+          <button
+            className="action-button publish publish-more"
+            disabled={
+              isSavingWorkflow || isPublishingWorkflow || isDeactivatingWorkflow
+            }
+            title="More publish options"
+            aria-label="More publish options"
+            aria-expanded={publishMenuOpen}
+            onClick={() => setPublishMenuOpen((current) => !current)}
+          >
+            <Icon name="chevronDown" size={16} />
+          </button>
+          {hasUnpublishedChanges && (
+            <span
+              className="publish-dot"
+              title="This workflow has changes that are not live yet"
+              aria-hidden
+            />
+          )}
+          {publishMenuOpen && (
+            <div className="publish-menu" role="menu">
+              <button
+                type="button"
+                role="menuitem"
+                disabled={isSavingWorkflow}
+                onClick={() => {
+                  setPublishMenuOpen(false)
+                  void handleSave()
+                }}
+              >
+                Save draft
+              </button>
+              {currentWorkflowIsActive && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="danger"
+                  disabled={isDeactivatingWorkflow}
+                  onClick={() => {
+                    setPublishMenuOpen(false)
+                    handleDeactivate()
+                  }}
+                >
+                  Take offline
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        <button
+          className="action-button close"
+          onClick={handleExit}
+          title="Close and go back to your workflows"
+          aria-label="Close workflow"
+        >
+          <Icon name="close" size={18} />
+        </button>
       </div>
       </div>
 
@@ -5327,6 +5631,8 @@ export const WorkflowBuilderView = ({
       >
         <BlockStepSelectionContext.Provider value={blockStepSelectionValue}>
         <NodeRenameContext.Provider value={renameNodeInline}>
+        <NodeToolbarContext.Provider value={openNodeMenuFromToolbar}>
+        <CodeEditorContext.Provider value={setCodeEditorNodeId}>
           <ReactFlow
             nodes={renderedNodes}
             edges={edges}
@@ -5374,6 +5680,8 @@ export const WorkflowBuilderView = ({
               color={CANVAS_DOT_COLOR}
             />
           </ReactFlow>
+        </CodeEditorContext.Provider>
+        </NodeToolbarContext.Provider>
         </NodeRenameContext.Provider>
         </BlockStepSelectionContext.Provider>
       </main>
@@ -5435,6 +5743,36 @@ export const WorkflowBuilderView = ({
         >
           <Icon name="navigation" size={19} />
         </button>
+        <button
+          className={heatmapOn ? "active" : ""}
+          title={
+            workflowId
+              ? "Show how many conversations reached each step"
+              : "Save this workflow to see its traffic."
+          }
+          aria-label="Show traffic"
+          aria-pressed={heatmapOn}
+          disabled={!workflowId}
+          onClick={() => setHeatmapOn((current) => !current)}
+        >
+          <Icon name="heat" size={19} />
+        </button>
+        <button
+          className={drawerMode === "replay" ? "active" : ""}
+          title={
+            workflowId
+              ? "Replay real conversations on this canvas"
+              : "Save this workflow to replay conversations."
+          }
+          aria-label="Real conversations"
+          disabled={!workflowId}
+          onClick={() =>
+            setDrawerMode((current) => (current === "replay" ? null : "replay"))
+          }
+        >
+          <Icon name="replay" size={19} />
+        </button>
+        <span className="bottom-tools-divider" aria-hidden />
         <button
           title="Workflow settings"
           onClick={() => setDrawerMode("settings")}
@@ -5658,6 +5996,15 @@ export const WorkflowBuilderView = ({
 
           {edgeMenu.colorOpen && (
             <div className="edge-menu-colors" aria-label="Line color options">
+              <ColorSlider
+                label="Line color"
+                value={resolveEdgeColor(menuEdge.data?.color)}
+                saturation={EDGE_SLIDER_S}
+                lightness={EDGE_SLIDER_L}
+                onChange={(hex) =>
+                  setEdgeColor(menuEdge.id, hex, { close: false })
+                }
+              />
               {edgeColorOptions.map((color) => (
                 <button
                   key={color.value}
@@ -5789,12 +6136,29 @@ export const WorkflowBuilderView = ({
 
           {nodeMenu.colorOpen && (
             <div className="node-menu-colors" aria-label="Block color options">
+              <ColorSlider
+                label="Block color"
+                value={
+                  (menuNode.data as NodeVisual).customColor ??
+                  (colorOptions.find(
+                    (option) => option.value === menuNode.data.blockColor
+                  )?.hex ??
+                    colorOptions[0]!.hex)
+                }
+                saturation={NODE_SLIDER_S}
+                lightness={NODE_SLIDER_L}
+                onChange={(hex) => setBlockCustomColor(menuNode.id, hex)}
+              />
               {colorOptions.map((color) => (
                 <button
                   key={color.value}
                   className={`color-swatch ${
-                    menuNode.data.blockColor === color.value ||
-                    (!menuNode.data.blockColor && color.value === "default")
+                    // A slider colour is in force instead of any preset, so
+                    // none of them may keep the ring — otherwise the menu
+                    // claims "default" is still chosen while the card is not.
+                    !(menuNode.data as NodeVisual).customColor &&
+                    (menuNode.data.blockColor === color.value ||
+                      (!menuNode.data.blockColor && color.value === "default"))
                       ? "selected"
                       : ""
                   }`}
@@ -5994,6 +6358,22 @@ export const WorkflowBuilderView = ({
                     <h2>Message</h2>
                     {renderInspectorActions(selectedNode)}
                   </div>
+                  <InspectorSection>
+                    <InspectorSegmented
+                      label="Message source"
+                      value={data.mode ?? "scripted"}
+                      options={[
+                        { value: "scripted" as MessageMode, label: "Scripted" },
+                        { value: "prompt" as MessageMode, label: "Prompt" },
+                      ]}
+                      onChange={(mode) =>
+                        updateInspectorData({
+                          ...(inspectorData as MessageNodeData),
+                          mode,
+                        })
+                      }
+                    />
+                  </InspectorSection>
                   <div className="message-compose-area">
                     <div
                       className="message-editor-toolbar"
@@ -6094,20 +6474,109 @@ export const WorkflowBuilderView = ({
                         <Icon name="link" size={16} />
                       </button>
                     </div>
-                    <MessageEditorInput
-                      nodeId={selectedNode.id}
-                      value={data.text ?? ""}
-                      placeholder="Enter message"
-                      ariaLabel="Message"
-                      variables={workflowVariables}
-                      onSync={(_nodeId, html) =>
+                    {(data.mode ?? "scripted") === "prompt" ? (
+                      <div className="message-editor-shell">
+                        <textarea
+                          className="message-prompt-input"
+                          rows={5}
+                          value={data.instructions ?? ""}
+                          placeholder="Describe what the assistant should say"
+                          aria-label="Message prompt"
+                          onChange={(event) =>
+                            updateInspectorData({
+                              ...(inspectorData as MessageNodeData),
+                              instructions: event.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                    ) : (
+                      <MessageEditorInput
+                        nodeId={selectedNode.id}
+                        value={data.text ?? ""}
+                        placeholder="Enter message"
+                        ariaLabel="Message"
+                        variables={workflowVariables}
+                        onSync={(_nodeId, html) =>
+                          updateInspectorData({
+                            ...(inspectorData as MessageNodeData),
+                            text: html,
+                          })
+                        }
+                      />
+                    )}
+                  </div>
+
+                  <InspectorListSection
+                    title="Variants"
+                    addLabel="Add a variant"
+                    onAdd={() =>
+                      updateInspectorData({
+                        ...(inspectorData as MessageNodeData),
+                        variants: [...(data.variants ?? []), ""],
+                      })
+                    }
+                    empty={
+                      (data.variants ?? []).length === 0
+                        ? "One alternate is picked at random each time this step runs."
+                        : undefined
+                    }
+                  >
+                    {(data.variants ?? []).map((variant, index) => (
+                      <InspectorListRow
+                        key={`variant-${index}`}
+                        removeLabel="Remove variant"
+                        onRemove={() =>
+                          updateInspectorData({
+                            ...(inspectorData as MessageNodeData),
+                            variants: (data.variants ?? []).filter(
+                              (_entry, position) => position !== index
+                            ),
+                          })
+                        }
+                      >
+                        <MessageEditorInput
+                          nodeId={`${selectedNode.id}:variant:${index}`}
+                          value={variant}
+                          placeholder="Enter message"
+                          ariaLabel={`Variant ${index + 1}`}
+                          variables={workflowVariables}
+                          onSync={(_key, html) => {
+                            const next = [...(data.variants ?? [])]
+                            next[index] = html
+                            updateInspectorData({
+                              ...(inspectorData as MessageNodeData),
+                              variants: next,
+                            })
+                          }}
+                        />
+                      </InspectorListRow>
+                    ))}
+                  </InspectorListSection>
+
+                  <InspectorSection>
+                    <InspectorToggleRow
+                      label="Wait for user input"
+                      checked={Boolean(data.waitForUserInput)}
+                      onChange={(next) =>
                         updateInspectorData({
                           ...(inspectorData as MessageNodeData),
-                          text: html,
+                          waitForUserInput: next,
                         })
                       }
                     />
-                  </div>
+                  </InspectorSection>
+
+                  {data.waitForUserInput ? (
+                    <InspectorSection>
+                      {renderFallbackToggles(
+                        selectedNode.id,
+                        data,
+                        (next) => updateInspectorData(next),
+                        { noMatch: false }
+                      )}
+                    </InspectorSection>
+                  ) : null}
                 </section>
               )
             })()
@@ -6190,7 +6659,7 @@ export const WorkflowBuilderView = ({
                           />
                         ) : (
                           <>
-                            <p>Drag & drop image/GIF here. Or,</p>
+                            <p>Drop .png, .jpg or .gif here</p>
                             <label
                               className="image-browse-button"
                               htmlFor={uploadInputId}
@@ -6378,7 +6847,7 @@ export const WorkflowBuilderView = ({
                           />
                         ) : (
                           <>
-                            <p>Drag & drop image/GIF here. Or,</p>
+                            <p>Drop .png, .jpg or .gif here</p>
                             <label
                               className="image-browse-button"
                               htmlFor={uploadInputId}
@@ -6402,7 +6871,7 @@ export const WorkflowBuilderView = ({
                     <input
                       className="card-title-input"
                       value={data.title ?? ""}
-                      placeholder="Enter card title, { to add variable"
+                      placeholder="Untitled card"
                       aria-label="Card title"
                       onChange={(event) =>
                         updateInspectorData( {
@@ -6416,7 +6885,7 @@ export const WorkflowBuilderView = ({
                       <MessageEditorInput
                         nodeId={selectedNode.id}
                         value={data.description ?? ""}
-                        placeholder="Enter card description, { to add variable"
+                        placeholder="Enter description"
                         ariaLabel="Card description"
                         variables={workflowVariables}
                         onSync={(_nodeId, html) =>
@@ -6426,122 +6895,7 @@ export const WorkflowBuilderView = ({
                           })
                         }
                       />
-                      <div
-                        className="message-editor-toolbar card-editor-toolbar"
-                        aria-label="Card description tools"
-                      >
-                        <button
-                          type="button"
-                          title="Bold"
-                          onMouseDown={(event) => event.preventDefault()}
-                          onClick={(event) =>
-                            formatRichText(
-                              "bold",
-                              event.currentTarget
-                                .closest(".card-description-editor")
-                                ?.querySelector<HTMLElement>(
-                                  ".message-editor-input"
-                                ) ?? null,
-                              (html) =>
-                                updateInspectorData( {
-                                  ...data,
-                                  description: html,
-                                })
-                            )
-                          }
-                        >
-                          B
-                        </button>
-                        <button
-                          type="button"
-                          title="Italic"
-                          onMouseDown={(event) => event.preventDefault()}
-                          onClick={(event) =>
-                            formatRichText(
-                              "italic",
-                              event.currentTarget
-                                .closest(".card-description-editor")
-                                ?.querySelector<HTMLElement>(
-                                  ".message-editor-input"
-                                ) ?? null,
-                              (html) =>
-                                updateInspectorData( {
-                                  ...data,
-                                  description: html,
-                                })
-                            )
-                          }
-                        >
-                          <em>I</em>
-                        </button>
-                        <button
-                          type="button"
-                          title="Underline"
-                          onMouseDown={(event) => event.preventDefault()}
-                          onClick={(event) =>
-                            formatRichText(
-                              "underline",
-                              event.currentTarget
-                                .closest(".card-description-editor")
-                                ?.querySelector<HTMLElement>(
-                                  ".message-editor-input"
-                                ) ?? null,
-                              (html) =>
-                                updateInspectorData( {
-                                  ...data,
-                                  description: html,
-                                })
-                            )
-                          }
-                        >
-                          <u>U</u>
-                        </button>
-                        <button
-                          type="button"
-                          title="Strikethrough"
-                          onMouseDown={(event) => event.preventDefault()}
-                          onClick={(event) =>
-                            formatRichText(
-                              "strike",
-                              event.currentTarget
-                                .closest(".card-description-editor")
-                                ?.querySelector<HTMLElement>(
-                                  ".message-editor-input"
-                                ) ?? null,
-                              (html) =>
-                                updateInspectorData( {
-                                  ...data,
-                                  description: html,
-                                })
-                            )
-                          }
-                        >
-                          <s>S</s>
-                        </button>
-                        <span aria-hidden />
-                        <button
-                          type="button"
-                          title="Insert link"
-                          onMouseDown={(event) => event.preventDefault()}
-                          onClick={(event) =>
-                            formatRichText(
-                              "link",
-                              event.currentTarget
-                                .closest(".card-description-editor")
-                                ?.querySelector<HTMLElement>(
-                                  ".message-editor-input"
-                                ) ?? null,
-                              (html) =>
-                                updateInspectorData( {
-                                  ...data,
-                                  description: html,
-                                })
-                            )
-                          }
-                        >
-                          <Icon name="link" size={16} />
-                        </button>
-                      </div>
+
                     </div>
                   </div>
 
@@ -6598,18 +6952,15 @@ export const WorkflowBuilderView = ({
                     ))}
                   </div>
 
-                  <div className="image-help-section card-help-section">
-                    <button type="button" className="image-help-link">
-                      How it works?
-                    </button>
-                    <button
-                      type="button"
-                      className="card-help-settings"
-                      title="Card settings"
-                    >
-                      <Icon name="settings" size={18} />
-                    </button>
-                  </div>
+                  <InspectorSection>
+                    {renderFallbackToggles(
+                      selectedNode.id,
+                      data,
+                      (next) => updateInspectorData(next),
+                      { triggers: false }
+                    )}
+                  </InspectorSection>
+
                 </section>
               )
             })()
@@ -6617,8 +6968,14 @@ export const WorkflowBuilderView = ({
             <section className="message-editor-panel">
               <div className="sheet-header">
                 <div>
-                  <h2>{inspectorGenericData?.label}</h2>
-                  <p>Configure the selected step.</p>
+                  {/* The library name, so the panel title matches the step the
+                      author picked ("Set", "Code", "Workflow") rather than the
+                      older internal label stored on the node. */}
+                  <h2>
+                    {(inspectorType
+                      ? getStepOption(inspectorType)?.label
+                      : undefined) ?? inspectorGenericData?.label}
+                  </h2>
                 </div>
                 {renderInspectorActions(selectedNode)}
               </div>
@@ -6687,6 +7044,13 @@ export const WorkflowBuilderView = ({
                         >
                           Add button
                         </button>
+                        <InspectorSection>
+                          {renderFallbackToggles(
+                            selectedNode.id,
+                            data,
+                            (next) => updateInspectorData(next)
+                          )}
+                        </InspectorSection>
                       </div>
                     )
                   })()}
@@ -6698,12 +7062,17 @@ export const WorkflowBuilderView = ({
                       <div className="stack">
                         <label>
                           Prompt (optional)
-                          <textarea
+                          <RichTextField
+                            fieldId={`${selectedNode.id}:choice-prompt`}
                             value={data.prompt ?? ""}
-                            onChange={(event) =>
-                              updateInspectorData( {
+                            placeholder="Enter message"
+                            ariaLabel="Choice prompt"
+                            variables={workflowVariables}
+                            onFormat={formatRichText}
+                            onChange={(html) =>
+                              updateInspectorData({
                                 ...data,
-                                prompt: event.target.value,
+                                prompt: html,
                               })
                             }
                           />
@@ -6796,12 +7165,17 @@ export const WorkflowBuilderView = ({
                         </label>
                         <label>
                           Prompt (optional)
-                          <textarea
+                          <RichTextField
+                            fieldId={`${selectedNode.id}:capture-prompt`}
                             value={data.prompt ?? ""}
-                            onChange={(event) =>
-                              updateInspectorData( {
+                            placeholder="Enter message"
+                            ariaLabel="Capture prompt"
+                            variables={workflowVariables}
+                            onFormat={formatRichText}
+                            onChange={(html) =>
+                              updateInspectorData({
                                 ...data,
-                                prompt: event.target.value,
+                                prompt: html,
                               })
                             }
                           />
@@ -6905,98 +7279,494 @@ export const WorkflowBuilderView = ({
                 {inspectorType === "setVariable" &&
                   (() => {
                     const data = inspectorData as SetVariableNodeData
+                    const variables = normalizeSetEntries(data)
+                    const properties = data.properties ?? []
+
+                    const writeList = (
+                      field: "variables" | "properties",
+                      entries: SetEntry[]
+                    ) =>
+                      updateInspectorData({
+                        ...data,
+                        [field]: entries,
+                        /* Keep the legacy pair in step with the first row so a
+                           workflow saved here still opens in an older client. */
+                        ...(field === "variables"
+                          ? {
+                              key: entries[0]?.key ?? "",
+                              value: entries[0]?.value ?? "",
+                            }
+                          : {}),
+                      })
+
+                    const renderEntries = (
+                      field: "variables" | "properties",
+                      entries: SetEntry[]
+                    ) =>
+                      entries.map((entry, index) => (
+                        <InspectorListRow
+                          key={entry.id}
+                          removeLabel="Remove assignment"
+                          onRemove={() =>
+                            writeList(
+                              field,
+                              entries.filter(
+                                (candidate) => candidate.id !== entry.id
+                              )
+                            )
+                          }
+                        >
+                          <div className="inspector-row-fields pair">
+                            <input
+                              value={entry.key ?? ""}
+                              placeholder="e.g. orderNumber"
+                              aria-label={`Name ${index + 1}`}
+                              onChange={(event) => {
+                                const next = [...entries]
+                                next[index] = {
+                                  ...entry,
+                                  key: event.target.value,
+                                }
+                                writeList(field, next)
+                              }}
+                            />
+                            <VariableInput
+                              value={entry.value ?? ""}
+                              ariaLabel={`Value ${index + 1}`}
+                              placeholder="value or {{other}}"
+                              variables={workflowVariables}
+                              onChange={(nextValue) => {
+                                const next = [...entries]
+                                next[index] = { ...entry, value: nextValue }
+                                writeList(field, next)
+                              }}
+                            />
+                          </div>
+                        </InspectorListRow>
+                      ))
 
                     return (
                       <>
-                        <label>
-                          Variable
-                          <input
-                            value={data.key ?? ""}
-                            placeholder="e.g. orderNumber"
-                            onChange={(event) =>
-                              updateInspectorData( {
-                                ...data,
-                                key: event.target.value,
-                              })
-                            }
-                          />
-                        </label>
-                        <label>
-                          Value
-                          <VariableInput
-                            value={data.value ?? ""}
-                            ariaLabel="Variable value"
-                            placeholder="value or {{otherVariable}}"
-                            variables={workflowVariables}
-                            onChange={(next) =>
-                              updateInspectorData( { ...data, value: next })
-                            }
-                          />
-                        </label>
+                        <InspectorListSection
+                          title="Variables to set"
+                          addLabel="Add a variable"
+                          onAdd={() =>
+                            writeList("variables", [
+                              ...variables,
+                              { id: createId("set"), key: "", value: "" },
+                            ])
+                          }
+                          empty={
+                            variables.length === 0
+                              ? "Nothing is written when this step runs."
+                              : undefined
+                          }
+                        >
+                          {renderEntries("variables", variables)}
+                        </InspectorListSection>
+
+                        <InspectorListSection
+                          title="Properties to set"
+                          addLabel="Add a property"
+                          onAdd={() =>
+                            writeList("properties", [
+                              ...properties,
+                              { id: createId("prop"), key: "", value: "" },
+                            ])
+                          }
+                          empty={
+                            properties.length === 0
+                              ? "Properties persist on the contact, not just this run."
+                              : undefined
+                          }
+                        >
+                          {renderEntries("properties", properties)}
+                        </InspectorListSection>
                       </>
                     )
                   })()}
                 {inspectorType === "condition" &&
                   (() => {
                     const data = inspectorData as ConditionNodeData
+                    const paths = normalizeConditionPaths(data)
+
+                    const writePaths = (next: ConditionPath[]) =>
+                      updateInspectorData({
+                        ...data,
+                        paths: next,
+                        /* Mirror the first clause into the legacy triple so an
+                           older reader still evaluates something sensible. */
+                        key: next[0]?.clauses[0]?.key ?? "",
+                        operator: next[0]?.clauses[0]?.operator ?? "equals",
+                        value: next[0]?.clauses[0]?.value ?? "",
+                      })
+
+                    const writeClauses = (
+                      pathId: string,
+                      clauses: ConditionClause[]
+                    ) =>
+                      writePaths(
+                        paths.map((path) =>
+                          path.id === pathId ? { ...path, clauses } : path
+                        )
+                      )
 
                     return (
                       <>
+                        <InspectorListSection
+                          title="Paths"
+                          addLabel="Add a path"
+                          onAdd={() =>
+                            writePaths([
+                              ...paths,
+                              {
+                                id: createId("path"),
+                                name: "",
+                                clauses: [],
+                              },
+                            ])
+                          }
+                          empty={
+                            paths.length === 0
+                              ? "Without a path this step has no way out."
+                              : undefined
+                          }
+                        >
+                          {paths.map((path, pathIndex) => (
+                            <div className="condition-path" key={path.id}>
+                              <InspectorListRow
+                                removeLabel="Remove path"
+                                onRemove={() => {
+                                  writePaths(
+                                    paths.filter(
+                                      (candidate) => candidate.id !== path.id
+                                    )
+                                  )
+                                  setEdges((edges) =>
+                                    edges.filter(
+                                      (edge) =>
+                                        edge.source !== selectedNode.id ||
+                                        edge.sourceHandle !== path.id
+                                    )
+                                  )
+                                }}
+                              >
+                                <input
+                                  className="condition-path-name"
+                                  value={path.name}
+                                  placeholder={`Path ${pathIndex + 1}`}
+                                  aria-label={`Path ${pathIndex + 1} name`}
+                                  onChange={(event) =>
+                                    writePaths(
+                                      paths.map((candidate) =>
+                                        candidate.id === path.id
+                                          ? {
+                                              ...candidate,
+                                              name: event.target.value,
+                                            }
+                                          : candidate
+                                      )
+                                    )
+                                  }
+                                />
+                              </InspectorListRow>
+
+                              {path.clauses.map((clause, clauseIndex) => (
+                                <InspectorListRow
+                                  key={clause.id}
+                                  removeLabel="Remove condition"
+                                  onRemove={() =>
+                                    writeClauses(
+                                      path.id,
+                                      path.clauses.filter(
+                                        (candidate) =>
+                                          candidate.id !== clause.id
+                                      )
+                                    )
+                                  }
+                                >
+                                  <div className="inspector-row-fields clause">
+                                    <input
+                                      value={clause.key}
+                                      placeholder="variable"
+                                      aria-label={`Condition ${clauseIndex + 1} variable`}
+                                      onChange={(event) => {
+                                        const next = [...path.clauses]
+                                        next[clauseIndex] = {
+                                          ...clause,
+                                          key: event.target.value,
+                                        }
+                                        writeClauses(path.id, next)
+                                      }}
+                                    />
+                                    <select
+                                      value={clause.operator}
+                                      aria-label={`Condition ${clauseIndex + 1} operator`}
+                                      onChange={(event) => {
+                                        const next = [...path.clauses]
+                                        next[clauseIndex] = {
+                                          ...clause,
+                                          operator: event.target
+                                            .value as ConditionClause["operator"],
+                                        }
+                                        writeClauses(path.id, next)
+                                      }}
+                                    >
+                                      <option value="equals">is</option>
+                                      <option value="not_equals">is not</option>
+                                      <option value="contains">contains</option>
+                                      <option value="not_contains">
+                                        does not contain
+                                      </option>
+                                      <option value="greater_than">
+                                        greater than
+                                      </option>
+                                      <option value="less_than">
+                                        less than
+                                      </option>
+                                      <option value="exists">exists</option>
+                                      <option value="not_exists">
+                                        does not exist
+                                      </option>
+                                    </select>
+                                    {clause.operator !== "exists" &&
+                                    clause.operator !== "not_exists" ? (
+                                      <VariableInput
+                                        value={clause.value}
+                                        ariaLabel={`Condition ${clauseIndex + 1} value`}
+                                        placeholder="value"
+                                        variables={workflowVariables}
+                                        onChange={(nextValue) => {
+                                          const next = [...path.clauses]
+                                          next[clauseIndex] = {
+                                            ...clause,
+                                            value: nextValue,
+                                          }
+                                          writeClauses(path.id, next)
+                                        }}
+                                      />
+                                    ) : (
+                                      <span />
+                                    )}
+                                  </div>
+                                </InspectorListRow>
+                              ))}
+
+                              <button
+                                type="button"
+                                className="secondary-button condition-add-clause"
+                                onClick={() =>
+                                  writeClauses(path.id, [
+                                    ...path.clauses,
+                                    {
+                                      id: createId("clause"),
+                                      key: "",
+                                      operator: "equals",
+                                      value: "",
+                                    },
+                                  ])
+                                }
+                              >
+                                Add condition
+                              </button>
+                            </div>
+                          ))}
+                        </InspectorListSection>
+
+                        <InspectorSection>
+                          <InspectorToggleRow
+                            label="Else path"
+                            hint="Taken when no path above matched."
+                            checked={Boolean(data.elsePath)}
+                            onChange={(next) => {
+                              updateInspectorData({ ...data, elsePath: next })
+                              if (!next) {
+                                setEdges((edges) =>
+                                  edges.filter(
+                                    (edge) =>
+                                      edge.source !== selectedNode.id ||
+                                      edge.sourceHandle !== ELSE_PORT
+                                  )
+                                )
+                              }
+                            }}
+                          />
+                        </InspectorSection>
+                      </>
+                    )
+                  })()}
+                {inspectorType === "listen" &&
+                  (() => {
+                    const data = inspectorData as ListenNodeData
+
+                    return (
+                      <>
+                        <InspectorSection>
+                          <label>
+                            Save entire reply to...
+                            <input
+                              value={data.variableKey ?? ""}
+                              placeholder="last_utterance"
+                              onChange={(event) =>
+                                updateInspectorData({
+                                  ...data,
+                                  variableKey: event.target.value,
+                                })
+                              }
+                            />
+                          </label>
+                        </InspectorSection>
+                        <InspectorSection>
+                          {renderFallbackToggles(
+                            selectedNode.id,
+                            data,
+                            (next) => updateInspectorData(next),
+                            { noMatch: false }
+                          )}
+                        </InspectorSection>
+                      </>
+                    )
+                  })()}
+                {inspectorType === "integration" &&
+                  (() => {
+                    const data = inspectorData as IntegrationNodeData
+                    const tools = assistantTools ?? []
+
+                    return (
+                      <>
+                        <InspectorSection>
+                          <label>
+                            Provider
+                            <select
+                              value={data.provider ?? ""}
+                              onChange={(event) =>
+                                updateInspectorData({
+                                  ...data,
+                                  provider: (event.target.value ||
+                                    undefined) as IntegrationNodeData["provider"],
+                                })
+                              }
+                            >
+                              <option value="">Select a provider</option>
+                              {INTEGRATION_PROVIDERS.map((provider) => (
+                                <option key={provider.kind} value={provider.kind}>
+                                  {provider.label}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        </InspectorSection>
+                        <InspectorSection>
+                          <label>
+                            Integration tool
+                            <select
+                              value={data.toolName ?? ""}
+                              onChange={(event) =>
+                                updateInspectorData({
+                                  ...data,
+                                  toolName: event.target.value,
+                                })
+                              }
+                            >
+                              <option value="">Select a tool</option>
+                              {tools.map((tool) => (
+                                <option key={tool.name} value={tool.name}>
+                                  {tool.name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          {tools.length === 0 ? (
+                            <p className="inspector-section-empty">
+                              No integration tool exists yet. Tools are created
+                              once in the Assistant tools tab and can then be run
+                              from any workflow.
+                            </p>
+                          ) : null}
+                          <label>
+                            Save response to
+                            <input
+                              value={data.outputVariable ?? ""}
+                              placeholder="e.g. integrationResult"
+                              onChange={(event) =>
+                                updateInspectorData({
+                                  ...data,
+                                  outputVariable: event.target.value,
+                                })
+                              }
+                            />
+                          </label>
+                        </InspectorSection>
+                      </>
+                    )
+                  })()}
+                {inspectorType === "mcp" &&
+                  (() => {
+                    const data = inspectorData as McpNodeData
+                    const tools = assistantTools ?? []
+
+                    return (
+                      <InspectorSection>
                         <label>
-                          Variable
-                          <input
-                            value={data.key ?? ""}
-                            placeholder="e.g. orderNumber"
+                          MCP tool
+                          <select
+                            value={data.toolName ?? ""}
                             onChange={(event) =>
-                              updateInspectorData( {
+                              updateInspectorData({
                                 ...data,
-                                key: event.target.value,
+                                toolName: event.target.value,
+                              })
+                            }
+                          >
+                            <option value="">Select a tool</option>
+                            {tools.map((tool) => (
+                              <option key={tool.name} value={tool.name}>
+                                {tool.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        {tools.length === 0 ? (
+                          <p className="inspector-section-empty">
+                            No MCP tool exists yet. Connect an MCP server in the
+                            Assistant tools tab to call its tools from here.
+                          </p>
+                        ) : null}
+                        <label>
+                          Save response to
+                          <input
+                            value={data.outputVariable ?? ""}
+                            placeholder="e.g. mcpResult"
+                            onChange={(event) =>
+                              updateInspectorData({
+                                ...data,
+                                outputVariable: event.target.value,
                               })
                             }
                           />
                         </label>
+                      </InspectorSection>
+                    )
+                  })()}
+                {inspectorType === "end" &&
+                  (() => {
+                    const data = inspectorData as EndNodeData
+
+                    return (
+                      <InspectorSection>
                         <label>
-                          Operator
-                          <select
-                            value={data.operator ?? "equals"}
-                            onChange={(event) =>
-                              updateInspectorData( {
-                                ...data,
-                                operator: event.target
-                                  .value as ConditionNodeData["operator"],
-                              })
+                          End message
+                          <VariableInput
+                            value={data.message ?? ""}
+                            ariaLabel="End message"
+                            placeholder="Sent just before the conversation closes"
+                            variables={workflowVariables}
+                            onChange={(next) =>
+                              updateInspectorData({ ...data, message: next })
                             }
-                          >
-                            <option value="equals">Equals</option>
-                            <option value="not_equals">Not equals</option>
-                            <option value="contains">Contains</option>
-                            <option value="not_contains">Not contains</option>
-                            <option value="greater_than">
-                              Greater than (number)
-                            </option>
-                            <option value="less_than">
-                              Less than (number)
-                            </option>
-                            <option value="exists">Exists</option>
-                            <option value="not_exists">Not exists</option>
-                          </select>
+                          />
                         </label>
-                        {data.operator !== "exists" &&
-                          data.operator !== "not_exists" && (
-                            <label>
-                              Value
-                              <VariableInput
-                                value={data.value ?? ""}
-                                ariaLabel="Comparison value"
-                                placeholder="value or {{otherVariable}}"
-                                variables={workflowVariables}
-                                onChange={(next) =>
-                                  updateInspectorData( { ...data, value: next })
-                                }
-                              />
-                            </label>
-                          )}
-                      </>
+                      </InspectorSection>
                     )
                   })()}
                 {inspectorType === "component" &&
@@ -7275,16 +8045,24 @@ export const WorkflowBuilderView = ({
                     return (
                       <>
                         <label>
-                          Code
-                          <textarea
-                            className="code-input"
-                            spellCheck={false}
+                          <span className="label-with-action">
+                            Code
+                            <button
+                              type="button"
+                              className="label-action"
+                              title="Open the editor full window"
+                              aria-label="Open the editor full window"
+                              onClick={() =>
+                                setCodeEditorNodeId(selectedNode.id)
+                              }
+                            >
+                              <Icon name="fit" size={15} />
+                            </button>
+                          </span>
+                          <CodeField
                             value={data.code ?? ""}
-                            onChange={(event) =>
-                              updateInspectorData({
-                                ...data,
-                                code: event.target.value,
-                              })
+                            onChange={(code) =>
+                              updateInspectorData({ ...data, code })
                             }
                           />
                         </label>
@@ -7410,12 +8188,15 @@ export const WorkflowBuilderView = ({
                             </label>
                             <label>
                               Description
-                              <textarea
+                              <RichTextField
+                                fieldId={`${selectedNode.id}:carousel-${card.id}`}
                                 value={card.description}
-                                onChange={(event) =>
-                                  patchCard(index, {
-                                    description: event.target.value,
-                                  })
+                                placeholder="Enter description"
+                                ariaLabel={`Card ${index + 1} description`}
+                                variables={workflowVariables}
+                                onFormat={formatRichText}
+                                onChange={(html) =>
+                                  patchCard(index, { description: html })
                                 }
                               />
                             </label>
@@ -7501,6 +8282,14 @@ export const WorkflowBuilderView = ({
                         >
                           Add card
                         </button>
+                        <InspectorSection>
+                          {renderFallbackToggles(
+                            selectedNode.id,
+                            data,
+                            (next) => updateInspectorData(next),
+                            { triggers: false }
+                          )}
+                        </InspectorSection>
                       </>
                     )
                   })()}
@@ -7551,16 +8340,24 @@ export const WorkflowBuilderView = ({
                     return (
                       <>
                         <label>
-                          Code
-                          <textarea
-                            className="code-input"
-                            spellCheck={false}
+                          <span className="label-with-action">
+                            Code
+                            <button
+                              type="button"
+                              className="label-action"
+                              title="Open the editor full window"
+                              aria-label="Open the editor full window"
+                              onClick={() =>
+                                setCodeEditorNodeId(selectedNode.id)
+                              }
+                            >
+                              <Icon name="fit" size={15} />
+                            </button>
+                          </span>
+                          <CodeField
                             value={data.code ?? ""}
-                            onChange={(event) =>
-                              updateInspectorData( {
-                                ...data,
-                                code: event.target.value,
-                              })
+                            onChange={(code) =>
+                              updateInspectorData({ ...data, code })
                             }
                           />
                         </label>
@@ -7591,6 +8388,84 @@ export const WorkflowBuilderView = ({
                           in the variable picker — the snippet still sets
                           whatever it returns either way.
                         </p>
+
+                        <InspectorListSection
+                          title="Paths"
+                          addLabel="Add a path"
+                          onAdd={() =>
+                            updateInspectorData({
+                              ...data,
+                              paths: [
+                                ...(data.paths ?? []),
+                                { id: createId("path"), name: "" },
+                              ],
+                            })
+                          }
+                          empty={
+                            (data.paths ?? []).length === 0
+                              ? "With no named paths the snippet leaves through ok / error."
+                              : undefined
+                          }
+                        >
+                          {(data.paths ?? []).map((path, index) => (
+                            <InspectorListRow
+                              key={path.id}
+                              removeLabel="Remove path"
+                              onRemove={() => {
+                                updateInspectorData({
+                                  ...data,
+                                  paths: (data.paths ?? []).filter(
+                                    (candidate) => candidate.id !== path.id
+                                  ),
+                                })
+                                setEdges((edges) =>
+                                  edges.filter(
+                                    (edge) =>
+                                      edge.source !== selectedNode.id ||
+                                      edge.sourceHandle !== path.id
+                                  )
+                                )
+                              }}
+                            >
+                              <input
+                                value={path.name}
+                                placeholder={`Path ${index + 1}`}
+                                aria-label={`Path ${index + 1} name`}
+                                onChange={(event) => {
+                                  const next = [...(data.paths ?? [])]
+                                  next[index] = {
+                                    ...path,
+                                    name: event.target.value,
+                                  }
+                                  updateInspectorData({ ...data, paths: next })
+                                }}
+                              />
+                            </InspectorListRow>
+                          ))}
+                        </InspectorListSection>
+
+                        <InspectorSection>
+                          <InspectorToggleRow
+                            label="Failure path"
+                            hint="Taken when the snippet throws."
+                            checked={Boolean(data.failurePath)}
+                            onChange={(next) => {
+                              updateInspectorData({
+                                ...data,
+                                failurePath: next,
+                              })
+                              if (!next) {
+                                setEdges((edges) =>
+                                  edges.filter(
+                                    (edge) =>
+                                      edge.source !== selectedNode.id ||
+                                      edge.sourceHandle !== "fail"
+                                  )
+                                )
+                              }
+                            }}
+                          />
+                        </InspectorSection>
                       </>
                     )
                   })()}
@@ -7778,7 +8653,7 @@ export const WorkflowBuilderView = ({
                   "component",
                   "start",
                 ].includes(selectedNode.type ?? "") && (
-                  <>
+                  <InspectorSection>
                     <label>
                       Label
                       <input
@@ -7807,7 +8682,7 @@ export const WorkflowBuilderView = ({
                         }
                       />
                     </label>
-                  </>
+                  </InspectorSection>
                 )}
                 <button
                   type="button"
@@ -7853,6 +8728,7 @@ export const WorkflowBuilderView = ({
         <RunPanel
           nodes={nodes}
           edges={edges}
+          workflowName={workflowName}
           autoStartKey={runLaunchKey}
           onAutoStartComplete={completeRunLaunch}
           onClose={() => {
@@ -7867,7 +8743,44 @@ export const WorkflowBuilderView = ({
         />
       )}
 
-      {drawerMode && drawerMode !== "run" && (
+      {codeEditorNode && (
+        <CodeEditorModal
+          title={
+            (codeEditorNode.data as { customName?: string })?.customName?.trim() ||
+            (codeEditorNode.type === "function" ? "Function" : "Code")
+          }
+          value={
+            ((codeEditorNode.data as { code?: string })?.code ?? "") as string
+          }
+          onChange={(code) =>
+            updateNodeData(codeEditorNode.id, {
+              ...codeEditorNode.data,
+              code,
+            } as NodeData)
+          }
+          onClose={() => setCodeEditorNodeId(null)}
+        />
+      )}
+
+      {drawerMode === "replay" && workflowId && (
+        <ReplayPanel
+          workflowId={workflowId}
+          nodes={nodes}
+          onClose={() => {
+            setDrawerMode(null)
+            setRunActiveNodeId(null)
+            setRunWaitingNodeId(null)
+          }}
+          onActiveNodeChange={({ activeNodeId, waitingNodeId }) => {
+            setRunActiveNodeId(activeNodeId)
+            setRunWaitingNodeId(waitingNodeId)
+          }}
+        />
+      )}
+
+      {drawerMode &&
+        drawerMode !== "run" &&
+        drawerMode !== "replay" && (
         <aside className="side-drawer">
           {(
             <div className="sheet-header">

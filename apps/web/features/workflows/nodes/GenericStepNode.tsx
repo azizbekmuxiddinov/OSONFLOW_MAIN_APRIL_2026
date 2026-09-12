@@ -2,6 +2,8 @@ import { Handle, Position } from 'reactflow';
 import type { NodeProps } from 'reactflow';
 import type { GenericNodeData } from '../lib/types';
 import EditableNodeTitle from './EditableNodeTitle';
+import NodeText from './NodeText';
+import SourceHandle from './SourceHandle';
 
 const GenericStepNode = ({ id, data }: NodeProps<GenericNodeData>) => {
   const preview =
@@ -17,9 +19,11 @@ const GenericStepNode = ({ id, data }: NodeProps<GenericNodeData>) => {
       }`}
     >
       <EditableNodeTitle nodeId={id} value={data.customName} fallback={data.label} />
-      <div className="node-body">{preview}</div>
+      <div className="node-body">
+        <NodeText text={preview} />
+      </div>
       <Handle type="target" position={Position.Left} className="node-handle" />
-      <Handle type="source" position={Position.Right} className="node-handle" />
+      <SourceHandle className="node-handle" />
     </div>
   );
 };

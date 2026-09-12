@@ -131,23 +131,33 @@ const withoutUnclosedFence = (text: string) => {
 }
 
 /**
- * The text of one message, revealed at reading speed while it is still
- * arriving.
+ * The text of one message, revealed at reading speed rather than appearing
+ * whole.
  *
- * Only an assistant reply that is genuinely mid-flight animates — the
- * visitor's own messages and everything already complete render at once, so
- * opening the widget never re-types the transcript they have already read.
+ * Two things animate: a reply that is genuinely mid-flight from the model,
+ * and one that lands complete while the visitor is watching — a scripted
+ * workflow message is written in one go by the server, but arriving as a wall
+ * of finished text reads as a page refresh rather than as someone answering.
+ *
+ * What never animates is history. `revealOnMount` is captured once, when the
+ * bubble first mounts, so the transcript the visitor already read renders at
+ * once when they reopen the widget.
  */
 const MessageText = ({
   isStreaming,
+  revealOnMount,
   richActions,
   text,
 }: {
   isStreaming: boolean
+  revealOnMount: boolean
   richActions?: ComponentProps<typeof AIResponse>["richActions"]
   text: string
 }) => {
-  const [visibleText] = useSmoothText(text, { startStreaming: isStreaming })
+  const [revealsOnArrival] = useState(revealOnMount)
+  const [visibleText] = useSmoothText(text, {
+    startStreaming: isStreaming || revealsOnArrival,
+  })
   const isRevealing = visibleText.length < text.length
   const shownText = isRevealing ? withoutUnclosedFence(visibleText) : visibleText
 
@@ -638,6 +648,44 @@ export const WidgetChatScreen = () => {
       setOptimisticUserMessage(null)
     }
   }, [optimisticUserMessage, userMessageCount])
+
+  /**
+   * Creation time of the newest message that was already in the thread when
+   * the widget opened. Anything stamped after it is new to this visitor and
+   * is revealed at reading speed.
+   *
+   * A watermark rather than "mounted after we finished loading", because
+   * scrolling up loads older messages that also mount late — they must not
+   * re-type themselves — and because a workflow that sends a message and a
+   * carousel together mounts both in one commit, so both should animate.
+   * Both sides of the comparison are server timestamps, so a skewed client
+   * clock cannot misclassify the transcript.
+   */
+  const [liveFromCreationTime, setLiveFromCreationTime] = useState<
+    number | null
+  >(null)
+
+  useEffect(() => {
+    if (
+      liveFromCreationTime !== null ||
+      messages.status === "LoadingFirstPage"
+    ) {
+      return
+    }
+
+    const newest = visibleMessages.reduce(
+      (latest, message) => Math.max(latest, message._creationTime),
+      0
+    )
+
+    // A tick, so the opening transcript mounts before the watermark lands.
+    const timeoutId = window.setTimeout(
+      () => setLiveFromCreationTime(newest),
+      0
+    )
+
+    return () => window.clearTimeout(timeoutId)
+  }, [liveFromCreationTime, messages.status, visibleMessages])
 
   const { topElementRef, handleLoadMore, canLoadMore, isLoadingMore } =
     useInfiniteScroll({
@@ -1198,6 +1246,11 @@ export const WidgetChatScreen = () => {
                   {messageText.trim() ? (
                     <MessageText
                       isStreaming={message.status === "streaming"}
+                      revealOnMount={
+                        liveFromCreationTime !== null &&
+                        message.role === "assistant" &&
+                        message._creationTime > liveFromCreationTime
+                      }
                       richActions={
                         message.id === latestAssistantMessage?.id
                           ? {

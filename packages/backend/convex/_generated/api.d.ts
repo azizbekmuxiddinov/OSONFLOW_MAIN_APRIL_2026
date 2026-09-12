@@ -74,6 +74,7 @@ import type * as private_subscriptions from "../private/subscriptions.js";
 import type * as private_telegram from "../private/telegram.js";
 import type * as private_whatsapp from "../private/whatsapp.js";
 import type * as private_widgetSettings from "../private/widgetSettings.js";
+import type * as private_workflowAnalytics from "../private/workflowAnalytics.js";
 import type * as private_workflows from "../private/workflows.js";
 import type * as public_aiConversations from "../public/aiConversations.js";
 import type * as public_assistantTools from "../public/assistantTools.js";
@@ -192,6 +193,7 @@ declare const fullApi: ApiFromModules<{
   "private/telegram": typeof private_telegram;
   "private/whatsapp": typeof private_whatsapp;
   "private/widgetSettings": typeof private_widgetSettings;
+  "private/workflowAnalytics": typeof private_workflowAnalytics;
   "private/workflows": typeof private_workflows;
   "public/aiConversations": typeof public_aiConversations;
   "public/assistantTools": typeof public_assistantTools;

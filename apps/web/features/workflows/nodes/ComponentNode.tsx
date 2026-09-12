@@ -2,6 +2,7 @@ import { Handle, Position } from 'reactflow';
 import type { NodeProps } from 'reactflow';
 import type { ComponentNodeData } from '../lib/types';
 import EditableNodeTitle from './EditableNodeTitle';
+import SourceHandle from './SourceHandle';
 
 const ComponentNode = ({ id, data }: NodeProps<ComponentNodeData>) => {
   const inputs = data.inputs ?? [];
@@ -24,7 +25,7 @@ const ComponentNode = ({ id, data }: NodeProps<ComponentNodeData>) => {
         )}
       </div>
       <Handle type="target" position={Position.Left} className="node-handle" />
-      <Handle type="source" position={Position.Right} className="node-handle" />
+      <SourceHandle className="node-handle" />
     </div>
   );
 };

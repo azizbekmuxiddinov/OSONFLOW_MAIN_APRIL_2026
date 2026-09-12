@@ -205,6 +205,34 @@
   }
 }
 
+/* ── carousel ─────────────────────────────────────────────────────────────── */
+
+/* Cards deal in one behind the other rather than landing as a finished row,
+   so a set of options reads as a stack being fanned out. `both` keeps a card
+   hidden until its turn, which is what separates a deal from a group fade. */
+.ai-rich-carousel-card {
+  transform-origin: left center;
+  animation: owc-carousel-card-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--card-index, 0) * 70ms);
+}
+
+@keyframes owc-carousel-card-in {
+  from {
+    opacity: 0;
+    transform: translateX(22px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-rich-carousel-card {
+    animation: none;
+  }
+}
+
 /* ── typing indicator ────────────────────────────────────────────────────── */
 
 .owc-typing {

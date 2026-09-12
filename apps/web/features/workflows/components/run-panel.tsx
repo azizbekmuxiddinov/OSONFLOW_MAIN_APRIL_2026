@@ -1,13 +1,17 @@
 "use client"
 
 import {
+  Fragment,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type FormEvent,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
 } from "react"
 import type { Edge, Node } from "reactflow"
 import { useAction, useConvex } from "convex/react"
@@ -64,6 +68,8 @@ type ChatBubble = {
   buttons?: ButtonOption[]
   /** Carousel entries, scrolled horizontally in one bubble. */
   cards?: ChatCard[]
+  /** Time this reply took to produce, shown as a chip beneath it. */
+  latencyMs?: number
 }
 
 type TraceLevel =
@@ -75,6 +81,47 @@ type TraceLevel =
   | "warn"
   | "error"
   | "done"
+  /** Assistant copy that reached the user. */
+  | "output"
+  /** Something the user said or clicked. */
+  | "input"
+
+/**
+ * The severities the log can be filtered by. Several internal levels collapse
+ * onto one of these — a branch, a wait and an AI turn are all "Debug" detail —
+ * so the filter stays a short list the reader can hold in their head.
+ */
+type LogSeverity =
+  | "Output"
+  | "Input"
+  | "Info"
+  | "Debug"
+  | "Warn"
+  | "Error"
+  | "Fatal"
+
+const LOG_SEVERITY: Record<TraceLevel, LogSeverity> = {
+  output: "Output",
+  input: "Input",
+  info: "Info",
+  done: "Info",
+  step: "Debug",
+  branch: "Debug",
+  wait: "Debug",
+  ai: "Debug",
+  warn: "Warn",
+  error: "Error",
+}
+
+const LOG_SEVERITIES: LogSeverity[] = [
+  "Output",
+  "Input",
+  "Info",
+  "Debug",
+  "Warn",
+  "Error",
+  "Fatal",
+]
 
 type TraceEvent = {
   id: string
@@ -86,6 +133,10 @@ type TraceEvent = {
   title: string
   detail?: string
   varsChanged?: Record<string, string>
+  /** Wall time the step took, rendered as a chip on the right of the row. */
+  durationMs?: number
+  /** Money the step spent, rendered as a chip. Only AI steps set this. */
+  costUsd?: number
 }
 
 type RunStatus = "idle" | "running" | "waiting" | "ended"
@@ -93,6 +144,8 @@ type RunStatus = "idle" | "running" | "waiting" | "ended"
 type RunPanelProps = {
   nodes: Node<NodeData>[]
   edges: Edge[]
+  /** Leading segment of the transcript breadcrumb. */
+  workflowName?: string
   autoStartKey?: number
   onAutoStartComplete?: () => void
   onClose?: () => void
@@ -102,7 +155,13 @@ type RunPanelProps = {
   }) => void
 }
 
-type RunnerIconName = "reset" | "close" | "copy" | "play" | "chevron"
+type RunnerIconName =
+  | "reset"
+  | "close"
+  | "copy"
+  | "play"
+  | "chevron"
+  | "search"
 
 type ExecuteState = {
   vars: RuntimeVariables
@@ -138,6 +197,104 @@ const DOCK_COLLAPSED_H = 44
 const createId = (prefix: string) =>
   `${prefix}_${Math.random().toString(36).slice(2, 10)}`
 
+/* --- conversation pacing -------------------------------------------------
+   The walk is synchronous: it produces every bubble of a turn in one pass.
+   Handing all of them to the view at once is what made the preview feel like
+   a page load rather than a conversation, so the view reveals them on a clock
+   instead — dots, then the reply written out at reading speed. */
+
+/** Characters a second the assistant "types" at. Brisk but readable. */
+const TYPE_CHARS_PER_SEC = 62
+
+/** Frames a second the reveal advances on. */
+const TYPE_FPS = 30
+
+/** A beat of typing dots before a reply lands. */
+const LEAD_IN_MS = 380
+
+/** The visitor's own message needs no thinking time. */
+const USER_LEAD_IN_MS = 90
+
+/** However long a reply is, the preview never dwells on it past this. */
+const MAX_STREAM_MS = 2600
+
+const VOID_TAGS = new Set([
+  "area", "base", "br", "col", "embed", "hr", "img", "input",
+  "link", "meta", "param", "source", "track", "wbr",
+])
+
+/** Visible characters in a fragment of message HTML, tags excluded. */
+const plainTextLength = (html: string) =>
+  html
+    .replace(/<[^>]*>/g, "")
+    .replace(/&[a-zA-Z#0-9]{1,8};/g, " ").length
+
+/**
+ * The first `visible` visible characters of a fragment of HTML, with every
+ * tag left balanced.
+ *
+ * Message bodies carry markup — variable pills, emphasis — so revealing them
+ * by slicing the raw string would cut through a tag and render the innards as
+ * text. This counts only what the reader sees and closes whatever is still
+ * open at the cut.
+ */
+const sliceHtml = (html: string, visible: number) => {
+  if (visible <= 0) {
+    return ""
+  }
+
+  const open: string[] = []
+  let out = ""
+  let shown = 0
+  let index = 0
+
+  while (index < html.length && shown < visible) {
+    if (html[index] === "<") {
+      const close = html.indexOf(">", index)
+
+      if (close === -1) {
+        break
+      }
+
+      const tag = html.slice(index, close + 1)
+      const name = /^<\s*\/?\s*([a-zA-Z0-9-]+)/.exec(tag)?.[1]?.toLowerCase()
+      out += tag
+
+      if (name && !tag.endsWith("/>") && !VOID_TAGS.has(name)) {
+        if (tag.startsWith("</")) {
+          open.pop()
+        } else {
+          open.push(name)
+        }
+      }
+
+      index = close + 1
+      continue
+    }
+
+    // An entity is one character to the reader, however long it is written.
+    let chunk = html[index]!
+
+    if (chunk === "&") {
+      const semicolon = html.indexOf(";", index)
+
+      if (semicolon !== -1 && semicolon - index <= 9) {
+        chunk = html.slice(index, semicolon + 1)
+      }
+    }
+
+    out += chunk
+    shown += 1
+    index += chunk.length
+  }
+
+  for (let depth = open.length - 1; depth >= 0; depth -= 1) {
+    out += `</${open[depth]}>`
+  }
+
+  return out
+}
+
 /**
  * Variable pills wrap {{name}} in markup, so unwrap before substituting.
  * That also keeps chat bubbles free of the editor's pill styling.
@@ -156,12 +313,19 @@ const stripHtmlPreview = (html: string) =>
     .replace(/&nbsp;/g, " ")
     .trim()
 
-const formatTime = (ts: number) =>
-  new Date(ts).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  })
+/** `23:21:05.471` — milliseconds matter when two steps land in one tick. */
+const formatTime = (ts: number) => {
+  const d = new Date(ts)
+  const pad = (n: number, width = 2) => String(n).padStart(width, "0")
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}`
+}
+
+/** `671ms` under a second, `1.49s` above it. */
+const formatDuration = (ms: number) =>
+  ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(2)}s`
+
+/** Costs are fractions of a cent, so four decimals is the useful precision. */
+const formatCost = (usd: number) => `$${usd.toFixed(4)}`
 
 const nodeTypeLabel = (type?: string) => {
   if (!type) return "step"
@@ -229,6 +393,15 @@ const RunnerIcon = ({ name }: { name: RunnerIconName }) => {
     return (
       <svg {...common}>
         <path d="m6 9 6 6 6-6" />
+      </svg>
+    )
+  }
+
+  if (name === "search") {
+    return (
+      <svg {...common}>
+        <circle cx="11" cy="11" r="7" />
+        <path d="m20 20-3.5-3.5" />
       </svg>
     )
   }
@@ -306,9 +479,135 @@ const diffVars = (
   return Object.keys(changed).length ? changed : undefined
 }
 
+/**
+ * One assistant reply, written out rather than pasted in.
+ *
+ * A bubble only mounts when the transcript reveals it, so starting at zero
+ * characters here is what makes a reply type itself exactly once.
+ */
+const StreamedMessage = ({ html }: { html: string }) => {
+  const total = useMemo(() => plainTextLength(html), [html])
+  const [shown, setShown] = useState(0)
+
+  useEffect(() => {
+    if (shown >= total) {
+      return
+    }
+
+    // Long replies speed up rather than outstay their welcome.
+    const charsPerSec = Math.max(
+      TYPE_CHARS_PER_SEC,
+      (total / MAX_STREAM_MS) * 1000
+    )
+    const step = Math.max(1, Math.round(charsPerSec / TYPE_FPS))
+
+    const timer = window.setTimeout(() => {
+      setShown((current) => Math.min(total, current + step))
+    }, 1000 / TYPE_FPS)
+
+    return () => window.clearTimeout(timer)
+  }, [shown, total])
+
+  const isRevealing = shown < total
+
+  return (
+    <div
+      className={`chat-message message ${isRevealing ? "is-typing" : ""}`}
+      dangerouslySetInnerHTML={{
+        __html: isRevealing ? sliceHtml(html, shown) : html,
+      }}
+    />
+  )
+}
+
+/** Pointer travel past which a press counts as a drag, not a click. */
+const DRAG_SLOP_PX = 4
+
+/**
+ * The carousel row: scrolls, but shows no scrollbar and is dragged by hand.
+ *
+ * Hiding the bar means a mouse has no other way to reach the cards off the
+ * right edge, so the row is grabbable. Snapping is switched off while a drag
+ * is in flight — it fights a scrollLeft being rewritten on every move — and
+ * restored on release, which is what lets the row settle onto a card.
+ */
+const CarouselRow = ({ children }: { children: ReactNode }) => {
+  const ref = useRef<HTMLDivElement | null>(null)
+  const draggedRef = useRef(false)
+  const [dragging, setDragging] = useState(false)
+
+  const handlePointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      const el = ref.current
+
+      // Touch and pen already pan the row, with momentum this cannot match.
+      if (!el || event.pointerType !== "mouse" || event.button !== 0) {
+        return
+      }
+
+      const startX = event.clientX
+      const startLeft = el.scrollLeft
+      draggedRef.current = false
+      setDragging(true)
+
+      const onMove = (moveEvent: PointerEvent) => {
+        const distance = moveEvent.clientX - startX
+
+        if (Math.abs(distance) > DRAG_SLOP_PX) {
+          draggedRef.current = true
+        }
+
+        el.scrollLeft = startLeft - distance
+      }
+
+      const onUp = () => {
+        setDragging(false)
+        window.removeEventListener("pointermove", onMove)
+        window.removeEventListener("pointerup", onUp)
+        window.removeEventListener("pointercancel", onUp)
+      }
+
+      window.addEventListener("pointermove", onMove)
+      window.addEventListener("pointerup", onUp)
+      window.addEventListener("pointercancel", onUp)
+    },
+    []
+  )
+
+  /**
+   * A drag that ends over a button must not also press it. The click lands
+   * after pointerup, so the flag set during the drag is still standing here
+   * and is cleared once it has swallowed the one click it was meant for.
+   */
+  const handleClickCapture = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      if (!draggedRef.current) {
+        return
+      }
+
+      draggedRef.current = false
+      event.preventDefault()
+      event.stopPropagation()
+    },
+    []
+  )
+
+  return (
+    <div
+      ref={ref}
+      className={`chat-carousel ${dragging ? "dragging" : ""}`}
+      onPointerDown={handlePointerDown}
+      onClickCapture={handleClickCapture}
+    >
+      {children}
+    </div>
+  )
+}
+
 const RunPanel = ({
   nodes,
   edges,
+  workflowName,
   autoStartKey,
   onAutoStartComplete,
   onClose,
@@ -319,8 +618,18 @@ const RunPanel = ({
   const [dockHeight, setDockHeight] = useState(DOCK_DEFAULT_H)
   const [status, setStatus] = useState<RunStatus>("idle")
   const [bubbles, setBubbles] = useState<ChatBubble[]>([])
+  /**
+   * How much of `bubbles` the transcript has caught up with. The walk fills
+   * the array in one pass; this trails it on a clock so the conversation
+   * arrives the way the visitor will see it.
+   */
+  const [revealedCount, setRevealedCount] = useState(0)
   const [trace, setTrace] = useState<TraceEvent[]>([])
   const [variables, setVariables] = useState<RuntimeVariables>({})
+  const [logQuery, setLogQuery] = useState("")
+  const [logSeverity, setLogSeverity] = useState<LogSeverity | "All">("All")
+  const [severityMenuOpen, setSeverityMenuOpen] = useState(false)
+  const [varsView, setVarsView] = useState<"table" | "json">("table")
   const [pendingButtons, setPendingButtons] = useState<ButtonOption[] | null>(
     null
   )
@@ -636,7 +945,7 @@ const RunPanel = ({
               nodeId: node.id,
             })
             pushTrace(nextTrace, {
-              level: "info",
+              level: "output",
               step: steps,
               nodeId: node.id,
               nodeType: stepType,
@@ -1838,6 +2147,7 @@ const RunPanel = ({
 
     if (!startNode) {
       setBubbles([])
+      setRevealedCount(0)
       setTrace([
         {
           id: createId("tr"),
@@ -1875,10 +2185,35 @@ const RunPanel = ({
   }, [autoStartKey])
 
   useEffect(() => {
+    if (revealedCount >= bubbles.length) {
+      return
+    }
+
+    const next = bubbles[revealedCount]!
+    const previous = revealedCount > 0 ? bubbles[revealedCount - 1] : undefined
+    // Wait out the reply already being typed before starting the next beat.
+    const previousStreamMs =
+      previous?.kind === "assistant"
+        ? Math.min(
+            MAX_STREAM_MS,
+            (plainTextLength(previous.text) / TYPE_CHARS_PER_SEC) * 1000
+          )
+        : 0
+    const leadIn = next.kind === "user" ? USER_LEAD_IN_MS : LEAD_IN_MS
+
+    const timer = window.setTimeout(
+      () => setRevealedCount((current) => current + 1),
+      previousStreamMs + leadIn
+    )
+
+    return () => window.clearTimeout(timer)
+  }, [bubbles, revealedCount])
+
+  useEffect(() => {
     const el = bodyRef.current
     if (!el) return
     el.scrollTop = el.scrollHeight
-  }, [bubbles, pendingButtons])
+  }, [revealedCount, pendingButtons])
 
   useEffect(() => {
     if (dockCollapsed || dockTab === "vars") return
@@ -1906,6 +2241,7 @@ const RunPanel = ({
     setAsyncRun(null)
     setStatus("idle")
     setBubbles([])
+    setRevealedCount(0)
     setTrace([])
     setVariables({})
     setPendingButtons(null)
@@ -1967,7 +2303,7 @@ const RunPanel = ({
       ]
       const turnTrace = [...trace]
       pushTrace(turnTrace, {
-        level: "info",
+        level: "input",
         nodeId: pendingNodeId,
         title: "User replied to the agent",
         detail: label,
@@ -2007,7 +2343,7 @@ const RunPanel = ({
     ]
     const withTrace = [...trace]
     pushTrace(withTrace, {
-      level: "info",
+      level: "input",
       nodeId: pendingNodeId,
       title: "User selected",
       detail: label,
@@ -2078,7 +2414,7 @@ const RunPanel = ({
       ]
       const withTrace = [...trace]
       pushTrace(withTrace, {
-        level: "info",
+        level: "input",
         nodeId: pendingNodeId,
         title: "User spoke first",
         detail: text,
@@ -2243,8 +2579,17 @@ const RunPanel = ({
     }
   }
 
-  const renderCard = (card: ChatCard, ownerNodeId?: string) => (
-    <article key={card.id} className="chat-card-message">
+  const renderCard = (
+    card: ChatCard,
+    ownerNodeId?: string,
+    /** Position in a carousel, which is what staggers the deal-in. */
+    index = 0
+  ) => (
+    <article
+      key={card.id}
+      className="chat-card-message"
+      style={{ "--card-index": index } as CSSProperties}
+    >
       {card.imageUrl && (
         <img
           src={card.imageUrl}
@@ -2277,47 +2622,107 @@ const RunPanel = ({
     </article>
   )
 
+  /**
+   * One row per event: a severity stub, the severity, a millisecond stamp,
+   * the message, and — when the step reported one — a duration or cost chip
+   * on the right. A table would force every message to one column width;
+   * the message needs the whole remaining line, so this is a grid.
+   */
+  /** The bubble itself. The surrounding label and latency chip are added by
+   *  the transcript, so this only has to know how to draw one message. */
+  /** The transcript as far as the reveal clock has got. */
+  const visibleBubbles = useMemo(
+    () => bubbles.slice(0, revealedCount),
+    [bubbles, revealedCount]
+  )
+  /** True while there is still more of this turn to arrive. */
+  const isRevealing = revealedCount < bubbles.length
+  const nextBubbleKind = bubbles[revealedCount]?.kind
+
+  const renderBubbleBody = (item: ChatBubble) =>
+                  item.kind === "assistant" ? (
+                    <StreamedMessage html={item.text} />
+                  ) : item.kind === "user" ? (
+                    <div key={item.id} className="chat-message user">
+                      {item.text}
+                    </div>
+                  ) : item.kind === "image" ? (
+                    <div key={item.id} className="chat-image-message">
+                      <img src={item.text} alt={item.alt || "Workflow image"} />
+                    </div>
+                  ) : item.kind === "carousel" ? (
+                    <CarouselRow key={item.id}>
+                      {(item.cards ?? []).map((card, index) =>
+                        renderCard(card, item.nodeId, index)
+                      )}
+                    </CarouselRow>
+                  ) : (
+                    renderCard(
+                      {
+                        id: item.id,
+                        title: item.title ?? "",
+                        text: item.text,
+                        alt: item.alt,
+                        imageUrl: item.imageUrl,
+                        buttons: item.buttons,
+                      },
+                      item.nodeId
+                    )
+                  )
+
+  /* Search matches the same string the row renders, so what you read is
+     what you are filtering. */
+  const visibleTrace = trace.filter((event) => {
+    if (logSeverity !== "All" && LOG_SEVERITY[event.level] !== logSeverity) {
+      return false
+    }
+    if (!logQuery.trim()) return true
+    const haystack = `${event.title} ${event.detail ?? ""}`.toLowerCase()
+    return haystack.includes(logQuery.trim().toLowerCase())
+  })
+
   const renderLogTable = (events: TraceEvent[]) => (
-    <table className="run-log-table">
-      <thead>
-        <tr>
-          <th className="col-time">Time</th>
-          <th className="col-step">Step</th>
-          <th className="col-type">Block</th>
-          <th className="col-event">Event</th>
-          <th className="col-detail">Detail</th>
-          <th className="col-vars">Variables written</th>
-        </tr>
-      </thead>
-      <tbody>
-        {events.map((event) => (
-          <tr key={event.id} className={`level-${event.level}`}>
-            <td className="col-time">{formatTime(event.at)}</td>
-            <td className="col-step">
-              {event.step != null ? `#${event.step}` : ""}
-            </td>
-            <td className="col-type">
-              {event.nodeType && (
-                <span className="run-log-badge">
-                  {nodeTypeLabel(event.nodeType)}
-                </span>
-              )}
-            </td>
-            <td className="col-event">{event.title}</td>
-            <td className="col-detail">{event.detail}</td>
-            <td className="col-vars">
+    <div className="run-log-list" role="log">
+      {events.map((event) => {
+        const severity = LOG_SEVERITY[event.level]
+        const message = [event.title, event.detail]
+          .filter(Boolean)
+          .join(" — ")
+
+        return (
+          <div
+            key={event.id}
+            className={`run-log-row level-${event.level} sev-${severity.toLowerCase()}`}
+          >
+            <span className="run-log-stub" aria-hidden />
+            <span className="run-log-level">{severity}</span>
+            <span className="run-log-time">{formatTime(event.at)}</span>
+            <span className="run-log-message" title={message}>
+              {message}
+            </span>
+            <span className="run-log-meta">
               {event.varsChanged &&
                 Object.entries(event.varsChanged).map(([key, value]) => (
                   <span key={key} className="run-var-chip">
                     <em>{key}</em>
-                    {value || "∅"}
+                    {value || "\u2205"}
                   </span>
                 ))}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+              {event.costUsd != null && (
+                <span className="run-log-chip cost">
+                  {formatCost(event.costUsd)}
+                </span>
+              )}
+              {event.durationMs != null && (
+                <span className="run-log-chip">
+                  {formatDuration(event.durationMs)}
+                </span>
+              )}
+            </span>
+          </div>
+        )
+      })}
+    </div>
   )
 
   return (
@@ -2365,43 +2770,72 @@ const RunPanel = ({
             ) : (
               <>
                 <div className="chat-start-label">Live preview</div>
-                {bubbles.map((item) =>
-                  item.kind === "assistant" ? (
-                    <div
-                      key={item.id}
-                      className="chat-message message"
-                      dangerouslySetInnerHTML={{ __html: item.text }}
-                    />
-                  ) : item.kind === "user" ? (
-                    <div key={item.id} className="chat-message user">
-                      {item.text}
-                    </div>
-                  ) : item.kind === "image" ? (
-                    <div key={item.id} className="chat-image-message">
-                      <img src={item.text} alt={item.alt || "Workflow image"} />
-                    </div>
-                  ) : item.kind === "carousel" ? (
-                    <div key={item.id} className="chat-carousel">
-                      {(item.cards ?? []).map((card) =>
-                        renderCard(card, item.nodeId)
+                {visibleBubbles.map((item, index) => {
+                  /* Name the step above each new run of bubbles, so a long
+                     transcript says which part of the flow produced what. */
+                  const previous =
+                    index > 0 ? visibleBubbles[index - 1] : undefined
+                  const showSource =
+                    item.kind !== "user" &&
+                    Boolean(item.nodeId) &&
+                    item.nodeId !== previous?.nodeId
+                  /* Messages produced inside a Component come from that
+                     workflow's own graph, so they are not in `nodes`. The
+                     trace still knows what kind of step emitted them, which
+                     is enough to label the group. */
+                  const sourceNode = showSource
+                    ? nodes.find((node) => node.id === item.nodeId)
+                    : undefined
+                  const tracedType = showSource
+                    ? trace.find((event) => event.nodeId === item.nodeId)
+                        ?.nodeType
+                    : undefined
+                  const sourceName = !showSource
+                    ? null
+                    : ((sourceNode?.data as { customName?: string } | undefined)
+                        ?.customName ??
+                      (sourceNode
+                        ? nodeTypeLabel(sourceNode.type)
+                        : tracedType
+                          ? nodeTypeLabel(tracedType)
+                          : null))
+
+                  return (
+                    <Fragment key={item.id}>
+                      {sourceName && (
+                        <p className="chat-source-label">
+                          <span>{workflowName ?? "This workflow"}</span>
+                          <span aria-hidden>›</span>
+                          <strong>{sourceName}</strong>
+                        </p>
                       )}
-                    </div>
-                  ) : (
-                    renderCard(
-                      {
-                        id: item.id,
-                        title: item.title ?? "",
-                        text: item.text,
-                        alt: item.alt,
-                        imageUrl: item.imageUrl,
-                        buttons: item.buttons,
-                      },
-                      item.nodeId
-                    )
+                      {renderBubbleBody(item)}
+                      {item.latencyMs != null && (
+                        <span className="chat-latency">
+                          {formatDuration(item.latencyMs)}
+                        </span>
+                      )}
+                    </Fragment>
                   )
+                })}
+
+                {isRevealing && nextBubbleKind !== "user" && (
+                  <div
+                    className="chat-typing"
+                    role="status"
+                    aria-label="Assistant is typing"
+                  >
+                    {[0, 1, 2].map((dot) => (
+                      <span
+                        key={dot}
+                        style={{ animationDelay: `${dot * 0.14}s` }}
+                      />
+                    ))}
+                  </div>
                 )}
 
-                {pendingButtons &&
+                {!isRevealing &&
+                  pendingButtons &&
                   pendingButtons.length > 0 &&
                   pendingButtonOwnerType !== "card" &&
                   pendingButtonOwnerType !== "carousel" && (
@@ -2419,7 +2853,7 @@ const RunPanel = ({
                     </div>
                   )}
 
-                {status === "ended" && (
+                {status === "ended" && !isRevealing && (
                   <div className="chat-ended-divider">
                     <span>Chat has ended</span>
                   </div>
@@ -2500,6 +2934,70 @@ const RunPanel = ({
             ))}
           </div>
 
+          {dockTab === "vars" && !dockCollapsed && (
+            <div className="run-dock-filters">
+              <div className="run-vars-view" role="tablist" aria-label="Variable view">
+                {(["table", "json"] as const).map((view) => (
+                  <button
+                    key={view}
+                    type="button"
+                    role="tab"
+                    aria-selected={varsView === view}
+                    className={varsView === view ? "active" : ""}
+                    onClick={() => setVarsView(view)}
+                  >
+                    {view === "table" ? "Table" : "JSON"}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {dockTab === "trace" && !dockCollapsed && (
+            <div className="run-dock-filters">
+              <label className="run-log-search">
+                <RunnerIcon name="search" />
+                <input
+                  value={logQuery}
+                  placeholder="Search"
+                  aria-label="Search the run log"
+                  onChange={(event) => setLogQuery(event.target.value)}
+                />
+              </label>
+              <div className="run-log-severity">
+                <button
+                  type="button"
+                  className="run-log-severity-button"
+                  aria-haspopup="listbox"
+                  aria-expanded={severityMenuOpen}
+                  onClick={() => setSeverityMenuOpen((open) => !open)}
+                >
+                  {logSeverity}
+                  <RunnerIcon name="chevron" />
+                </button>
+                {severityMenuOpen && (
+                  <div className="run-log-severity-menu" role="listbox">
+                    {(["All", ...LOG_SEVERITIES] as const).map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        role="option"
+                        aria-selected={logSeverity === option}
+                        className={logSeverity === option ? "active" : ""}
+                        onClick={() => {
+                          setLogSeverity(option)
+                          setSeverityMenuOpen(false)
+                        }}
+                      >
+                        {option}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="run-dock-summary">
             <span className={`run-status-pill run-status-${status}`}>
               {statusLabel}
@@ -2543,8 +3041,16 @@ const RunPanel = ({
                     write in order.
                   </p>
                 </div>
+              ) : visibleTrace.length === 0 ? (
+                <div className="run-dock-empty">
+                  <strong>Nothing matches</strong>
+                  <p>
+                    {trace.length} {trace.length === 1 ? "entry is" : "entries are"}{" "}
+                    hidden by the current search and severity filter.
+                  </p>
+                </div>
               ) : (
-                renderLogTable(trace)
+                renderLogTable(visibleTrace)
               ))}
 
             {dockTab === "vars" &&
@@ -2556,6 +3062,25 @@ const RunPanel = ({
                     this table during a run.
                   </p>
                 </div>
+              ) : varsView === "json" ? (
+                /* Voiceflow shows run state as one JSON document; the gutter
+                   makes a long object scannable the way a code editor does. */
+                (() => {
+                  const json = JSON.stringify(
+                    Object.fromEntries(variableEntries),
+                    null,
+                    2
+                  )
+                  const lines = json.split("\n")
+                  return (
+                    <div className="run-vars-json">
+                      <pre className="run-vars-gutter" aria-hidden>
+                        {lines.map((_line, index) => `${index + 1}\n`).join("")}
+                      </pre>
+                      <pre className="run-vars-code">{json}</pre>
+                    </div>
+                  )
+                })()
               ) : (
                 <table className="run-vars-table">
                   <thead>

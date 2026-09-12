@@ -2,7 +2,9 @@ import { Handle, Position } from 'reactflow';
 import type { NodeProps } from 'reactflow';
 import type { AgentNodeData } from '../lib/types';
 import EditableNodeTitle from './EditableNodeTitle';
+import NodeText from './NodeText';
 import NodePorts from './NodePorts';
+import SourceHandle from './SourceHandle';
 
 /**
  * A node from the agent family. Its exit conditions are real ports, so an
@@ -23,7 +25,9 @@ const AgentNode = ({ id, data }: NodeProps<AgentNodeData>) => {
     >
       <EditableNodeTitle nodeId={id} value={data.customName} fallback={data.label} />
       <div className="node-body">
-        <div className="node-agent-preview">{preview}</div>
+        <div className="node-agent-preview">
+          <NodeText text={preview} />
+        </div>
         {tools.length > 0 && (
           <div className="node-agent-tools">
             {tools.map((tool) => (
@@ -42,7 +46,7 @@ const AgentNode = ({ id, data }: NodeProps<AgentNodeData>) => {
       </div>
       <Handle type="target" position={Position.Left} className="node-handle" />
       {exits.length === 0 && (
-        <Handle type="source" position={Position.Right} className="node-handle" />
+        <SourceHandle className="node-handle" />
       )}
     </div>
   );

@@ -12,12 +12,10 @@ import {
  * variable inputs.
  */
 export const useVariablePicker = ({
-  shellRef,
   editorRef,
   variables,
   onInserted,
 }: {
-  shellRef: React.RefObject<HTMLDivElement | null>
   editorRef: React.RefObject<HTMLDivElement | null>
   variables: WorkflowVariable[]
   onInserted: (editor: HTMLDivElement) => void
@@ -28,12 +26,19 @@ export const useVariablePicker = ({
     left: number
   } | null>(null)
   /**
-   * Where the "{query" sits. Captured when the picker opens: by the time the
-   * author clicks a row the live selection has moved to the button.
+   * What the pick will replace. Captured when the picker opens: by the time
+   * the author clicks a row the live selection has moved to the button.
+   *
+   * Two ways in. `text` is the "{query" being typed. `token` is an existing
+   * pill the author clicked to change their mind about, which has no caret
+   * near it at all — it is `contenteditable="false"`, so clicking one never
+   * placed a selection to measure from.
    */
-  const anchorRef = useRef<{ node: Text; end: number; length: number } | null>(
-    null
-  )
+  type PickerAnchor =
+    | { kind: "text"; node: Text; end: number; length: number }
+    | { kind: "token"; element: HTMLElement }
+
+  const anchorRef = useRef<PickerAnchor | null>(null)
 
   const readQuery = () => {
     const selection = window.getSelection()
@@ -63,6 +68,7 @@ export const useVariablePicker = ({
 
     if (selection?.focusNode) {
       anchorRef.current = {
+        kind: "text",
         node: selection.focusNode as Text,
         end: selection.focusOffset,
         length: found.length,
@@ -80,23 +86,66 @@ export const useVariablePicker = ({
     })
   }, [editorRef])
 
+  /**
+   * Opens the picker on an existing pill, so clicking one offers the same list
+   * as typing "{" and swaps it in place.
+   */
+  const openForToken = useCallback(
+    (element: HTMLElement) => {
+      const editor = editorRef.current
+
+      if (!editor || !editor.contains(element)) {
+        return
+      }
+
+      anchorRef.current = { kind: "token", element }
+
+      const rect = element.getBoundingClientRect()
+      const host = editor.getBoundingClientRect()
+
+      setPicker({
+        query: "",
+        top: rect.bottom - host.top + 6,
+        left: Math.max(0, rect.left - host.left - 8),
+      })
+    },
+    [editorRef]
+  )
+
   const insert = useCallback(
     (name: string) => {
       const editor = editorRef.current
       const anchor = anchorRef.current
 
-      if (!editor || !anchor || !editor.contains(anchor.node)) {
+      if (!editor || !anchor) {
         return
       }
 
-      // Swallow the "{query" the author typed, then drop the pill in.
+      const target =
+        anchor.kind === "text" ? anchor.node : anchor.element
+
+      if (!editor.contains(target)) {
+        return
+      }
+
       const range = document.createRange()
-      range.setStart(anchor.node, Math.max(0, anchor.end - anchor.length))
-      range.setEnd(anchor.node, anchor.end)
+
+      if (anchor.kind === "text") {
+        // Swallow the "{query" the author typed, then drop the pill in.
+        range.setStart(anchor.node, Math.max(0, anchor.end - anchor.length))
+        range.setEnd(anchor.node, anchor.end)
+      } else {
+        range.selectNode(anchor.element)
+      }
+
       range.deleteContents()
 
+      // Replacing a pill needs no trailing space: whatever spacing the author
+      // already had around it is still there.
       const fragment = range.createContextualFragment(
-        `${buildVariableToken(name, variables)}&nbsp;`
+        anchor.kind === "text"
+          ? `${buildVariableToken(name, variables)}&nbsp;`
+          : buildVariableToken(name, variables)
       )
       const lastNode = fragment.lastChild
       range.insertNode(fragment)
@@ -131,16 +180,34 @@ export const useVariablePicker = ({
     }
 
     const close = (event: MouseEvent) => {
-      // Test the shell, not the editor: the picker is a sibling of the editor,
-      // so testing the editor closed it before the click could land.
-      if (!shellRef.current?.contains(event.target as Node)) {
+      const target = event.target as HTMLElement | null
+
+      /*
+       * Anything that is not the list itself dismisses it — a press back
+       * inside the editor included, which previously left the list hanging
+       * over the text you were trying to read.
+       *
+       * The list is excluded by element rather than by testing the editor,
+       * because it is a sibling of the editor inside the same shell: testing
+       * the editor would dismiss the list before a click on one of its rows
+       * could land. A press on a pill is dismissed here too, and its own
+       * click handler reopens the list a moment later on the new anchor.
+       */
+      if (!target?.closest?.(".variable-picker")) {
         setPicker(null)
       }
     }
 
     window.addEventListener("pointerdown", close)
     return () => window.removeEventListener("pointerdown", close)
-  }, [picker, shellRef])
+  }, [picker])
 
-  return { picker, matches, refresh, insert, close: () => setPicker(null) }
+  return {
+    picker,
+    matches,
+    refresh,
+    insert,
+    openForToken,
+    close: () => setPicker(null),
+  }
 }

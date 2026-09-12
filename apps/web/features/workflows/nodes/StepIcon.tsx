@@ -40,6 +40,9 @@ export type IconName =
   | "workflow"
   | "crew"
   | "operator"
+  | "integration"
+  | "mcp"
+  | "chevronDown"
   | "lineText"
   | "trash"
   | "palette"
@@ -49,6 +52,8 @@ export type IconName =
   | "redo"
   | "zoomIn"
   | "zoomOut"
+  | "heat"
+  | "replay"
 
 export const Icon = ({ name, size = 24 }: { name: IconName; size?: number }) => {
   const common = {
@@ -83,9 +88,8 @@ export const Icon = ({ name, size = 24 }: { name: IconName; size?: number }) => 
     case "listen":
       return (
         <svg {...common}>
-          <path d="M12 3 5 7v7c0 4 3.1 6.2 7 7 3.9-.8 7-3 7-7V7l-7-4Z" />
-          <circle cx="12" cy="10" r="2.5" />
-          <path d="M8 16c.9-1.7 2.2-2.5 4-2.5s3.1.8 4 2.5" />
+          <path d="M8 4H6.5A2.5 2.5 0 0 0 4 6.5V8M8 20H6.5A2.5 2.5 0 0 1 4 17.5V16M16 4h1.5A2.5 2.5 0 0 1 20 6.5V8M16 20h1.5a2.5 2.5 0 0 0 2.5-2.5V16" />
+          <path d="M10 9.5a4 4 0 0 1 0 5M13 7.5a7 7 0 0 1 0 9" />
         </svg>
       )
     case "logic":
@@ -135,15 +139,15 @@ export const Icon = ({ name, size = 24 }: { name: IconName; size?: number }) => 
     case "card":
       return (
         <svg {...common}>
-          <rect x="5" y="4" width="14" height="16" rx="3" />
-          <path d="M8 8h8M8 12h8M8 16h5" />
+          <rect x="9" y="4" width="11" height="14" rx="3" />
+          <path d="M15 20H7a3 3 0 0 1-3-3V8" />
         </svg>
       )
     case "carousel":
       return (
         <svg {...common}>
-          <rect x="9" y="5" width="10" height="14" rx="2" />
-          <path d="M5 7v10M2 9v6" />
+          <rect x="8" y="4" width="8" height="16" rx="2" />
+          <path d="M4.5 7v10M19.5 7v10" />
         </svg>
       )
     case "buttons":
@@ -170,15 +174,9 @@ export const Icon = ({ name, size = 24 }: { name: IconName; size?: number }) => 
     case "condition":
       return (
         <svg {...common}>
-          <rect
-            x="5"
-            y="5"
-            width="14"
-            height="14"
-            rx="3"
-            transform="rotate(45 12 12)"
-          />
-          <path d="M9 12h6M9 9h6" />
+          <rect x="3" y="3" width="18" height="18" rx="5" />
+          <path d="M9 8.5v7" strokeWidth={2.2} />
+          <path d="M13 15.5v-7h3.4M13 12h3" strokeWidth={2.2} />
         </svg>
       )
     case "set":
@@ -312,6 +310,22 @@ export const Icon = ({ name, size = 24 }: { name: IconName; size?: number }) => 
           <path d="m8 7 4-4 4 4M8 17l4 4 4-4M7 8l-4 4 4 4M17 8l4 4-4 4" />
         </svg>
       )
+    // Traffic overlay: rising bars, read as "how much went through here".
+    case "heat":
+      return (
+        <svg {...common}>
+          <path d="M4 20V13M10 20V8M16 20v-4M22 20V4" />
+        </svg>
+      )
+    // Replay: a play head inside a loop back through time.
+    case "replay":
+      return (
+        <svg {...common}>
+          <path d="M3 12a9 9 0 1 0 3-6.7" />
+          <path d="M3 4v5h5" />
+          <path d="m11 10 4 2.5-4 2.5v-5Z" />
+        </svg>
+      )
     case "close":
       return (
         <svg {...common}>
@@ -341,8 +355,29 @@ export const Icon = ({ name, size = 24 }: { name: IconName; size?: number }) => 
     case "workflow":
       return (
         <svg {...common}>
-          <path d="M6 5h8l4 4-4 4H6l4-4-4-4Z" />
-          <path d="M6 19h12M12 13v6" />
+          <path d="M4 6h6a3 3 0 0 1 3 3v6a3 3 0 0 0 3 3h4" />
+          <path d="M4 18h5" />
+          <path d="m17 15 3 3-3 3" />
+          <circle cx="4" cy="6" r="1.4" />
+        </svg>
+      )
+    case "integration":
+      return (
+        <svg {...common}>
+          <rect x="3" y="3" width="18" height="18" rx="5" />
+          <path d="M15 9.5a3.5 3.5 0 1 0-3.5 3.5c1.5 0 2 .9 2 1.8a1.8 1.8 0 0 1-3.4.7" />
+        </svg>
+      )
+    case "mcp":
+      return (
+        <svg {...common}>
+          <path d="M4 15.5 13 6.6a3.2 3.2 0 0 1 4.5 4.5l-8 8a5 5 0 0 1-7-7l8-8" />
+        </svg>
+      )
+    case "chevronDown":
+      return (
+        <svg {...common}>
+          <path d="m6 9 6 6 6-6" />
         </svg>
       )
     case "crew":
@@ -356,7 +391,8 @@ export const Icon = ({ name, size = 24 }: { name: IconName; size?: number }) => 
     case "operator":
       return (
         <svg {...common}>
-          <path d="M4 12h5l2-7 2 14 2-7h5" />
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 7.5a4.5 4.5 0 1 1-4.4 5.4" />
         </svg>
       )
     case "lineText":

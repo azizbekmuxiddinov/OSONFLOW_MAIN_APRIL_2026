@@ -1,4 +1,3 @@
-import { Handle, Position } from 'reactflow';
 import type {
   ApiNodeData,
   BlockStep,
@@ -15,12 +14,21 @@ import type {
   JavascriptNodeData,
   MessageNodeData,
   NodeType,
+  IntegrationNodeData,
+  ListenNodeData,
+  McpNodeData,
   SetVariableNodeData,
   ToolNodeData,
 } from '../lib/types';
-import { stepPorts } from '../lib/types';
+import {
+  normalizeConditionPaths,
+  normalizeSetEntries,
+  stepPorts,
+} from '../lib/types';
 import Icon from './StepIcon';
+import NodeText from './NodeText';
 import { STEP_ICONS } from './nodeIcon';
+import SourceHandle from './SourceHandle';
 
 
 const STEP_LABELS: Partial<Record<NodeType, string>> = {
@@ -62,13 +70,36 @@ const stepSummary = (step: BlockStep): string => {
       return ((data as ChoiceNodeData).choices ?? []).map((c) => c.label).join(' · ') || 'No choices';
     case 'capture':
       return `→ ${(data as CaptureNodeData).variableKey || 'lastInput'}`;
+    case 'listen':
+      return `Listen and save reply to: ${(data as ListenNodeData).variableKey || 'last_utterance'}`;
+    case 'integration': {
+      const integration = data as IntegrationNodeData;
+      return integration.toolName || 'No integration tool selected';
+    }
+    case 'mcp':
+      return (data as McpNodeData).toolName || 'No MCP tool selected';
     case 'condition': {
       const condition = data as ConditionNodeData;
-      return `${condition.key || 'variable'} ${condition.operator ?? 'equals'} ${condition.value ?? ''}`.trim();
+      const paths = normalizeConditionPaths(condition);
+      const named = paths
+        .map((path, index) => {
+          if (path.name.trim()) return path.name.trim();
+          const [clause] = path.clauses;
+          return clause
+            ? `${clause.key || 'variable'} ${clause.operator} ${clause.value}`.trim()
+            : `Path ${index + 1}`;
+        })
+        .join(' · ');
+      return named || 'No paths';
     }
     case 'setVariable': {
       const set = data as SetVariableNodeData;
-      return `${set.key || 'variable'} = ${set.value || 'value'}`;
+      const entries = [...normalizeSetEntries(set), ...(set.properties ?? [])];
+      return (
+        entries
+          .map((entry) => `${entry.key || 'variable'} = ${entry.value || 'value'}`)
+          .join(' · ') || 'Nothing set'
+      );
     }
     case 'api': {
       const api = data as ApiNodeData;
@@ -110,18 +141,20 @@ const StepRow = ({
         </span>
         <span className="block-step-copy">
           <span className="block-step-title">{title}</span>
-          <span className="block-step-summary">{stepSummary(step)}</span>
+          <span className="block-step-summary">
+            <NodeText text={stepSummary(step)} />
+          </span>
         </span>
       </button>
       {ports.length > 0 && (
         <div className="block-step-ports">
           {ports.map((port) => (
             <div key={port.id} className="block-step-port">
-              <span>{port.label}</span>
-              <Handle
+              <span>
+                <NodeText text={port.label} />
+              </span>
+              <SourceHandle
                 id={port.id}
-                type="source"
-                position={Position.Right}
                 className="node-handle node-button-handle"
               />
             </div>

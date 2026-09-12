@@ -60,6 +60,16 @@
   --theme-orange: #dc8879;
   --theme-purple: #9a63bc;
 
+  /* Code syntax. Its own ramp, not the semantic tokens: a keyword is not
+     "the accent colour", and binding them would repaint every snippet the
+     day the brand colour changes. */
+  --code-keyword: #2f6fd0;
+  --code-string: #9c3d54;
+  --code-number: #c0392b;
+  --code-comment: #8a9199;
+  --code-prop: #7a4fa3;
+  --code-fn: #8a5a2b;
+
   /* step-category accents */
   --talk: #397dff;
   --listen: #7a5af8;
@@ -114,6 +124,13 @@
   --panel-w: 468px;
   --panel-inset: 14px;
   --panel-top: 14px;
+  /* Height of the toolbar row, which is simply the action buttons' height:
+     they sit directly on the canvas with no containing pill. */
+  --topbar-h: 40px;
+  /* The toolbar holds the top-right corner whether or not a panel is open,
+     so docked panels begin below it, on the same 14px rhythm that sets the
+     toolbar off from the top edge. */
+  --panel-top-docked: calc(var(--panel-top) * 2 + var(--topbar-h));
 
   /* Live height of the bottom run dock; RunPanel overwrites it while a run
      surface is mounted, and the chat panel and canvas tools read it back. */
@@ -122,7 +139,7 @@
 
   /* Every chat image and card cover is this tall, so cards stay aligned
      whatever shape the source image is. */
-  --chat-media-h: 132px;
+  --chat-media-h: 108px;
 
   --edge-default: #8b9495;
   --edge-active: #3d82e2;
@@ -192,8 +209,7 @@
   display: none;
 }
 
-.category-rail,
-.step-popover,
+.step-library,
 .top-actions,
 .collaboration-strip,
 .collaborators-panel,
@@ -207,89 +223,115 @@
 }
 
 /* --- step library ----------------------------------------------------
-   A narrow rail of categories; each opens a popover of draggable steps. */
-.category-rail {
+   One flat panel. A mode picker heads the first group and swaps it between
+   the scripted steps and the agentic ones; Tools and Logic below it never
+   change. Group headings are a small label with a hairline running out to
+   the panel edge. It leaves during a run: there is nothing to drag onto a
+   canvas you are watching, and the space is better spent on the flow. */
+.step-library {
   position: absolute;
   top: var(--panel-top);
   left: var(--panel-inset);
   z-index: 25;
-  width: 62px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 5px;
+  width: 173px;
+  max-height: calc(100% - var(--panel-top) - var(--panel-inset));
+  overflow-y: auto;
+  padding: 4px;
   border: 0;
   border-radius: var(--r-md);
   background: var(--surface);
   box-shadow: 0 0 0 var(--frame-w) var(--panel-frame), var(--sh-2);
+  scrollbar-width: thin;
+  transition:
+    opacity 0.2s var(--ease),
+    transform 0.24s var(--ease),
+    visibility 0s linear 0s;
 }
 
-.category-tab {
-  position: relative;
-  width: 100%;
-  height: 52px;
+/* Slides out to the left while a run or a replay is on screen. Visibility is
+   held back until the slide finishes on the way out, and dropped immediately
+   on the way back in, so the rail animates both ways but never takes a click
+   or a tab stop while it is gone. */
+.builder-shell.run-drawer-open .step-library {
+  opacity: 0;
+  transform: translateX(calc(-100% - var(--panel-inset) - var(--frame-w)));
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 0.2s var(--ease),
+    transform 0.24s var(--ease),
+    visibility 0s linear 0.24s;
+}
+
+.step-group + .step-group {
+  margin-top: 2px;
+}
+
+.step-group-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: calc(100% - 8px);
+  height: 29px;
+  margin: 0 4px;
+  padding: 0 4px;
   border: 0;
-  border-radius: var(--r-sm);
   background: transparent;
   color: var(--muted);
-  display: grid;
-  place-items: center;
-  align-content: center;
-  gap: 5px;
-  cursor: pointer;
-  transition:
-    background var(--dur) var(--ease),
-    color var(--dur) var(--ease);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  text-align: left;
 }
 
-.category-tab:hover,
-.category-tab:focus-visible {
-  background: var(--surface-3);
+/* The hairline fills whatever the label leaves, so it always reaches the
+   panel edge no matter how long the group name is. */
+.step-group-heading::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.step-group-mode {
+  cursor: pointer;
+  color: var(--ink-2);
+  transition: color var(--dur) var(--ease);
+}
+
+.step-group-mode:hover,
+.step-group-mode:focus-visible {
   color: var(--ink);
   outline: none;
 }
 
-.category-tab.active {
-  background: var(--accent-soft);
-  color: var(--accent-strong);
+.step-group-mode svg {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  color: var(--faint);
 }
 
-.category-tab span {
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: -0.005em;
-  line-height: 1;
+/* The chevron sits with the label, so the rule starts after it. */
+.step-group-mode > span + svg {
+  order: 0;
 }
 
-.category-tab svg {
-  width: 19px;
-  height: 19px;
-}
-
-.step-popover {
-  position: absolute;
-  top: var(--popover-top);
-  left: 86px;
-  z-index: 24;
-  width: 244px;
-  padding: 4px 0;
-  border: 0;
-  border-radius: var(--r-md);
-  background: var(--surface);
-  box-shadow: 0 0 0 var(--frame-w) var(--panel-frame), var(--sh-2);
-  animation: popoverIn 0.16s var(--ease) both;
+.step-group-mode::after {
+  order: 1;
 }
 
 .step-option {
   width: calc(100% - 8px);
   min-height: 36px;
   margin: 0 4px;
+  gap: 2px;
   border: 0;
   border-radius: var(--r-xs);
   background: transparent;
   color: var(--ink);
   display: grid;
-  grid-template-columns: 30px 1fr;
+  grid-template-columns: 26px 1fr;
   align-items: center;
   padding: 0 8px;
   text-align: left;
@@ -327,33 +369,52 @@
 
 /* --- top bar ---------------------------------------------------------
    Name, actions and collaborators share one row so the canvas only loses a
-   single strip of height, and both clusters slide together when a panel
-   opens instead of each tracking its own offset. */
+   single strip of height, and the row owns the top-right corner permanently.
+   It used to slide left out of an opening panel's way; now the panel starts
+   below it instead, so Run, Save and Publish never move and never need
+   chasing. The z-index sits above the docked panels (32) and the run dock
+   (33), so the collaborator and warning dropdowns open over them rather than
+   behind. */
 .top-bar {
   position: absolute;
   top: var(--panel-top);
   right: var(--panel-inset);
-  z-index: 28;
+  z-index: 34;
   display: flex;
   align-items: center;
   gap: 10px;
-  transition: right 0.24s var(--ease);
+  transition:
+    opacity 0.2s var(--ease),
+    transform 0.24s var(--ease),
+    visibility 0s linear 0s;
 }
 
-.builder-shell.inspector-open .top-bar,
-.builder-shell.run-drawer-open .top-bar {
-  right: calc(var(--panel-inset) * 2 + var(--panel-w));
+/* A run claims the whole right column, top corner included, and the toolbar
+   is what is sitting in it. So it lifts away for the duration — the run panel
+   carries its own close button, and closing it brings the toolbar back. */
+.builder-shell.run-drawer-open .top-bar,
+.builder-shell.run-drawer-open .validation-panel {
+  opacity: 0;
+  transform: translateY(calc(-100% - var(--panel-top)));
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 0.2s var(--ease),
+    transform 0.24s var(--ease),
+    visibility 0s linear 0.24s;
+}
+
+/* With the toolbar gone there is nothing left to clear, so every docked panel
+   reaches the top edge for as long as the run is open. */
+.builder-shell.run-drawer-open .inspector-sheet,
+.builder-shell.run-drawer-open .side-drawer {
+  top: var(--panel-top);
 }
 
 .top-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 5px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-lg);
-  background: var(--surface);
-  box-shadow: var(--sh-2);
+  gap: 8px;
 }
 
 .collaboration-strip {
@@ -373,8 +434,21 @@
   box-shadow: var(--sh-1);
 }
 
+.collaboration-strip .collaborator-avatar {
+  margin-left: -11px;
+}
+
+/* Later avatars stack under earlier ones, so the overlap always runs the
+   same way however many people are in the room. */
+.collaboration-strip .collaborator-avatar:nth-of-type(2) {
+  z-index: 1;
+}
+
+/* The invite button overlaps the presence avatars and sits on top of them,
+   so the cluster reads as one stack instead of a row of separate circles. */
 .collaborator-invite {
-  margin-right: 10px;
+  position: relative;
+  z-index: 2;
   border-color: var(--line);
   background: var(--surface);
   color: var(--muted);
@@ -634,8 +708,7 @@
   text-transform: uppercase;
 }
 
-.round-button,
-.toolbar-button,
+.action-button,
 .bottom-tools button,
 .sheet-header button,
 .message-editor-header button,
@@ -647,63 +720,176 @@
 }
 
 /* --- toolbar controls -------------------------------------------------
-   One filled action per bar. Publish is the consequential one, so it takes
-   the fill; Run, Save and Deactivate stay quiet until hovered. */
-.round-button {
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  flex: 0 0 32px;
-  border-radius: var(--r-sm);
-  background: transparent;
-  color: var(--muted);
-  display: grid;
-  place-items: center;
-  transition:
-    background var(--dur) var(--ease),
-    color var(--dur) var(--ease);
-}
-
-.toolbar-button {
-  height: 32px;
-  border-radius: var(--r-sm);
-  padding: 0 11px;
-  background: transparent;
-  color: var(--ink-2);
+   Three filled actions, no containing pill. Run and Publish carry their own
+   colour so the two things you do most are findable without reading, and
+   Close is neutral because leaving is not an achievement. */
+.action-button {
+  height: 40px;
+  padding: 0 16px;
+  border-radius: var(--r-md);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  font-size: 13px;
+  gap: 7px;
+  background: var(--surface-4);
+  color: var(--ink-2);
+  font-size: 14px;
   font-weight: 600;
   letter-spacing: -0.005em;
+  box-shadow: var(--sh-1);
   transition:
     background var(--dur) var(--ease),
     color var(--dur) var(--ease),
-    box-shadow var(--dur) var(--ease);
+    transform var(--dur) var(--ease);
 }
 
-.round-button:hover,
-.round-button:focus-visible,
-.toolbar-button:hover,
-.toolbar-button:focus-visible,
-.bottom-tools button:hover,
-.bottom-tools button:focus-visible {
+.action-button:hover:not(:disabled),
+.action-button:focus-visible:not(:disabled) {
   background: var(--surface-3);
   color: var(--ink);
   outline: none;
 }
 
-.toolbar-button.run:hover,
-.toolbar-button.run:focus-visible {
-  background: var(--accent-soft);
-  color: var(--accent-strong);
+.action-button:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
-.toolbar-button.run.loading {
-  background: var(--accent-soft);
-  color: var(--accent-strong);
+.action-button.run {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.action-button.run:hover:not(:disabled),
+.action-button.run:focus-visible:not(:disabled),
+.action-button.run.loading {
+  background: var(--accent-strong);
+  color: #ffffff;
+}
+
+.action-button.run.loading {
   pointer-events: none;
+}
+
+.action-button.publish {
+  background: var(--success);
+  color: #ffffff;
+}
+
+.action-button.publish:hover:not(:disabled),
+.action-button.publish:focus-visible:not(:disabled) {
+  background: color-mix(in srgb, var(--success) 86%, #000000);
+  color: #ffffff;
+}
+
+/* Close is square: it takes an icon only, so the horizontal padding that
+   suits a label would leave it looking stretched. */
+.action-button.close {
+  width: 40px;
+  padding: 0;
+  flex: 0 0 40px;
+}
+
+.action-button:disabled,
+.action-button:disabled:hover {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/* --- publish split control --------------------------------------------
+   Two buttons that read as one: the face publishes, the chevron opens the
+   actions that no longer have a toolbar button of their own. */
+.publish-split {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+}
+
+.publish-split .action-button.publish {
+  border-radius: var(--r-md) 0 0 var(--r-md);
+}
+
+/* Carries .publish too, so it has to out-specify the rule above or it takes
+   the left-hand half's radius and squares off the split's outer corners. */
+.publish-split .action-button.publish.publish-more {
+  border-radius: 0 var(--r-md) var(--r-md) 0;
+}
+
+.publish-split .publish-more {
+  width: 34px;
+  padding: 0;
+  flex: 0 0 34px;
+  /* A hairline of the surface behind, rather than a border, so the two
+     halves stay exactly one control tall. */
+  box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.28), var(--sh-1);
+}
+
+/* Something on the canvas has not reached the live flow yet. */
+.publish-dot {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  z-index: 2;
+  width: 11px;
+  height: 11px;
+  border: 2px solid var(--canvas);
+  border-radius: 50%;
+  background: var(--warning);
+  pointer-events: none;
+}
+
+.publish-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 3;
+  min-width: 168px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--sh-4);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.publish-menu button {
+  height: 32px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--dur) var(--ease),
+    color var(--dur) var(--ease);
+}
+
+.publish-menu button:hover:not(:disabled),
+.publish-menu button:focus-visible:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--ink);
+  outline: none;
+}
+
+.publish-menu button.danger {
+  color: var(--danger);
+}
+
+.publish-menu button.danger:hover:not(:disabled),
+.publish-menu button.danger:focus-visible:not(:disabled) {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.publish-menu button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .button-spinner {
@@ -714,89 +900,6 @@
   border-radius: 50%;
   opacity: 0.85;
   animation: buttonSpin 0.72s linear infinite;
-}
-
-.toolbar-button.primary {
-  background: var(--ink);
-  color: #ffffff;
-  box-shadow: var(--sh-1);
-}
-
-.toolbar-button.primary:hover,
-.toolbar-button.primary:focus-visible {
-  background: #2f343c;
-  color: #ffffff;
-}
-
-.toolbar-button.danger {
-  color: var(--danger);
-}
-
-.toolbar-button.danger:hover,
-.toolbar-button.danger:focus-visible {
-  background: var(--danger-soft);
-  color: var(--danger);
-}
-
-.toolbar-button:disabled,
-.toolbar-button:disabled:hover,
-.toolbar-button:disabled:focus-visible {
-  cursor: not-allowed;
-  opacity: 0.45;
-}
-
-.toolbar-button.primary:disabled,
-.toolbar-button.primary:disabled:hover {
-  background: var(--ink);
-  color: #ffffff;
-}
-
-/* Save/publish feedback. Quiet by design — it reports, it does not ask. */
-.workflow-status-pill {
-  max-width: 168px;
-  overflow: hidden;
-  border-left: 1px solid var(--line);
-  color: var(--muted);
-  padding: 0 4px 0 11px;
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 1;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Renaming a workflow used to be impossible: every flow saved as
-   "Untitled workflow". This is the rename affordance. */
-.builder-shell .workflow-name-input {
-  width: 164px;
-  min-width: 96px;
-  height: 32px;
-  padding: 0 9px;
-  border: 1px solid transparent;
-  border-radius: var(--r-sm);
-  background: transparent;
-  color: var(--ink);
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.builder-shell .workflow-name-input::placeholder {
-  color: var(--faint);
-  font-weight: 500;
-}
-
-.builder-shell .workflow-name-input:hover {
-  background: var(--surface-3);
-}
-
-.builder-shell .workflow-name-input:focus-visible {
-  border-color: var(--accent);
-  background: var(--surface);
-  box-shadow: var(--ring);
 }
 
 /* --- canvas toolbar --------------------------------------------------
@@ -1016,6 +1119,7 @@
 
 .node-menu-colors {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   padding: 10px 14px 14px;
 }
@@ -1023,6 +1127,7 @@
 /* The dot is 20px and the ring it selects into is 32px, so the row keeps its
    rhythm whether or not a swatch is currently chosen. */
 .color-swatch {
+  flex: 0 0 auto;
   width: 20px;
   height: 20px;
   border: 0;
@@ -1114,6 +1219,7 @@
 
 .edge-menu-colors {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   padding: 11px 4px 3px;
 }
@@ -1294,7 +1400,7 @@
 .inspector-sheet,
 .side-drawer {
   position: absolute;
-  top: var(--panel-top);
+  top: var(--panel-top-docked);
   right: var(--panel-inset);
   bottom: var(--panel-inset);
   z-index: 32;
@@ -1505,13 +1611,36 @@ body.panel-resizing {
 }
 
 .message-compose-area {
-  flex: 1;
+  flex: 0 0 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 16px;
+  padding: 12px 16px;
+}
+
+/* The Prompt tab writes into the same sheet as Scripted, so it carries no box
+   of its own either. */
+.builder-shell .message-prompt-input {
+  min-height: 0;
+  max-height: 320px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.55;
+  resize: vertical;
+  outline: none;
+}
+
+.builder-shell .message-prompt-input:focus-visible,
+.builder-shell .message-prompt-input:focus {
+  border: 0;
+  box-shadow: none;
+  outline: none;
 }
 
 .message-editor-toolbar {
@@ -1549,31 +1678,65 @@ body.panel-resizing {
   flex-direction: column;
 }
 
+/* No box. The writing area is the panel itself, the way the step editors on
+   voiceflow.com read: you type straight onto the sheet, and the hairline of
+   the next section is the only edge under the text. */
 .message-editor-input {
-  flex: 1;
-  min-height: 160px;
+  position: relative;
+  flex: 0 0 auto;
+  /* No reserved height: the field is exactly as tall as what is written in it,
+     so the focus rail beside it measures the text itself and grows a line at a
+     time as you type rather than standing taller than the caret. */
+  max-height: 320px;
+  /* Horizontal scrolling is off and long unbroken strings are forced to wrap:
+     `overflow-y: auto` alone computes overflow-x to auto as well, so one long
+     word used to hang a scrollbar under the text. */
+  overflow-x: hidden;
   overflow-y: auto;
-  border: 1px solid var(--line-2);
-  border-radius: var(--r-sm);
-  background: var(--surface);
-  padding: 12px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
   color: var(--ink);
   direction: ltr;
   font-size: 14px;
   line-height: 1.55;
   outline: none;
+  overflow-wrap: anywhere;
   text-align: left;
   unicode-bidi: isolate;
   white-space: pre-wrap;
-  transition:
-    border-color var(--dur) var(--ease),
-    box-shadow var(--dur) var(--ease);
+  word-break: break-word;
 }
 
 .message-editor-input:focus-visible,
 .message-editor-input:focus {
-  border-color: var(--accent);
-  box-shadow: var(--ring);
+  border: 0;
+  box-shadow: none;
+  outline: none;
+}
+
+/* The focus rail is a capsule laid against the panel's left edge rather than a
+   border on the field: flat where it meets the edge, rounded on the inside, and
+   drawn on the shell so it measures exactly the height of what is written. */
+.message-compose-area .message-editor-shell::after,
+.inspector-list-row .message-editor-shell::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -16px;
+  width: 3px;
+  border-radius: 0 999px 999px 0;
+  background: var(--accent);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur) var(--ease);
+}
+
+.message-compose-area .message-editor-shell:focus-within::after,
+.inspector-list-row .message-editor-shell:focus-within::after {
+  opacity: 1;
 }
 
 .message-editor-input *,
@@ -1584,10 +1747,39 @@ body.panel-resizing {
   unicode-bidi: isolate;
 }
 
+/* The placeholder is taken out of flow rather than laid out inline: an inline
+   ::before in a contenteditable box pushes the caret onto the next line, so the
+   hint appeared above the blue caret instead of beside it. Absolute, at the
+   field's own padding origin, it sits exactly where the first character will,
+   and the caret rests against its first letter at the very left edge. */
 .message-editor-input[data-empty="true"]::before {
   content: attr(data-placeholder);
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding-top: inherit;
+  padding-left: inherit;
   color: var(--faint);
   pointer-events: none;
+}
+
+/* Once the caret is in an empty field the placeholder stops naming the field
+   — you already know which one you clicked — and teaches the one thing that
+   is not discoverable: the brace shortcut for variables. */
+.message-editor-input[data-empty="true"]:focus::before {
+  content: "'{{' to add variable";
+}
+
+/* A variant is one line of the same sheet, so it sits flush in its row and
+   only the remove button marks where it ends. */
+.inspector-list-row .message-editor-shell {
+  flex: 1;
+  min-width: 0;
+}
+
+.inspector-list-row .message-editor-input {
+  max-height: 160px;
+  line-height: 1.5;
 }
 
 .chat-runner-heading {
@@ -1688,6 +1880,69 @@ body.panel-resizing {
 
 .chat-message + .chat-message {
   margin-top: 8px;
+}
+
+/* A reply still being written carries a caret, so a pause reads as "more is
+   coming" rather than as the message having ended mid-sentence. */
+.chat-message.is-typing::after {
+  content: "";
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 1px;
+  border-radius: 1px;
+  background: currentColor;
+  opacity: 0.55;
+  vertical-align: text-bottom;
+  animation: chatCaret 1s steps(1, end) infinite;
+}
+
+@keyframes chatCaret {
+  0%,
+  49% {
+    opacity: 0.55;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Typing dots, matching the widget's own indicator so the preview and the
+   live chat say "thinking" the same way. */
+.chat-typing {
+  width: fit-content;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  padding: 12px 13px;
+  border-radius: var(--r-lg);
+  border-bottom-left-radius: var(--r-xs);
+  background: var(--surface-3);
+  color: var(--muted);
+  animation: messageIn 0.2s var(--ease) both;
+}
+
+.chat-typing span {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+  animation: chatTyping 1.05s ease-in-out infinite;
+}
+
+@keyframes chatTyping {
+  0%,
+  80%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.38;
+  }
+  40% {
+    transform: translateY(-3px);
+    opacity: 0.9;
+  }
 }
 
 .chat-message.message {
@@ -1939,7 +2194,272 @@ body.dock-resizing {
 }
 
 /* One table grammar for the log, the issue list and the variable table. */
-.run-log-table,
+/* --- run log --------------------------------------------------------
+   One row per event: a severity stub, the severity, a millisecond stamp,
+   the message, then any chips the step reported. A grid rather than a
+   table so the message always takes the whole remaining line. */
+.run-log-list {
+  display: flex;
+  flex-direction: column;
+  font-size: 12.5px;
+}
+
+.run-log-row {
+  display: grid;
+  grid-template-columns: 3px 62px 96px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+  padding: 5px 12px 5px 0;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  transition: background var(--dur) var(--ease);
+}
+
+.run-log-row:last-child {
+  border-bottom: 0;
+}
+
+/* Hover tints the row and is what reveals the trailing chips' affordances. */
+.run-log-row:hover {
+  background: var(--surface-2);
+}
+
+/* The severity rail: a short rounded stub at the very left edge. */
+.run-log-stub {
+  width: 3px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--line-2);
+}
+
+.run-log-level {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.run-log-time {
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.run-log-message {
+  min-width: 0;
+  color: var(--ink-2);
+  line-height: 1.45;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.run-log-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Duration and cost chips. Cost is tinted because on a metered model it is
+   the number the reader is actually watching. */
+.run-log-chip {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.run-log-chip.cost {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+/* Severity colours ride on the stub and the label, never the whole row —
+   a wall of tinted rows is unreadable. */
+.run-log-row.sev-output .run-log-stub {
+  background: var(--success);
+}
+
+.run-log-row.sev-output .run-log-level {
+  color: var(--success);
+}
+
+.run-log-row.sev-input .run-log-stub {
+  background: var(--theme-rose);
+}
+
+.run-log-row.sev-input .run-log-level {
+  color: var(--theme-rose);
+}
+
+.run-log-row.sev-info .run-log-stub {
+  background: var(--accent);
+}
+
+.run-log-row.sev-info .run-log-level {
+  color: var(--accent);
+}
+
+.run-log-row.sev-warn .run-log-stub {
+  background: var(--warning);
+}
+
+.run-log-row.sev-warn .run-log-level {
+  color: var(--warning);
+}
+
+.run-log-row.sev-error .run-log-stub,
+.run-log-row.sev-fatal .run-log-stub {
+  background: var(--danger);
+}
+
+.run-log-row.sev-error .run-log-level,
+.run-log-row.sev-fatal .run-log-level {
+  color: var(--danger);
+}
+
+/* --- dock filters ---------------------------------------------------- */
+.run-dock-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.run-log-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: var(--r-sm);
+  color: var(--faint);
+}
+
+.run-log-search input {
+  width: 150px;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: 12.5px;
+  outline: none;
+}
+
+.run-log-severity {
+  position: relative;
+}
+
+.run-log-severity-button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.run-log-severity-button:hover {
+  background: var(--surface-3);
+}
+
+.run-log-severity-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 30;
+  min-width: 128px;
+  padding: 4px;
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--line), var(--sh-3);
+}
+
+.run-log-severity-menu button {
+  width: 100%;
+  min-height: 30px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.run-log-severity-menu button:hover {
+  background: var(--surface-3);
+}
+
+.run-log-severity-menu button.active {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-weight: 600;
+}
+
+/* --- variables: table / JSON ----------------------------------------- */
+.run-vars-view {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--r-sm);
+  background: var(--surface-3);
+}
+
+.run-vars-view button {
+  min-height: 24px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: calc(var(--r-sm) - 2px);
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.run-vars-view button.active {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--sh-1);
+}
+
+.run-vars-json {
+  display: flex;
+  gap: 12px;
+  padding: 10px 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.run-vars-gutter {
+  margin: 0;
+  color: var(--faint);
+  text-align: right;
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.run-vars-code {
+  margin: 0;
+  min-width: 0;
+  color: var(--ink);
+  overflow-x: auto;
+  white-space: pre;
+}
+
 .run-vars-table {
   width: 100%;
   border-collapse: separate;
@@ -1947,7 +2467,6 @@ body.dock-resizing {
   font-size: 12px;
 }
 
-.run-log-table th,
 .run-vars-table th {
   position: sticky;
   top: 0;
@@ -1964,7 +2483,6 @@ body.dock-resizing {
   white-space: nowrap;
 }
 
-.run-log-table td,
 .run-vars-table td {
   border-bottom: 1px solid var(--line);
   background: var(--surface);
@@ -1975,12 +2493,10 @@ body.dock-resizing {
   overflow-wrap: anywhere;
 }
 
-.run-log-table tr:last-child td,
 .run-vars-table tr:last-child td {
   border-bottom: 0;
 }
 
-.run-log-table .col-time,
 .run-vars-table .col-time {
   width: 92px;
   color: var(--faint);
@@ -1988,67 +2504,7 @@ body.dock-resizing {
   white-space: nowrap;
 }
 
-.run-log-table .col-step {
-  width: 58px;
-  color: var(--faint);
-  font-variant-numeric: tabular-nums;
-}
 
-.run-log-table .col-type {
-  width: 116px;
-}
-
-.run-log-table .col-event {
-  width: 208px;
-  color: var(--ink);
-  font-weight: 600;
-}
-
-.run-log-table .col-vars {
-  width: 28%;
-}
-
-/* Level reads as one tinted rail down the first cell, never a second
-   border colour on the row. */
-.run-log-table td.col-time {
-  border-left: 3px solid transparent;
-}
-
-.run-log-table tr.level-step td.col-time {
-  border-left-color: var(--line-2);
-}
-
-.run-log-table tr.level-branch td.col-time {
-  border-left-color: var(--accent);
-}
-
-.run-log-table tr.level-wait td.col-time {
-  border-left-color: var(--warning);
-}
-
-.run-log-table tr.level-ai td.col-time {
-  border-left-color: var(--agent);
-}
-
-.run-log-table tr.level-done td.col-time {
-  border-left-color: var(--success);
-}
-
-.run-log-table tr.level-warn td.col-time {
-  border-left-color: var(--warning);
-}
-
-.run-log-table tr.level-error td.col-time {
-  border-left-color: var(--danger);
-}
-
-.run-log-table tr.level-warn td {
-  background: var(--warning-soft);
-}
-
-.run-log-table tr.level-error td {
-  background: var(--danger-soft);
-}
 
 .run-log-badge {
   display: inline-flex;
@@ -2085,6 +2541,44 @@ body.dock-resizing {
 .run-vars-origin {
   margin-left: 6px;
   color: var(--muted);
+}
+
+/* Names the step that produced the messages beneath it, so a long
+   transcript stays traceable back to the canvas. */
+.chat-source-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 14px 0 6px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.chat-source-label:first-child {
+  margin-top: 0;
+}
+
+.chat-source-label strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.chat-source-label span[aria-hidden] {
+  color: var(--faint);
+}
+
+/* How long the reply took, sat under the bubble it belongs to. */
+.chat-latency {
+  align-self: flex-start;
+  margin: -2px 0 4px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 .run-reply-form {
@@ -2159,9 +2653,13 @@ body.dock-resizing {
 
 .chat-card-message {
   width: 100%;
+  /* Capped rather than full-bleed. A card that runs the whole width of the
+     panel reads as a section of a web page; held in, it reads as something
+     the assistant sent. */
+  max-width: 252px;
   overflow: hidden;
   border: 0;
-  border-radius: 18px;
+  border-radius: var(--r-lg);
   background: var(--surface-3);
   box-shadow: none;
   animation: messageIn 0.2s ease both;
@@ -2190,30 +2688,57 @@ body.dock-resizing {
   /* Bleed to the panel edges so a card can sit flush while scrolling. */
   margin: 0 -16px;
   padding: 2px 16px 6px;
-  scrollbar-width: thin;
+  /* Without this the snapport is the padding box, so the first card snaps
+     flush to it and the container scrolls the 16px of padding away — which
+     pulls the whole row left of the message bubbles above. Matching the
+     padding here makes the resting position line up with the text. */
+  scroll-padding-inline: 16px;
+  /* No scrollbar: the row is dragged by hand instead. */
+  cursor: grab;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
+.chat-carousel::-webkit-scrollbar {
+  display: none;
+}
+
+/* While a drag is in flight the row must not snap — snapping fights a
+   scrollLeft that is being rewritten on every pointer move — and must not
+   select the card text the cursor is sweeping across. */
+.chat-carousel.dragging {
+  cursor: grabbing;
+  scroll-snap-type: none;
+  user-select: none;
+}
+
+/* Carousel cards deal in rather than appearing as a finished row: each one
+   slides up from under the previous card's edge, a beat behind it, so the set
+   reads as a stack being fanned out. `both` holds a card invisible until its
+   turn, which is what makes the stagger look like dealing instead of a row
+   fading in together. */
 .chat-carousel .chat-card-message {
   flex: 0 0 auto;
-  width: 208px;
+  width: 186px;
   scroll-snap-align: start;
+  transform-origin: left center;
+  animation: carouselCardIn 0.34s var(--ease) both;
+  animation-delay: calc(var(--card-index, 0) * 70ms);
+}
+
+@keyframes carouselCardIn {
+  from {
+    opacity: 0;
+    transform: translateX(22px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
 }
 
 .chat-carousel .chat-card-message + .chat-card-message {
   margin-top: 0;
-}
-
-.chat-carousel::-webkit-scrollbar {
-  height: 6px;
-}
-
-.chat-carousel::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: var(--line-2);
-}
-
-.chat-carousel::-webkit-scrollbar-track {
-  background: transparent;
 }
 
 /* One fixed media height for every card, so a row of them lines up no matter
@@ -2227,40 +2752,41 @@ body.dock-resizing {
 }
 
 .chat-card-content {
-  padding: 11px 13px 13px;
+  padding: 9px 11px 11px;
 }
 
 .chat-card-content h3 {
   color: var(--ink);
-  font-size: 13.5px;
+  font-size: 12.5px;
   font-weight: 600;
   line-height: 1.3;
 }
 
 .chat-card-description {
-  margin-top: 4px;
+  margin-top: 3px;
   color: var(--ink-2);
-  font-size: 13.5px;
-  line-height: 1.45;
+  font-size: 12px;
+  line-height: 1.4;
   overflow-wrap: anywhere;
 }
 
 .chat-card-buttons {
   display: grid;
-  gap: 6px;
-  margin-top: 11px;
+  gap: 4px;
+  margin-top: 9px;
 }
 
 .chat-card-buttons button {
   width: 100%;
-  min-height: 34px;
+  min-height: 29px;
+  padding: 0 8px;
   border: 0;
-  border-radius: var(--r-sm);
+  border-radius: var(--r-xs);
   background: var(--surface-4);
   color: var(--ink);
   cursor: pointer;
   font: inherit;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   transition:
     background var(--dur) var(--ease),
@@ -2414,6 +2940,15 @@ body.dock-resizing {
   gap: 8px;
 }
 
+/* A toggle row is a caption on the left and its switch hard right. Scoped to
+   `.builder-shell` so it out-specifies the stacking `label` rule above. */
+.builder-shell .inspector-toggle-row {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .builder-shell .field-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -2479,6 +3014,130 @@ body.dock-resizing {
   min-height: 88px;
   padding: 9px 10px;
   resize: vertical;
+}
+
+/* --- step-editor fields ------------------------------------------------
+   Inside a step editor the fields carry no box, the way the Message body does:
+   the caption names the field, the section hairlines do the dividing, and a
+   blue capsule at the panel's left edge marks the field being edited. Scoped
+   to `.inspector-body` so the dialogs, the top bar and the run drawer keep the
+   ordinary bordered controls, where a lone input has no panel to sit on. */
+.builder-shell .inspector-body input,
+.builder-shell .inspector-body textarea,
+.builder-shell .inspector-body .variable-input {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding-right: 0;
+  padding-left: 0;
+}
+
+.builder-shell .inspector-body input:hover,
+.builder-shell .inspector-body textarea:hover,
+.builder-shell .inspector-body input:focus,
+.builder-shell .inspector-body input:focus-visible,
+.builder-shell .inspector-body textarea:focus,
+.builder-shell .inspector-body textarea:focus-visible,
+.builder-shell .inspector-body .variable-input:focus,
+.builder-shell .inspector-body .variable-input:focus-visible {
+  border: 0;
+  box-shadow: none;
+  outline: none;
+}
+
+/* A select has to keep reading as something you open, so it trades its outline
+   for a quiet fill rather than losing its edge altogether. */
+.builder-shell .inspector-body select {
+  border: 0;
+  background-color: var(--surface-3);
+}
+
+.builder-shell .inspector-body select:hover,
+.builder-shell .inspector-body select:focus,
+.builder-shell .inspector-body select:focus-visible {
+  border: 0;
+  background-color: var(--surface-4);
+  box-shadow: none;
+}
+
+/* Fields that share a row are the one exception: with no edge at all, a Set
+   assignment or a Condition clause reads as one run-on line, so the columns
+   are separated by a fill instead of by an outline. */
+.builder-shell .inspector-body .inspector-row-fields input,
+.builder-shell .inspector-body .inspector-row-fields textarea,
+.builder-shell .inspector-body .inspector-row-fields .variable-input {
+  border-radius: var(--r-sm);
+  background: var(--surface-3);
+  padding-right: 10px;
+  padding-left: 10px;
+}
+
+/* A pill field and a native input sit in the same row, so they have to agree on
+   height, and neither may grow the row past its column. */
+.builder-shell .inspector-body .inspector-row-fields .variable-input {
+  min-height: 34px;
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+
+.inspector-row-fields > * {
+  min-width: 0;
+}
+
+/* A field with writing tools: the toolbar sits where the control would, and the
+   editor below it keeps the same flush treatment as every other field. */
+.rich-text-field {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.rich-text-field .message-editor-toolbar {
+  min-height: 26px;
+  margin-bottom: 4px;
+}
+
+.rich-text-field .message-editor-toolbar button {
+  min-width: 24px;
+  height: 24px;
+}
+
+/* A field caption is 600; the copy written under it is not, the same way a
+   native input inside a label does not inherit the caption's weight. */
+.builder-shell .inspector-body .rich-text-field .message-editor-input {
+  font-size: 13px;
+  font-weight: 400;
+}
+
+/* The focus rail, matching the Message step: flat against the panel edge,
+   rounded on the inside, spanning the field group that holds the caret. */
+.builder-shell .inspector-body label:not(.inspector-toggle-row),
+.builder-shell .inspector-body .field-row,
+.builder-shell .inspector-body .inspector-list-row {
+  position: relative;
+}
+
+.builder-shell
+  .inspector-body
+  label:not(.inspector-toggle-row):focus-within::before,
+.builder-shell .inspector-body .field-row:focus-within::before,
+.builder-shell .inspector-body .inspector-list-row:focus-within::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -16px;
+  width: 3px;
+  border-radius: 0 999px 999px 0;
+  background: var(--accent);
+  pointer-events: none;
+}
+
+/* A row nested inside another one would otherwise stack two rails on the same
+   3px of panel edge. */
+.builder-shell .inspector-body .field-row:focus-within .field-row::before,
+.builder-shell .inspector-body .inspector-list-row:focus-within label::before {
+  content: none;
 }
 
 .helper,
@@ -2664,87 +3323,262 @@ body.dock-resizing {
 }
 
 /* header */
-.node-title {
+/* --- node name -------------------------------------------------------
+   Painted only when the author has actually named the node, and then it
+   stays put whether or not the pointer is near. Unnamed nodes show nothing:
+   the generic "Block"/"Card" caption this replaced was noise on every card. */
+.node-name {
   display: flex;
-  width: 100%;
   align-items: center;
-  gap: 8px;
-  min-height: 34px;
-  padding: 0 10px;
-  border: 0;
-  background: transparent;
-  color: var(--node-title, var(--ink));
-  cursor: text;
-  font-family: inherit;
+  gap: 6px;
+  min-height: 30px;
+  padding: 4px 6px 4px 11px;
+  border-bottom: 1px solid var(--step-divider);
+  color: var(--ink);
   font-size: 12.5px;
   font-weight: 600;
   letter-spacing: -0.005em;
-  text-align: left;
+  line-height: 1.2;
 }
 
-button.node-title {
-  appearance: none;
-}
-
-.node-title-icon {
-  flex: 0 0 auto;
-  display: grid;
-  width: 20px;
-  height: 20px;
-  place-items: center;
-  border-radius: var(--r-xs);
-  background: color-mix(in srgb, var(--chip-color) 12%, #ffffff);
-  color: var(--chip-color);
-}
-
-.node-title-icon {
-  --chip-color: var(--dev);
-}
-
-.node-title-icon.accent-talk {
-  --chip-color: var(--talk);
-}
-
-.node-title-icon.accent-listen {
-  --chip-color: var(--listen);
-}
-
-.node-title-icon.accent-logic {
-  --chip-color: var(--logic);
-}
-
-.node-title-icon.accent-agent {
-  --chip-color: var(--agent);
-}
-
-.node-title span,
-.node-title-text {
+.node-name-text {
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
+  cursor: text;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.node-title-editable:hover,
-.node-title-editable:focus-visible {
+.node-name-text:focus-visible {
+  outline: none;
+  text-decoration: underline;
+}
+
+/* The name row keeps its height whether or not the actions are showing, so
+   revealing them never nudges the card. */
+.node-name .node-actions {
+  flex: 0 0 auto;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur) var(--ease);
+}
+
+.node:hover > .node-name .node-actions,
+.node-name .node-actions:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.node-name-input {
+  width: 100%;
+  height: 24px;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: var(--surface);
+  padding: 0 6px;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  box-shadow: 0 0 0 2px var(--accent);
+  outline: none;
+}
+
+/* A block paints its rows on the grey frame, so its caption needs its own
+   white ground and the card's top corners. */
+.node-block > .node-name {
+  border-bottom: 0;
+  border-radius: var(--r-sm) var(--r-sm) 1px 1px;
+  background: var(--surface);
+}
+
+/* --- node hover toolbar ----------------------------------------------
+   Nodes carry no permanent caption. On hover a strip rises above the card:
+   a wide grip that both drags the node and opens its rename field, plus the
+   rename and options buttons. It is absolutely positioned so appearing and
+   disappearing never changes the node's own height. */
+.node-toolbar {
+  position: absolute;
+  bottom: calc(100% + var(--toolbar-gap));
+  left: 0;
+  right: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  pointer-events: none;
+  /* No translate on reveal: the strip must not move under a pointer that is
+     already travelling towards it, or the press lands on empty canvas. */
+  transition: opacity var(--dur) var(--ease);
+}
+
+.node {
+  --toolbar-gap: 6px;
+}
+
+/*
+ * Bridges the gap between the node's top edge and the strip. Without it the
+ * pointer crosses a band that is over neither element, `:hover` stops
+ * matching, and the toolbar vanishes just as you reach for it.
+ */
+.node-toolbar::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: var(--toolbar-gap);
+}
+
+/* Hover only. Selecting a node deliberately does NOT raise the strip: a
+   selected node stays selected while you work elsewhere, so keying off it
+   left toolbars hanging over the canvas with the pointer nowhere near them.
+   The two exceptions are keyboard focus and an open rename field, which must
+   not vanish the moment the pointer leaves to reach the keyboard. */
+.node:hover > .node-toolbar,
+.node-toolbar:hover,
+.node-toolbar:focus-within,
+.node-toolbar-editing {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/*
+ * React Flow writes z-index inline on every node wrapper, so a hovered node
+ * needs !important to climb above its neighbours — otherwise the strip is
+ * painted underneath whichever node happens to sit above it and the clicks
+ * land on that node instead.
+ */
+.react-flow__node:hover,
+.react-flow__node:focus-within {
+  z-index: 12 !important;
+}
+
+.node-toolbar-grip {
+  flex: 1 1 auto;
+  display: grid;
+  min-width: 0;
+  height: 28px;
+  place-items: center;
+  border-radius: var(--r-sm);
+  /* Was --surface-4 on --muted, which is two steps of grey away from the
+     canvas and effectively invisible until the pointer was already on it.
+     The strip is hover-only chrome, so once it is showing it should be
+     unmistakable. */
+  background: var(--line-2);
+  color: var(--ink-2);
+  cursor: grab;
+  font-size: 12px;
+  font-weight: 600;
+  transition:
+    background var(--dur) var(--ease),
+    color var(--dur) var(--ease);
+}
+
+.node-toolbar-grip:hover {
+  background: var(--faint);
+  color: var(--surface);
+}
+
+.node-toolbar-grip:active {
+  cursor: grabbing;
+}
+
+.node-toolbar-name {
+  max-width: 100%;
+  overflow: hidden;
+  padding: 0 10px;
+  color: var(--ink-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The six-dot grip mark, drawn rather than shipped as an icon. */
+.node-toolbar-dots {
+  width: 14px;
+  height: 8px;
+  background-image: radial-gradient(currentColor 1.1px, transparent 1.2px);
+  background-size: 5px 4px;
+  opacity: 0.75;
+}
+
+.node-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.node-action {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    background var(--dur) var(--ease),
+    color var(--dur) var(--ease);
+}
+
+.node-action:hover,
+.node-action:focus-visible {
+  background: var(--surface-3);
   color: var(--ink);
   outline: none;
 }
 
-.node-title-input {
-  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent);
+/* On the floating strip the buttons sit on the canvas, so they need their own
+   ground and hairline the way the grip has. */
+.node-toolbar .node-action {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+.node-toolbar-button {
+  flex: 0 0 auto;
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  box-shadow: 0 0 0 1px var(--line);
+  transition:
+    background var(--dur) var(--ease),
+    color var(--dur) var(--ease);
+}
+
+.node-toolbar-button:hover,
+.node-toolbar-button:focus-visible {
+  background: var(--surface-3);
+  color: var(--ink);
   outline: none;
 }
 
-.node:not(.node-start) .node-title {
-  min-height: 38px;
-  margin: 0;
-  padding: 9px 11px;
-  border-bottom: 1px solid var(--step-divider);
-  color: var(--node-title);
+.node-toolbar-input {
+  width: 100%;
+  height: 28px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  padding: 0 10px;
+  color: var(--ink);
+  font-family: inherit;
   font-size: 12.5px;
   font-weight: 600;
-  line-height: 1.2;
+  box-shadow: 0 0 0 2px var(--accent);
+  outline: none;
 }
 
 /* body */
@@ -2771,13 +3605,24 @@ button.node-title {
 
 /* Content-heavy steps keep the same card width; only their bodies differ. */
 .node-message .node-body {
-  display: -webkit-box;
-  max-height: none;
   overflow: hidden;
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+
+/* The preview is clamped on its own box inside the padded body rather than on
+   the body itself. A clamp that shares a box with the padding can paint its
+   ellipsis on the third line while a fourth still bleeds into the 11px of
+   bottom padding; here the clipped box is exactly three line-heights tall and
+   has no padding, so the cut can only ever land on a line boundary. */
+.node-message-clamp {
+  display: -webkit-box;
+  max-height: calc(3 * 1.42em);
+  overflow: hidden;
+  line-height: 1.42;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
+  line-clamp: 3;
 }
 
 .node:not(.node-start).node-image-has-preview {
@@ -2866,19 +3711,19 @@ button.node-title {
 .node-card-summary {
   position: relative;
   display: grid;
-  grid-template-columns: 34px minmax(0, 1fr);
+  grid-template-columns: 40px minmax(0, 1fr);
   gap: 10px;
   align-items: center;
 }
 
 .node-card-thumb {
   display: grid;
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
   overflow: hidden;
   place-items: center;
   border: 1px solid var(--line);
-  border-radius: var(--r-xs);
+  border-radius: var(--r-sm);
   background: var(--surface-2);
 }
 
@@ -2967,40 +3812,10 @@ button.node-title {
   color: var(--faint);
 }
 
-.node-card-image-preview {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 0;
-  z-index: 40;
-  width: 280px;
-  pointer-events: none;
-  opacity: 0;
-  transform: translateY(-3px);
-  transition:
-    opacity var(--dur) var(--ease),
-    transform var(--dur) var(--ease);
-  background: transparent;
-}
-
-.node-card-thumb:hover + .node-card-image-preview,
-.node-card-thumb:has(img:hover) + .node-card-image-preview {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.node-card-image-preview img {
-  display: block;
-  width: 100%;
-  max-height: 280px;
-  border-radius: 8px;
-  object-fit: contain;
-}
-
 .image-compose-area {
   flex: 0 0 auto;
   overflow: auto;
   padding: 16px;
-  border-bottom: 1px solid var(--line);
 }
 
 .image-source-tabs {
@@ -3072,7 +3887,7 @@ button.node-title {
   object-fit: contain;
 }
 
-.image-browse-button {
+.builder-shell .image-browse-button {
   display: inline-grid;
   min-width: 104px;
   height: 44px;
@@ -3081,19 +3896,17 @@ button.node-title {
   background: var(--accent);
   color: #ffffff;
   cursor: pointer;
-  font-size: 16px;
-  font-weight: 700;
-  box-shadow: 0 6px 14px rgba(57, 125, 255, 0.26);
+  font-size: 15px;
+  font-weight: 600;
   transition:
     background var(--dur) var(--ease),
     transform var(--dur) var(--ease),
     box-shadow var(--dur) var(--ease);
 }
 
-.image-browse-button:hover,
-.image-browse-button:focus-within {
+.builder-shell .image-browse-button:hover,
+.builder-shell .image-browse-button:focus-within {
   background: var(--accent-strong);
-  box-shadow: 0 9px 18px rgba(57, 125, 255, 0.3);
 }
 
 .image-link-editor input {
@@ -3112,13 +3925,12 @@ button.node-title {
 
 .card-compose-area {
   display: flex;
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-height: 0;
   flex-direction: column;
-  gap: 14px;
-  overflow-y: auto;
+  gap: 10px;
   overscroll-behavior: contain;
-  padding: 16px;
+  padding: 12px 16px 14px;
 }
 
 .card-editor-panel .message-editor-header {
@@ -3139,12 +3951,12 @@ button.node-title {
 }
 
 .card-upload-dropzone {
-  min-height: 136px;
-  gap: 14px;
+  min-height: 120px;
+  gap: 12px;
 }
 
 .card-upload-dropzone p {
-  font-size: 15px;
+  font-size: 14px;
 }
 
 .card-upload-dropzone.has-image {
@@ -3158,14 +3970,23 @@ button.node-title {
   font-size: 16px;
 }
 
-.card-title-input {
-  height: 46px;
-  border-color: #d6d9df;
-  border-radius: 8px;
-  padding: 0 14px;
+.builder-shell .card-title-input {
+  height: auto;
+  min-height: 24px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
   color: var(--ink);
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.builder-shell .card-title-input:focus,
+.builder-shell .card-title-input:focus-visible {
+  box-shadow: none;
+  outline: none;
 }
 
 .card-title-input::placeholder {
@@ -3174,20 +3995,22 @@ button.node-title {
 
 .card-description-editor {
   overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface);
-  box-shadow: var(--sh-1);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .card-description-editor .message-editor-input {
-  min-height: 74px;
+  min-height: 22px;
+  max-height: 200px;
   border: 0;
   border-radius: 0;
-  background: var(--surface);
-  padding: 12px 14px;
-  font-size: 15px;
-  line-height: 1.35;
+  background: transparent;
+  padding: 0;
+  color: var(--ink-2);
+  font-size: 14px;
+  line-height: 1.5;
   box-shadow: none;
 }
 
@@ -3210,14 +4033,14 @@ button.node-title {
 }
 
 .card-buttons-section {
-  border-bottom: 1px solid var(--line);
-  padding: 0 20px 16px;
+  border-top: 1px solid var(--line);
+  padding: 4px 16px 12px;
 }
 
 .card-buttons-heading,
 .card-actions-row {
   display: flex;
-  min-height: 48px;
+  min-height: 36px;
   align-items: center;
   justify-content: space-between;
   border-top: 1px solid var(--line);
@@ -3450,27 +4273,6 @@ button.node-title {
   --node-frame: color-mix(in srgb, var(--node-accent) 28%, #ffffff);
 }
 
-.node-color-blue .node-title,
-.node-color-green .node-title,
-.node-color-orange .node-title,
-.node-color-purple .node-title,
-.node-color-rose .node-title {
-  border-bottom-color: color-mix(
-    in srgb,
-    var(--node-accent) 32%,
-    var(--step-divider)
-  );
-  background: color-mix(in srgb, var(--node-accent) 6%, transparent);
-}
-
-.node-color-blue .node-title-icon,
-.node-color-green .node-title-icon,
-.node-color-orange .node-title-icon,
-.node-color-purple .node-title-icon,
-.node-color-rose .node-title-icon {
-  --chip-color: var(--node-accent);
-}
-
 .node.node-color-blue {
   --node-accent: var(--theme-blue);
   --node-handle: var(--theme-blue);
@@ -3496,6 +4298,77 @@ button.node-title {
   --node-handle: var(--theme-rose);
 }
 
+/*
+ * A hue chosen on the slider. It rides on React Flow's node wrapper rather
+ * than on the card, so nothing had to change in seventeen node components —
+ * but the per-type accents (`.node.node-message` and friends) are set on the
+ * card itself, and a value merely inherited from the wrapper would lose to
+ * them. Two classes on the wrapper plus the card wins on specificity.
+ */
+.react-flow__node.node-has-custom-color .node {
+  --node-accent: var(--custom-accent);
+  --node-handle: var(--custom-accent);
+  --node-frame: color-mix(in srgb, var(--custom-accent) 28%, #ffffff);
+}
+
+/* --- colour slider ---------------------------------------------------
+   Sits under a menu's preset swatches. Hue only: saturation and lightness
+   are fixed in JS per surface, so every position lands in the same family
+   as the presets above it and none of them can produce mud. */
+.color-slider {
+  flex: 0 0 100%;
+  width: 100%;
+  padding: 2px 2px 4px;
+}
+
+.color-slider input[type="range"] {
+  display: block;
+  width: 100%;
+  height: 10px;
+  appearance: none;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    #ff0000 0%,
+    #ffff00 17%,
+    #00ff00 33%,
+    #00ffff 50%,
+    #0000ff 67%,
+    #ff00ff 83%,
+    #ff0000 100%
+  );
+  cursor: pointer;
+  outline: none;
+}
+
+.color-slider input[type="range"]::-webkit-slider-thumb {
+  width: 16px;
+  height: 16px;
+  appearance: none;
+  border: 2px solid var(--surface);
+  border-radius: 999px;
+  /* Shows the colour actually in force, not the raw hue under the thumb. */
+  background: var(--slider-swatch, var(--surface));
+  box-shadow:
+    0 0 0 1px var(--line-2),
+    var(--sh-1);
+}
+
+.color-slider input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--surface);
+  border-radius: 999px;
+  background: var(--slider-swatch, var(--surface));
+  box-shadow:
+    0 0 0 1px var(--line-2),
+    var(--sh-1);
+}
+
+.color-slider input[type="range"]:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
 /* The entry point reads as a marker, not as a step: a compact ink pill with
    a live dot, so it never competes with the cards it feeds. */
 .node-start {
@@ -3516,18 +4389,19 @@ button.node-title {
     var(--sel-ring);
 }
 
-.node-start .node-title {
+.node-start-label {
+  display: flex;
   min-height: 32px;
+  align-items: center;
+  justify-content: center;
   gap: 6px;
-  border: 0;
   padding: 0 11px 0 12px;
   color: var(--start-ink);
   font-size: 12.5px;
   font-weight: 600;
-  justify-content: center;
 }
 
-.node-start .node-title::before {
+.node-start-label::before {
   content: "";
   flex: 0 0 auto;
   width: 6px;
@@ -3565,6 +4439,15 @@ button.node-title {
   flex-direction: column;
   gap: 2px;
   margin-top: 8px;
+}
+
+/* Some steps list their ports inside the body and others hang them off the
+   node itself. --port-reach is measured from the body's inset, so a list that
+   sits directly on the node has to borrow that inset: without it the row's
+   right edge is the card's own and the handle is pushed a full 12px past the
+   edge, floating in the canvas instead of sitting on it. */
+.node:not(.node-start) > .node-ports {
+  padding: 0 12px 11px;
 }
 
 .node-port-row {
@@ -3656,13 +4539,6 @@ button.node-title {
   flex-direction: column;
   gap: var(--frame-w);
   background: var(--node-frame);
-}
-
-.node.node-block > .node-title,
-.node:not(.node-start).node-block > .node-title {
-  border-bottom: 0;
-  border-radius: var(--r-sm) var(--r-sm) 1px 1px;
-  background: var(--surface);
 }
 
 .node.node-block > .block-body,
@@ -3784,11 +4660,40 @@ button.node-title {
   cursor: default;
 }
 
+/* On the canvas the pill is a plain inline box, not inline-flex: an inline-flex
+   pill is a full box in the line, so its border and padding push the line
+   height past the em the previews clamp against and a fourth line creeps in
+   under the third. Painted padding on an inline box costs no height, so the
+   pill looks the same and every clamp keeps counting whole lines. */
+.node .variable-token {
+  display: inline;
+  line-height: inherit;
+}
+
 .message-editor-input .variable-token.unknown,
 .node .variable-token.unknown {
   border-color: rgba(247, 144, 9, 0.4);
   background: rgba(247, 144, 9, 0.12);
   color: #b54708;
+}
+
+/* An editable pill is pressable: clicking one reopens the variable list and
+   swaps it, which is the only way to change your mind about a variable
+   without deleting the pill and retyping "{". Scoped to the two editors on
+   purpose — canvas nodes render the same markup read-only, and a pointer
+   cursor there would promise something that does nothing. */
+.message-editor-input .variable-token,
+.builder-shell .variable-input .variable-token {
+  cursor: pointer;
+  transition:
+    background var(--dur) var(--ease),
+    border-color var(--dur) var(--ease);
+}
+
+.message-editor-input .variable-token:hover,
+.builder-shell .variable-input .variable-token:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
 }
 
 /* Braces stay in the text so {{name}} still reaches the runtime. */
@@ -3808,9 +4713,13 @@ button.node-title {
 
 /* Looks like .builder-shell input, but can render pills. */
 .builder-shell .variable-input {
+  /* Border-box, so its min-height means the same thing as the `height` on the
+     native inputs it shares a row with. */
+  box-sizing: border-box;
   min-height: 36px;
   width: 100%;
   padding: 8px 10px;
+  font-weight: 400;
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   background: var(--surface);
@@ -3835,6 +4744,12 @@ button.node-title {
   content: attr(data-placeholder);
   color: var(--faint);
   pointer-events: none;
+}
+
+/* Same teaching moment as the Message body: an empty field with the caret in
+   it advertises the brace shortcut rather than repeating its own name. */
+.builder-shell .variable-input[data-empty="true"]:focus::before {
+  content: "'{{' to add variable";
 }
 
 .builder-shell .variable-input .variable-token {
@@ -3918,9 +4833,9 @@ button.node-title {
 
 .validation-panel {
   position: absolute;
-  top: 66px;
+  top: calc(var(--panel-top) + var(--topbar-h) + 8px);
   right: var(--panel-inset);
-  z-index: 31;
+  z-index: 35;
   width: min(var(--panel-w), calc(100vw - 2 * var(--panel-inset)));
   max-height: min(60vh, 520px);
   display: flex;
@@ -4164,44 +5079,40 @@ button.node-title {
   font-weight: 600;
 }
 
+/* Clamped by whole lines, not by a pixel height: a 74px cap fell midway
+   through the fifth line and sliced the glyphs in half. */
 .node-code {
+  display: -webkit-box;
   margin: 0;
-  max-height: 74px;
   overflow: hidden;
   color: var(--muted);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 11px;
   line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
-.node-carousel-track {
+.node-carousel-list {
   display: flex;
-  gap: 8px;
-  overflow: hidden;
+  flex-direction: column;
 }
 
-.node-carousel-card {
-  flex: 1 1 0;
-  min-width: 0;
-  border: 1px solid var(--line);
-  border-radius: var(--r-xs);
-  padding: 5px;
-  background: var(--surface-2);
+.node-carousel-row {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 8px 0;
+  border-top: 1px solid var(--step-divider);
 }
 
-.node-carousel-thumb {
-  height: 40px;
-  border-radius: 4px;
-  overflow: hidden;
-  background: var(--surface-3);
-}
-
-.node-carousel-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+.node-carousel-row:first-child {
+  padding-top: 0;
+  border-top: 0;
 }
 
 .node-carousel-title {
@@ -4214,13 +5125,73 @@ button.node-title {
   white-space: nowrap;
 }
 
-.builder-shell textarea.code-input {
+/* The inspector's code box. The painted layer and the editable one are
+   stacked, so every metric that moves a glyph is declared on both at once —
+   drift of even a pixel here shows up as colours sliding off the caret. */
+.builder-shell .code-field {
+  position: relative;
   min-height: 190px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+
+.builder-shell .code-field:focus-within {
+  border-color: var(--accent);
+  box-shadow: var(--ring);
+}
+
+.builder-shell .code-field-highlight,
+.builder-shell .code-field-area {
+  margin: 0;
+  padding: 10px 11px;
+  border: 0;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
   line-height: 1.6;
+  letter-spacing: normal;
   tab-size: 2;
   white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.builder-shell .code-field-highlight {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  color: var(--ink);
+  pointer-events: none;
+}
+
+.builder-shell .code-field-area {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  min-height: 190px;
+  background: transparent;
+  /* Transparent glyphs, real caret: colour comes from the layer beneath. */
+  color: transparent;
+  caret-color: var(--ink);
+  overflow: auto;
+  resize: vertical;
+}
+
+.builder-shell .code-field-area:focus,
+.builder-shell .code-field-area:focus-visible {
+  border: 0;
+  box-shadow: none;
+  outline: none;
+}
+
+.builder-shell .code-field-area::placeholder {
+  color: var(--faint);
+}
+
+.builder-shell .code-field-area::selection {
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
 }
 
 .node-api-body {
@@ -4294,12 +5265,61 @@ button.node-title {
     0 1px 2px rgba(16, 19, 23, 0.14);
 }
 
+/* An exit has two states, and the difference is whether anything leaves it.
+
+   Empty is hollow: a ring around the node's own surface, so a port that goes
+   nowhere reads as an open socket. Connected is filled solid in the node's
+   accent. On a branching node this is what makes an unwired path visible at
+   a glance instead of something you find by tracing every wire. */
+.node:not(.node-start) .node-handle.is-empty,
+.node:not(.node-start) .node-handle.is-connected {
+  background: var(--surface);
+  box-shadow:
+    0 0 0 1.5px var(--node-handle),
+    0 1px 2px rgba(16, 19, 23, 0.12);
+}
+
+/* The dot inside the ring. Same ring, same dot, only the size changes — so
+   the pair reads as one control in two states rather than as two different
+   controls, and the eye can scan a column of ports for the small ones. */
+.node:not(.node-start) .node-handle.is-empty::after,
+.node:not(.node-start) .node-handle.is-connected::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border-radius: 999px;
+  background: var(--node-handle);
+  transform: translate(-50%, -50%);
+  transition:
+    width var(--dur) var(--ease),
+    height var(--dur) var(--ease);
+}
+
+.node:not(.node-start) .node-handle.is-empty::after {
+  width: 3px;
+  height: 3px;
+}
+
+.node:not(.node-start) .node-handle.is-connected::after {
+  width: 6px;
+  height: 6px;
+}
+
+/* Hovering an empty port grows its dot toward the connected size, so it
+   reads as something a wire can be pulled out of. */
+.node:not(.node-start)
+  .node-handle.is-empty:not(.react-flow__handle-left):hover::after {
+  width: 5px;
+  height: 5px;
+}
+
 /* Only the visible source dots take the ring. The left catch area must be
    excluded: it is 28px wide and 60px tall, so a ring on it reads as a grey
    pill swallowing the side of the card. */
 .node:not(.node-start) .node-handle:not(.react-flow__handle-left):hover {
   box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--node-handle) 55%, var(--line-2)),
+    0 0 0 1.5px color-mix(in srgb, var(--node-handle) 72%, var(--line-2)),
     0 0 0 5px color-mix(in srgb, var(--node-handle) 16%, transparent);
 }
 
@@ -4307,7 +5327,7 @@ button.node-title {
   .node:not(.node-start)
   .node-handle:not(.react-flow__handle-left) {
   box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--node-handle) 55%, var(--line-2)),
+    0 0 0 1.5px color-mix(in srgb, var(--node-handle) 72%, var(--line-2)),
     0 0 0 4px color-mix(in srgb, var(--node-handle) 14%, transparent);
 }
 
@@ -5309,6 +6329,197 @@ button.node-title {
   opacity: 0.5;
 }
 
+/* --- inspector sections ----------------------------------------------
+   Every step editor is a stack of these: a hairline between each block,
+   a 44px title row with an optional add button, and switch rows that all
+   share one height. No editor overrides them, which is what keeps the
+   panel identical whichever step is selected. */
+.inspector-section {
+  padding: 12px 16px;
+  border-top: 1px solid var(--line);
+}
+
+/* Inside the padded inspector body a section pulls back to the panel edge, so
+   its hairline spans the full width and its content still lines up with the
+   plain fields above and below it. Without this the two grammars sit at
+   different insets and the panel reads as ragged. */
+.inspector-body > .inspector-section,
+.inspector-body .stack > .inspector-section,
+.inspector-body > * > .inspector-section {
+  margin-left: -16px;
+  margin-right: -16px;
+}
+
+.inspector-section:first-child {
+  border-top: 0;
+}
+
+.inspector-section.flush {
+  padding: 0;
+}
+
+.inspector-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 28px;
+}
+
+.inspector-section-head h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+.inspector-add,
+.inspector-remove {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    background var(--dur) var(--ease),
+    color var(--dur) var(--ease);
+}
+
+.inspector-add:hover,
+.inspector-add:focus-visible,
+.inspector-remove:hover,
+.inspector-remove:focus-visible {
+  background: var(--surface-3);
+  color: var(--ink);
+  outline: none;
+}
+
+.inspector-section-empty {
+  margin: 6px 0 0;
+  color: var(--faint);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.inspector-toggle-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 34px;
+  color: var(--ink);
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.inspector-toggle-row.blocked {
+  color: var(--faint);
+  cursor: not-allowed;
+}
+
+.inspector-toggle-label {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.inspector-toggle-label em {
+  color: var(--faint);
+  font-size: 11.5px;
+  font-style: normal;
+  font-weight: 500;
+}
+
+.inspector-toggle-row input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.inspector-toggle-row input:checked + .agent-switch {
+  background: var(--accent);
+}
+
+.inspector-toggle-row input:checked + .agent-switch::after {
+  transform: translateX(14px);
+}
+
+.inspector-toggle-row input:focus-visible + .agent-switch {
+  box-shadow: var(--ring);
+}
+
+.inspector-toggle-row input:disabled + .agent-switch {
+  opacity: 0.5;
+}
+
+/* The tab pair heading Message (Scripted/Prompt) and Card (Upload/Link). */
+.inspector-segmented {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--r-sm);
+  background: var(--surface-3);
+}
+
+.inspector-segmented button {
+  min-height: 30px;
+  border: 0;
+  border-radius: calc(var(--r-sm) - 2px);
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background var(--dur) var(--ease),
+    color var(--dur) var(--ease);
+}
+
+.inspector-segmented button.active {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--sh-1);
+}
+
+.inspector-list-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.inspector-list-row > :first-child {
+  min-width: 0;
+}
+
+/* A row of inputs inside a list row keeps its own columns, so a Set
+   assignment and a Condition clause line up down the panel. */
+.inspector-row-fields {
+  display: grid;
+  gap: 6px;
+}
+
+.inspector-row-fields.pair {
+  grid-template-columns: 1fr 1fr;
+}
+
+.inspector-row-fields.clause {
+  grid-template-columns: 1fr auto 1fr;
+}
+
 .agent-exit-list {
   display: grid;
   gap: 4px;
@@ -5413,67 +6624,25 @@ button.node-title {
 }
 
 @media (max-width: 900px) {
-  .category-rail {
+  /* No room for a persistent panel beside the canvas: the library becomes a
+     short scrolling strip pinned to the bottom edge. */
+  .step-library {
     top: auto;
     right: 10px;
     bottom: 10px;
     left: 10px;
     width: auto;
-    flex-direction: row;
-    gap: 4px;
-    padding: 5px;
-  }
-
-  .category-tab {
-    height: 54px;
-    flex: 1 1 0;
-  }
-
-  .category-tab::before {
-    inset: auto 18px 0;
-    width: auto;
-    height: 3px;
-    transform: scaleX(0.45);
-  }
-
-  .category-tab.active::before {
-    transform: scaleX(1);
-  }
-
-  .category-tab span {
-    font-size: 10px;
-  }
-
-  .category-tab svg {
-    width: 22px;
-    height: 22px;
-  }
-
-  .step-popover {
-    top: auto !important;
-    right: 10px;
-    bottom: 132px;
-    left: 10px;
-    width: auto;
-    max-height: min(46vh, 286px);
-    overflow: auto;
+    max-height: min(42vh, 260px);
   }
 
   .step-option {
     grid-template-columns: 36px 1fr;
   }
 
-  .top-bar,
-  .builder-shell.inspector-open .top-bar,
-  .builder-shell.run-drawer-open .top-bar {
+  .top-bar {
     top: 10px;
     right: 10px;
     gap: 6px;
-  }
-
-  .builder-shell .workflow-name-input {
-    width: 108px;
-    min-width: 72px;
   }
 
   .collaborator-invite,
@@ -5489,14 +6658,21 @@ button.node-title {
     max-height: min(420px, calc(100vh - 112px));
   }
 
-  .toolbar-button {
+  /* Labels go first when the canvas is narrow; the colours still say which
+     button is which. */
+  .action-button {
     width: 38px;
     height: 36px;
     padding: 0;
   }
 
-  .toolbar-button span {
+  .action-button span {
     display: none;
+  }
+
+  .publish-split .publish-more {
+    width: 26px;
+    flex: 0 0 26px;
   }
 
   .bottom-tools {
@@ -5586,6 +6762,872 @@ button.node-title {
 
   .node-start {
     min-width: 118px;
+  }
+}
+
+/* =====================================================================
+   Traffic overlay and conversation replay.
+
+   Both read finished conversations back onto the canvas: the overlay as a
+   per-step tint, the replay as a highlight that walks the path a single
+   conversation took. They borrow the run surface's geometry and its dock,
+   so the builder never grows a third panel language.
+   ===================================================================== */
+
+/* --- canvas traffic overlay ------------------------------------------ */
+
+/* --heat is 0-1: the step's share of the busiest step's traffic. Traffic is
+   drawn in the accent rather than a warm ramp so the overlay stays inside the
+   one palette the rest of the builder uses. */
+.react-flow__node.node-heat > div,
+.react-flow__node.node-heat .node {
+  box-shadow:
+    0 0 0 3px
+      color-mix(in srgb, var(--accent) calc(var(--heat, 0) * 60%), transparent),
+    var(--sh-2);
+}
+
+/* A step no conversation reached recedes instead of colouring. On a large
+   flow the untravelled branches are the finding, and they only read as one
+   if the travelled path is the part carrying weight. */
+.react-flow__node.node-heat-cold {
+  opacity: 0.45;
+}
+
+.react-flow__node.node-heat-cold > div,
+.react-flow__node.node-heat-cold .node {
+  box-shadow: var(--sh-1);
+}
+
+/* Reach count, riding above the node's top-right corner. */
+.react-flow__node.node-heat::after {
+  content: var(--heat-label, "");
+  position: absolute;
+  top: -11px;
+  right: -4px;
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  border: 1px solid var(--accent-line);
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.react-flow__node.node-heat-cold::after {
+  border-color: var(--line-2);
+  background: var(--surface-3);
+  color: var(--muted);
+}
+
+/* Drop-off count, on the opposite corner so it can never sit under the
+   reach badge however long either number gets. */
+.react-flow__node.node-heat-drop::before {
+  content: var(--drop-label, "");
+  position: absolute;
+  top: -11px;
+  left: -4px;
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
+  border-radius: 999px;
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* --- replay: conversation list --------------------------------------- */
+
+.replay-lede {
+  margin: 0;
+  padding: 0 16px 10px;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.replay-filters {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0 16px 12px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+
+.replay-filters button {
+  flex: 1 1 0;
+  height: 26px;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background var(--dur) var(--ease),
+    color var(--dur) var(--ease);
+}
+
+.replay-filters button:hover {
+  color: var(--ink-2);
+}
+
+.replay-filters button.active {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--sh-1);
+}
+
+.replay-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 16px 16px;
+}
+
+.replay-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-right: 2px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-xs);
+  background: var(--surface);
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: background var(--dur) var(--ease);
+}
+
+.replay-back:hover {
+  background: var(--surface-2);
+}
+
+.replay-run-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.replay-run {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--dur) var(--ease),
+    border-color var(--dur) var(--ease);
+}
+
+.replay-run:hover,
+.replay-run:focus-visible {
+  border-color: var(--line-2);
+  background: var(--surface-2);
+}
+
+.replay-run-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.replay-run-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.replay-run-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  color: var(--faint);
+  font-size: 11.5px;
+}
+
+.replay-run-errors {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.replay-run-stopped {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.replay-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 21px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.replay-pill.outcome-completed {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.replay-pill.outcome-abandoned {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.replay-pill.outcome-live {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.replay-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 28px 8px;
+  color: var(--muted);
+  font-size: 12.5px;
+  text-align: center;
+}
+
+.replay-empty strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.replay-empty p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* --- replay: one conversation ---------------------------------------- */
+
+.replay-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0 0 18px;
+}
+
+.replay-facts div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.replay-facts dt {
+  color: var(--faint);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.replay-facts dd {
+  margin: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+}
+
+/* The replay answers "what happened on the canvas"; the transcript answers
+   "what was actually said". Opened in a new tab so leaving never costs the
+   builder its place. */
+.replay-open-conversation {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  margin: 0 0 18px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  transition:
+    background var(--dur) var(--ease),
+    border-color var(--dur) var(--ease);
+}
+
+.replay-open-conversation:hover {
+  border-color: var(--line-2);
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.replay-subhead {
+  margin: 0 0 8px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.replay-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.replay-foot {
+  padding: 0 16px 14px;
+}
+
+.replay-vars {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.replay-var {
+  display: grid;
+  grid-template-columns: minmax(0, 88px) minmax(0, 1fr);
+  gap: 10px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  font-size: 12px;
+}
+
+.replay-var-key {
+  overflow: hidden;
+  color: var(--muted);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.replay-var-value {
+  min-width: 0;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+/* --- replay: transport + timeline ------------------------------------ */
+
+.replay-transport {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+
+.replay-transport button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 26px;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition:
+    background var(--dur) var(--ease),
+    color var(--dur) var(--ease);
+}
+
+.replay-transport button:hover:not(:disabled) {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.replay-transport button:disabled {
+  color: var(--faint);
+  cursor: not-allowed;
+}
+
+.replay-transport .replay-play {
+  color: var(--accent-strong);
+}
+
+.replay-scrub {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 4px;
+  appearance: none;
+  border-radius: 999px;
+  background: var(--surface-4);
+  cursor: pointer;
+}
+
+.replay-scrub:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.replay-scrub::-webkit-slider-thumb {
+  width: 13px;
+  height: 13px;
+  appearance: none;
+  border: 2px solid var(--surface);
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: var(--sh-1);
+}
+
+.replay-scrub::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border: 2px solid var(--surface);
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.replay-steps {
+  display: flex;
+  flex-direction: column;
+  font-size: 12.5px;
+}
+
+.replay-dropped {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  color: var(--faint);
+  font-size: 11.5px;
+}
+
+.replay-step {
+  display: grid;
+  grid-template-columns: 3px 62px minmax(0, 1fr) minmax(0, 1.1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+  padding: 5px 12px 5px 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--dur) var(--ease),
+    opacity var(--dur) var(--ease);
+}
+
+.replay-step:last-child {
+  border-bottom: 0;
+}
+
+.replay-step:hover {
+  background: var(--surface-2);
+}
+
+/* Steps the playhead has not reached yet fade back, so the log reads as a
+   position in a conversation rather than as a flat list. */
+.replay-step.future {
+  opacity: 0.45;
+}
+
+.replay-step.current {
+  background: var(--accent-soft);
+  opacity: 1;
+}
+
+.replay-step-stub {
+  width: 3px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--line-2);
+}
+
+.replay-step.level-error .replay-step-stub {
+  background: var(--danger);
+}
+
+.replay-step.level-warn .replay-step-stub {
+  background: var(--warning);
+}
+
+.replay-step.level-wait .replay-step-stub {
+  background: var(--listen);
+}
+
+.replay-step.level-ai .replay-step-stub {
+  background: var(--agent);
+}
+
+.replay-step.level-branch .replay-step-stub {
+  background: var(--logic);
+}
+
+.replay-step.level-done .replay-step-stub {
+  background: var(--success);
+}
+
+.replay-step-time {
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.replay-step-title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.replay-step-detail {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 880px) {
+  .replay-facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .replay-step {
+    grid-template-columns: 3px 62px minmax(0, 1fr);
+  }
+
+  .replay-step-detail {
+    display: none;
+  }
+}
+
+/* =====================================================================
+   The code step: a one-line card, and an editor that can take the window.
+   ===================================================================== */
+
+.node-code-body {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.node-code-badge {
+  display: grid;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--r-xs);
+  background: var(--surface-2);
+  color: var(--dev);
+}
+
+.node-code-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Nothing written yet, so the caption is an invitation rather than a label. */
+.node-code-label.is-empty {
+  color: var(--faint);
+}
+
+.node-code-expand {
+  display: grid;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    background var(--dur) var(--ease),
+    color var(--dur) var(--ease);
+}
+
+.node-code-expand:hover,
+.node-code-expand:focus-visible {
+  background: var(--surface-3);
+  color: var(--ink);
+  outline: none;
+}
+
+/* An inspector field label that carries an action on its right. */
+.label-with-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.label-action {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    background var(--dur) var(--ease),
+    color var(--dur) var(--ease);
+}
+
+.label-action:hover,
+.label-action:focus-visible {
+  background: var(--surface-3);
+  color: var(--ink);
+  outline: none;
+}
+
+.code-editor-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  padding: 28px;
+  place-items: center;
+  background: rgba(22, 26, 30, 0.42);
+  animation: sheetIn 0.16s var(--ease) both;
+}
+
+.code-editor {
+  display: flex;
+  width: min(1080px, 100%);
+  height: min(760px, 100%);
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  box-shadow: var(--sh-4);
+}
+
+.code-editor-header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  height: 52px;
+  padding: 0 12px 0 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.code-editor-header h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.code-editor-header button {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background var(--dur) var(--ease);
+}
+
+.code-editor-header button:hover {
+  background: var(--surface-3);
+  color: var(--ink);
+}
+
+/* Gutter and textarea are separate elements sharing one type ramp; every
+   metric below that affects line height has to stay identical in both or the
+   numbers drift away from the lines they count. */
+.code-editor-body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  background: var(--surface-2);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* Third layer that has to agree on line height, so its metrics are spelled
+   out beside the other two rather than inherited. */
+.builder-shell .code-editor-gutter {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 16px 10px 16px 18px;
+  overflow: hidden;
+  border-right: 1px solid var(--line);
+  color: var(--faint);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: right;
+  user-select: none;
+}
+
+.code-editor-stack {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/*
+ * Every selector below is scoped to .builder-shell on purpose. The builder
+ * styles all its inputs through `.builder-shell textarea`, which is one class
+ * plus one element — it outranks a bare `.code-editor-area`, and it paints an
+ * opaque background over the coloured layer, restores the text colour the
+ * overlay needs transparent, and swaps the line height the two layers have to
+ * agree on. Type metrics are spelled out rather than inherited for the same
+ * reason: a <pre> and a <textarea> must resolve them identically, and `font:
+ * inherit` leaves that to whichever rule wins.
+ */
+.builder-shell .code-editor-highlight,
+.builder-shell .code-editor-area {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 16px 18px;
+  border: 0;
+  border-radius: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  letter-spacing: normal;
+  tab-size: 2;
+  white-space: pre;
+  overflow: auto;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.builder-shell .code-editor-highlight {
+  z-index: 1;
+  color: var(--ink);
+  pointer-events: none;
+  /* The textarea owns scrolling; this layer is moved to match it in JS. */
+  overflow: hidden;
+}
+
+.builder-shell .code-editor-area {
+  z-index: 2;
+  background: transparent;
+  /* Transparent glyphs, real caret: the colour comes from the layer below,
+     but selection and the cursor stay the browser's own. */
+  color: transparent;
+  caret-color: var(--ink);
+  resize: none;
+}
+
+.builder-shell .code-editor-area::selection {
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
+}
+
+/* Beats `.builder-shell textarea:focus`, which would otherwise ring the
+   transparent layer instead of the window around it. */
+.builder-shell .code-editor-area:focus,
+.builder-shell .code-editor-area:focus-visible {
+  border: 0;
+  box-shadow: none;
+  outline: none;
+}
+
+.builder-shell .code-editor-area::placeholder {
+  color: var(--faint);
+}
+
+.tok-keyword {
+  color: var(--code-keyword);
+}
+
+.tok-string {
+  color: var(--code-string);
+}
+
+.tok-number {
+  color: var(--code-number);
+}
+
+.tok-comment {
+  color: var(--code-comment);
+  font-style: italic;
+}
+
+.tok-prop {
+  color: var(--code-prop);
+}
+
+.tok-fn {
+  color: var(--code-fn);
+}
+
+.code-editor-footer {
+  flex: 0 0 auto;
+  padding: 11px 20px;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.code-editor-footer code {
+  padding: 1px 4px;
+  border-radius: var(--r-xs);
+  background: var(--surface-3);
+  font-size: 11.5px;
+}
+
+@media (max-width: 720px) {
+  .code-editor-scrim {
+    padding: 12px;
   }
 }
 

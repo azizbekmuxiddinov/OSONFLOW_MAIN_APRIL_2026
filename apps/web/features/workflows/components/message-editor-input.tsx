@@ -2,7 +2,10 @@
 
 import { useCallback, useLayoutEffect, useRef, type FormEvent } from "react"
 
-import { tokenizeVariables, type WorkflowVariable } from "../lib/variable-tokens"
+import {
+  tokenizeVariables,
+  type WorkflowVariable,
+} from "../lib/variable-tokens"
 import { useVariablePicker } from "./use-variable-picker"
 import { VariablePickerList } from "./variable-picker-list"
 
@@ -42,12 +45,12 @@ export const MessageEditorInput = ({
     [nodeId, onSync]
   )
 
-  const { picker, matches, refresh, insert, close } = useVariablePicker({
-    shellRef,
-    editorRef,
-    variables,
-    onInserted: emit,
-  })
+  const { picker, matches, refresh, insert, openForToken, close } =
+    useVariablePicker({
+      editorRef,
+      variables,
+      onInserted: emit,
+    })
 
   useLayoutEffect(() => {
     const editor = editorRef.current
@@ -96,6 +99,18 @@ export const MessageEditorInput = ({
         }}
         suppressContentEditableWarning
         onInput={handleInput}
+        onClick={(event) => {
+          // A pill is contenteditable="false", so clicking one places no
+          // caret — intercept it and offer the same list typing "{" would.
+          const token = (event.target as HTMLElement).closest?.(
+            ".variable-token"
+          )
+
+          if (token instanceof HTMLElement) {
+            event.preventDefault()
+            openForToken(token)
+          }
+        }}
         onKeyDown={(event) => {
           if (!picker) {
             return

@@ -1,17 +1,15 @@
 import { Handle, Position } from 'reactflow';
 import type { NodeProps } from 'reactflow';
-import type { CardNodeData } from '../lib/types';
+import { fallbackPorts, type CardNodeData } from '../lib/types';
+import { htmlToTemplateText } from '../lib/variable-tokens';
 import EditableNodeTitle from './EditableNodeTitle';
-
-const stripHtml = (html: string) => {
-  const element = document.createElement('div');
-  element.innerHTML = html;
-  return element.textContent?.trim() ?? '';
-};
+import NodeText from './NodeText';
+import NodePorts from './NodePorts';
+import SourceHandle from './SourceHandle';
 
 const CardNode = ({ id, data }: NodeProps<CardNodeData>) => {
-  const title = data.title?.trim() || data.customName || 'Card title';
-  const description = stripHtml(data.description || '');
+  const title = data.title?.trim() || 'Untitled card';
+  const description = htmlToTemplateText(data.description || '');
   const hasImage = Boolean(data.url?.trim());
   const hasButtons = data.buttons.length > 0;
 
@@ -31,15 +29,12 @@ const CardNode = ({ id, data }: NodeProps<CardNodeData>) => {
               <span />
             )}
           </div>
-          {hasImage && (
-            <div className="node-card-image-preview" aria-hidden>
-              <img src={data.url} alt="" draggable={false} />
-            </div>
-          )}
           <div className="node-card-copy">
-            <div className="node-card-title">{title}</div>
+            <div className="node-card-title">
+              <NodeText text={title} />
+            </div>
             <div className="node-card-description">
-              {description || 'Add a card description.'}
+              <NodeText text={description || 'Enter description'} />
             </div>
           </div>
         </div>
@@ -48,11 +43,11 @@ const CardNode = ({ id, data }: NodeProps<CardNodeData>) => {
           <div className="node-card-buttons">
             {data.buttons.map((button) => (
               <div key={button.id} className="node-card-button">
-                <span>{button.label || 'Button'}</span>
-                <Handle
+                <span>
+                  <NodeText text={button.label || 'Button'} />
+                </span>
+                <SourceHandle
                   id={button.id}
-                  type="source"
-                  position={Position.Right}
                   className="node-handle node-card-button-handle"
                 />
               </div>
@@ -63,9 +58,10 @@ const CardNode = ({ id, data }: NodeProps<CardNodeData>) => {
         )}
       </div>
 
+      <NodePorts ports={fallbackPorts(data)} />
       <Handle type="target" position={Position.Left} className="node-handle" />
       {!hasButtons && (
-        <Handle type="source" position={Position.Right} className="node-handle" />
+        <SourceHandle className="node-handle" />
       )}
     </div>
   );
