@@ -1,20 +1,22 @@
 "use client"
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@workspace/ui/components/alert-dialog"
 import { Button } from "@workspace/ui/components/button"
-import { cn } from "@workspace/ui/lib/utils"
-import {
-  Loader2Icon,
-  LogOutIcon,
-  ShieldCheckIcon,
-  TriangleAlertIcon,
-} from "lucide-react"
+import { Skeleton } from "@workspace/ui/components/skeleton"
+import { CalendarClockIcon, Loader2Icon, LogOutIcon } from "lucide-react"
 
-import {
-  Panel,
-  PanelBody,
-  PanelHeader,
-  Pill,
-} from "@/modules/dashboard/ui/components/console"
+import { BrandMark } from "./brand-mark"
+import { Callout, StatusLine } from "./tools-primitives"
 
 export type GoogleCalendarStatus =
   | {
@@ -31,24 +33,23 @@ type GoogleCalendarConnectionCardProps = {
   isDisconnecting: boolean
   onConnect: () => void
   onDisconnect: () => void
-  /** Compact variant only — jumps to the connections section. */
+  /** Compact variant only — jumps to the accounts section. */
   onManage?: () => void
 }
 
-const StatusPill = ({ status }: { status: GoogleCalendarStatus }) => {
-  if (status?.isConfigured) {
-    return (
-      <Pill icon={ShieldCheckIcon} tone="positive">
-        {status.email ?? "Connected"}
-      </Pill>
-    )
+const GOOGLE_CALENDAR_BRAND = "#1a73e8"
+
+const statusOf = (status: GoogleCalendarStatus) => {
+  if (status === undefined) return null
+
+  if (status.isConfigured) {
+    return {
+      tone: "live" as const,
+      label: status.email ? `Connected as ${status.email}` : "Connected",
+    }
   }
 
-  return (
-    <Pill icon={TriangleAlertIcon} tone="neutral">
-      Not connected
-    </Pill>
-  )
+  return { tone: "off" as const, label: "Not connected" }
 }
 
 export const GoogleCalendarConnectionCard = ({
@@ -63,101 +64,141 @@ export const GoogleCalendarConnectionCard = ({
   const isConnected = Boolean(status?.isConfigured)
   // The server has no Google Calendar OAuth app, so no connect flow can start.
   const isOAuthUnavailable = status !== undefined && !status.oauthAvailable
+  const state = statusOf(status)
+
+  const connectButton = (
+    <Button
+      disabled={isConnecting || !status?.oauthAvailable}
+      onClick={onConnect}
+      size={variant === "compact" ? "sm" : "default"}
+      type="button"
+    >
+      {isConnecting ? (
+        <Loader2Icon className="animate-spin" data-icon="inline-start" />
+      ) : null}
+      {isConnecting ? "Opening Google…" : "Connect Google"}
+    </Button>
+  )
+
+  const unavailableNote =
+    isOAuthUnavailable && !isConnected ? (
+      <Callout>
+        Google Calendar sign-in isn&apos;t switched on for this workspace yet.
+        Ask whoever runs your Osonflow account to add the Google Calendar
+        sign-in keys.
+      </Callout>
+    ) : null
 
   if (variant === "compact") {
     return (
-      <div className="console-inset flex flex-wrap items-center justify-between gap-3 px-3 py-2.5">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <StatusPill status={status} />
-          <span
-            className={cn(
-              "min-w-0 text-xs",
-              isOAuthUnavailable && !isConnected
-                ? "console-tone-warning"
-                : "text-muted-foreground"
-            )}
-          >
-            {isConnected
-              ? "Every Calendar tool in this workspace reuses this account."
-              : isOAuthUnavailable
-                ? "Google Calendar sign-in isn't set up on this server yet — an admin needs to add the Calendar OAuth credentials in Convex."
-                : "Connect Google to let this tool read and write calendar events."}
-          </span>
-        </div>
-
-        <div className="flex shrink-0 items-center gap-1.5">
-          {isConnected ? (
-            onManage ? (
-              <Button onClick={onManage} size="xs" type="button" variant="ghost">
-                Manage
-              </Button>
-            ) : null
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {state ? (
+            <StatusLine label={state.label} tone={state.tone} />
           ) : (
-            <Button
-              disabled={isConnecting || !status?.oauthAvailable}
-              onClick={onConnect}
-              size="xs"
-              type="button"
-            >
-              {isConnecting ? <Loader2Icon className="animate-spin" /> : null}
-              Connect Google
-            </Button>
+            <Skeleton className="h-2.5 w-40 rounded-full" />
           )}
+          <div className="flex shrink-0 items-center gap-1.5">
+            {isConnected ? (
+              onManage ? (
+                <Button
+                  onClick={onManage}
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  Manage
+                </Button>
+              ) : null
+            ) : (
+              connectButton
+            )}
+          </div>
         </div>
+        {unavailableNote}
       </div>
     )
   }
 
   return (
-    <Panel>
-      <PanelHeader
-        actions={<StatusPill status={status} />}
-        description="Used by every Google Calendar tool in this workspace. Connect once — individual tools then only pick which calendar to use."
-        icon={ShieldCheckIcon}
-        title="Google Calendar account"
-      />
-      <PanelBody className="space-y-4">
-        {!status?.oauthAvailable ? (
-          <p className="console-tone-warning console-tone-wash rounded-[10px] border px-3 py-2 text-xs">
-            Google Calendar sign-in is not configured on the server yet. Ask
-            an admin to set the Google Calendar OAuth environment variables in
-            Convex.
-          </p>
-        ) : (
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            Connect the Google account whose calendar your assistant should
-            read from and book on. The assistant can only see and change
-            events on calendars this account can access.
-          </p>
-        )}
+    <div className="setup-row px-2 py-5">
+      <div className="grid grid-cols-[3rem_minmax(0,1fr)] gap-x-4 gap-y-3 sm:grid-cols-[3rem_minmax(0,1fr)_auto]">
+        <BrandMark
+          brand={GOOGLE_CALENDAR_BRAND}
+          icon={CalendarClockIcon}
+          size="lg"
+        />
 
-        <div className="flex flex-wrap items-center gap-2">
-          {isConnected ? (
-            <Button
-              disabled={isDisconnecting}
-              onClick={onDisconnect}
-              type="button"
-              variant="outline"
-            >
-              {isDisconnecting ? (
-                <Loader2Icon className="animate-spin" />
-              ) : (
-                <LogOutIcon />
-              )}
-              Disconnect
-            </Button>
+        <div className="min-w-0">
+          <p className="text-[0.95rem] font-medium text-foreground">
+            Google Calendar
+          </p>
+          {state ? (
+            <StatusLine
+              className="mt-1"
+              label={state.label}
+              tone={state.tone}
+            />
           ) : (
-            <Button
-              disabled={isConnecting || !status?.oauthAvailable}
-              onClick={onConnect}
-              type="button"
-            >
-              {isConnecting ? <Loader2Icon className="animate-spin" /> : null}
-              Connect Google account
-            </Button>
+            <Skeleton className="mt-2 h-2.5 w-36 rounded-full" />
+          )}
+          <p className="mt-2 max-w-[60ch] text-sm leading-relaxed text-muted-foreground">
+            Connect the account whose calendar the assistant should check and
+            book on. It can only see and change calendars that account can open.
+          </p>
+        </div>
+
+        <div className="col-span-2 flex flex-wrap items-center gap-1.5 sm:col-span-1 sm:col-start-3 sm:justify-end">
+          {isConnected ? (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  className="text-muted-foreground hover:text-destructive"
+                  disabled={isDisconnecting}
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  {isDisconnecting ? (
+                    <Loader2Icon
+                      className="animate-spin"
+                      data-icon="inline-start"
+                    />
+                  ) : (
+                    <LogOutIcon data-icon="inline-start" />
+                  )}
+                  Disconnect
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>
+                    Disconnect Google Calendar?
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Booking and availability tools stop working until an account
+                    is connected again. Your tools and their settings are kept.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Keep connected</AlertDialogCancel>
+                  <AlertDialogAction onClick={onDisconnect}>
+                    Disconnect
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          ) : (
+            connectButton
           )}
         </div>
-      </PanelBody>
-    </Panel>
+
+        {unavailableNote ? (
+          <div className="col-span-2 min-w-0 sm:col-start-2">
+            {unavailableNote}
+          </div>
+        ) : null}
+      </div>
+    </div>
   )
 }

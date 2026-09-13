@@ -3,7 +3,7 @@ import { HEX_COLOR_REGEX } from "@workspace/ui/lib/widget-customization"
 
 const hexColorField = z
   .string()
-  .regex(HEX_COLOR_REGEX, "Please provide a valid HEX color (e.g. #3b82f6)")
+  .regex(HEX_COLOR_REGEX, "Please provide a valid HEX color (e.g. #6366f1)")
 
 const imageUrlField = z
   .string()

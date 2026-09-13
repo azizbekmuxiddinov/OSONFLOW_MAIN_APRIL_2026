@@ -1,0 +1,391 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Report — the editorial layout shared by Analytics and Customer memory.
+
+   Pages are set straight on the glass field instead of in a grid of tiles: one
+   hero sentence, a ruled row of figures, and sections whose headings stay
+   pinned beside their data. The only filled shapes are the data marks.
+
+   Outcome colours are status colours (the mark *means* resolved / handed over /
+   still open). Validated with the dataviz palette checker against the glass
+   ground in both modes; green↔amber sits in the 6–8 ΔE CVD band in dark, so the
+   "open" outcome is also drawn hollow — shape is the secondary encoding.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+.report {
+  --outcome-resolved: #219761;
+  --outcome-handed: #2b8cd5;
+  --outcome-open: #d49824;
+  --mood-positive: #2a78d6;
+  --mood-neutral: color-mix(in srgb, var(--muted-foreground) 45%, transparent);
+  --mood-negative: #eb6834;
+  --report-rule: color-mix(in srgb, var(--foreground) 10%, transparent);
+  --report-rule-strong: color-mix(in srgb, var(--foreground) 18%, transparent);
+  --report-track: color-mix(in srgb, var(--foreground) 7%, transparent);
+}
+
+.dark .report {
+  --outcome-resolved: #239d6a;
+  --outcome-handed: #347ec4;
+  --outcome-open: #c38824;
+  --mood-positive: #3987e5;
+  --mood-negative: #d95926;
+}
+
+/* ── hero ──────────────────────────────────────────────────────────────── */
+
+.report-headline {
+  font-size: clamp(1.9rem, 1.2rem + 2.6vw, 3.4rem);
+  font-weight: 600;
+  line-height: 1.06;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+  color: var(--foreground);
+}
+
+.report-headline-figure {
+  font-variant-numeric: tabular-nums;
+  background: linear-gradient(
+    135deg,
+    var(--primary),
+    color-mix(in srgb, var(--primary) 55%, var(--outcome-handed))
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.report-lede {
+  font-size: clamp(0.95rem, 0.9rem + 0.25vw, 1.08rem);
+  line-height: 1.6;
+  color: var(--muted-foreground);
+  text-wrap: pretty;
+}
+
+.report-lede strong {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--foreground);
+}
+
+/* ── waffle ────────────────────────────────────────────────────────────── */
+
+.report-waffle {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 4px;
+  width: min(100%, 15.5rem);
+  aspect-ratio: 1;
+}
+
+.report-cell {
+  border-radius: 4px;
+  background: var(--report-track);
+  /* backwards, not both: a held end-state would pin opacity and block the
+     legend focus dimming below. */
+  animation: report-cell-in 460ms var(--motion-snappy) backwards;
+  animation-delay: calc(var(--i) * 5ms);
+  transition:
+    opacity 200ms var(--motion-snappy),
+    transform 200ms var(--motion-snappy);
+}
+
+.report-cell[data-outcome="resolved"] {
+  background: var(--outcome-resolved);
+}
+
+.report-cell[data-outcome="handed"] {
+  background: var(--outcome-handed);
+}
+
+/* Hollow: the shape, not only the hue, says "not finished". */
+.report-cell[data-outcome="open"] {
+  background: color-mix(in srgb, var(--outcome-open) 14%, transparent);
+  box-shadow: inset 0 0 0 2px var(--outcome-open);
+}
+
+.report-waffle[data-focus] .report-cell {
+  opacity: 0.22;
+}
+
+.report-waffle[data-focus="resolved"] .report-cell[data-outcome="resolved"],
+.report-waffle[data-focus="handed"] .report-cell[data-outcome="handed"],
+.report-waffle[data-focus="open"] .report-cell[data-outcome="open"] {
+  opacity: 1;
+  transform: scale(1.06);
+}
+
+.report-swatch {
+  width: 0.7rem;
+  height: 0.7rem;
+  flex-shrink: 0;
+  border-radius: 3px;
+}
+
+.report-swatch[data-outcome="resolved"] {
+  background: var(--outcome-resolved);
+}
+
+.report-swatch[data-outcome="handed"] {
+  background: var(--outcome-handed);
+}
+
+.report-swatch[data-outcome="open"] {
+  box-shadow: inset 0 0 0 2px var(--outcome-open);
+}
+
+.report-legend-item {
+  transition:
+    opacity 200ms var(--motion-snappy),
+    background-color 200ms var(--motion-snappy);
+}
+
+.report-legend[data-focus] .report-legend-item:not([data-active]) {
+  opacity: 0.45;
+}
+
+/* ── figures ───────────────────────────────────────────────────────────── */
+
+.report-figures {
+  border-block: 1px solid var(--report-rule);
+}
+
+.report-figure + .report-figure {
+  border-left: 1px solid var(--report-rule);
+}
+
+@media (max-width: 767px) {
+  .report-figure:nth-child(odd) {
+    border-left: 0;
+  }
+
+  .report-figure:nth-child(n + 3) {
+    border-top: 1px solid var(--report-rule);
+  }
+}
+
+.report-figure-value {
+  font-size: clamp(1.6rem, 1.2rem + 1.3vw, 2.35rem);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.035em;
+  font-variant-numeric: tabular-nums;
+  color: var(--foreground);
+}
+
+/* ── sections ──────────────────────────────────────────────────────────── */
+
+.report-section {
+  border-top: 1px solid var(--report-rule);
+}
+
+.report-section-index {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+  color: var(--primary);
+}
+
+.report-section-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--foreground);
+}
+
+/* ── filters ──────────────────────────────────────────────────────────── */
+
+.report-filter {
+  position: relative;
+  padding-block: 0.5rem;
+  color: var(--muted-foreground);
+  transition: color 180ms var(--motion-snappy);
+}
+
+.report-filter:hover,
+.report-filter[aria-pressed="true"] {
+  color: var(--foreground);
+}
+
+/* The row overlaps the rule beneath it by 1px so the active underline sits on
+   the rule. The underline stays inside the row's box — letting it hang below
+   made the scrolling row sprout a scrollbar. */
+.report-filters {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: -1px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.report-filters::-webkit-scrollbar {
+  display: none;
+}
+
+.report-filter::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--primary);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 260ms var(--motion-snappy);
+}
+
+.report-filter[aria-pressed="true"]::after {
+  transform: scaleX(1);
+}
+
+/* ── bars ──────────────────────────────────────────────────────────────── */
+
+.report-bar-track {
+  position: relative;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--report-track);
+}
+
+.report-bar {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--primary);
+  transform-origin: left center;
+  animation: report-grow 760ms var(--motion-smooth) backwards;
+  animation-delay: calc(var(--i, 0) * 60ms);
+}
+
+.report-row {
+  transition: opacity 200ms var(--motion-snappy);
+}
+
+.report-rows:hover .report-row:not(:hover) {
+  opacity: 0.5;
+}
+
+/* 100% stacked bar: the 2px gap between segments is part of the encoding. */
+.report-stack {
+  display: flex;
+  gap: 2px;
+  height: 0.75rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--report-track);
+}
+
+.report-stack > span {
+  min-width: 4px;
+  transform-origin: left center;
+  animation: report-grow 760ms var(--motion-smooth) backwards;
+}
+
+.report-stack > span:first-child {
+  border-radius: 999px 0 0 999px;
+}
+
+.report-stack > span:last-child {
+  border-radius: 0 999px 999px 0;
+}
+
+.report-stack > span:only-child {
+  border-radius: 999px;
+}
+
+/* ── knowledge gaps ────────────────────────────────────────────────────── */
+
+.report-gap {
+  border-bottom: 1px solid var(--report-rule);
+}
+
+.report-gap-quote {
+  font-size: clamp(1rem, 0.94rem + 0.3vw, 1.18rem);
+  line-height: 1.45;
+  letter-spacing: -0.012em;
+  color: var(--foreground);
+  text-wrap: pretty;
+}
+
+.report-gap-count {
+  font-size: 1.6rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--foreground);
+}
+
+/* ── timeline ──────────────────────────────────────────────────────────── */
+
+.report-timeline {
+  position: relative;
+}
+
+.report-timeline::before {
+  content: "";
+  position: absolute;
+  top: 0.5rem;
+  bottom: 0.5rem;
+  left: 0.3125rem;
+  width: 1px;
+  background: linear-gradient(
+    180deg,
+    var(--report-rule-strong),
+    transparent
+  );
+}
+
+.report-node {
+  position: relative;
+  z-index: 1;
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 999px;
+  background: var(--glass-ground, var(--background));
+  box-shadow: inset 0 0 0 2px currentColor;
+}
+
+.report-node[data-filled] {
+  background: currentColor;
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 18%, transparent);
+}
+
+@keyframes report-cell-in {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes report-grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* ── loading ───────────────────────────────────────────────────────────── */
+
+/* For skeleton shapes drawn with real marks (waffle cells, chart columns),
+   which breathe instead of carrying a shimmer each. */
+.report-skeleton-pulse {
+  animation: report-skeleton-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes report-skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}

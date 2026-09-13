@@ -28,7 +28,14 @@ export const supportAgent = new Agent(components.agent, {
   // A tool call and its result are one step, so with the default of 1 the model
   // stops the moment a tool returns and never gets to write the reply. Anything
   // the visitor then sees would have to be the tool's own output, which is
-  // internal data. Three steps leave room for a tool call (or two) plus the
-  // sentence that answers the visitor.
-  maxSteps: 3,
+  // internal data.
+  //
+  // Three was too tight in practice: a real booking turn looks up the service,
+  // looks up the time, records the appointment and resolves the conversation,
+  // which spends the whole budget on tools and ends the turn with no text at
+  // all — and a turn with no text falls back to a canned sentence instead of
+  // the model's own words. Six leaves a speaking step after a genuinely
+  // multi-tool turn. It is a ceiling, not a cost: a turn that needs one step
+  // still takes one, so ordinary questions are billed exactly as before.
+  maxSteps: 6,
 });

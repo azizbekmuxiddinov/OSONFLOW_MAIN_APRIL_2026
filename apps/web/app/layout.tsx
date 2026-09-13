@@ -1,7 +1,6 @@
 import type { Metadata } from "next"
 import { ClerkProvider } from "@clerk/nextjs"
-import { IBM_Plex_Mono, Lora } from "next/font/google"
-import localFont from "next/font/local"
+import { Chakra_Petch, Inter, Lora, Roboto_Mono } from "next/font/google"
 import "@workspace/ui/styles/globals.css"
 import "./globals.css"
 import { CookieConsent } from "@/components/cookie-consent"
@@ -54,21 +53,36 @@ export const metadata: Metadata = {
   },
 }
 
+// The three families the design system names: Chakra Petch for UI, Lora for
+// display serif, Roboto Mono for code and tabular figures. Chakra Petch ships
+// as static instances, so every weight the UI uses has to be listed here.
+const fontSans = Chakra_Petch({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+  variable: "--font-sans",
+  display: "swap",
+})
+
 const fontSerif = Lora({
   subsets: ["latin"],
   variable: "--font-serif",
+  display: "swap",
 })
 
-const fontMono = IBM_Plex_Mono({
+const fontMono = Roboto_Mono({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
   variable: "--font-mono",
+  display: "swap",
 })
 
-const fontDisplay = localFont({
-  src: "./fonts/ClashDisplay-Variable.woff2",
-  variable: "--font-display",
+// The dashboard's Liquid Glass shell sets type in Inter (Latin + Cyrillic, for
+// Uzbek and Russian). Not preloaded: only dashboard routes reference it.
+const fontGlass = Inter({
+  subsets: ["latin", "cyrillic"],
+  variable: "--font-glass",
   display: "swap",
+  preload: false,
 })
 
 export default function RootLayout({
@@ -78,18 +92,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
-        <link
-          href="https://fonts.googleapis.com/css2?family=Encode+Sans+Semi+Expanded:wght@100;200;300;400;500;600;700;800;900&family=Google+Sans:ital,opsz,wght@0,17..18,400..700;1,17..18,400..700&family=Nunito+Sans:ital,opsz,wght@0,6..12,200..1000;1,6..12,200..1000&display=swap"
-          rel="stylesheet"
-        />
-      </head>
       <body
         className={cn(
           "antialiased",
-          fontDisplay.variable,
+          fontSans.variable,
           fontMono.variable,
           fontSerif.variable,
+          fontGlass.variable,
           "font-sans"
         )}
         suppressHydrationWarning
@@ -103,7 +112,7 @@ export default function RootLayout({
         >
           <Providers>
             <a
-              className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[200] focus:rounded-[8px] focus:bg-[#397dff] focus:px-4 focus:py-2.5 focus:text-sm focus:font-bold focus:text-white"
+              className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[200] focus:rounded-[8px] focus:bg-primary focus:px-4 focus:py-2.5 focus:text-sm focus:font-bold focus:text-primary-foreground"
               href="#main"
             >
               Skip to main content

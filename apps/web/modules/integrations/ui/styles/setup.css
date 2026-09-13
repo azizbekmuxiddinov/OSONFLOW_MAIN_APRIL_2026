@@ -1,0 +1,307 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Setup & integrations — a connection index and step-by-step guides.
+
+   Builds on the dashboard report layout (report.css). Every place the
+   assistant can answer is a row in a pinned index with its live status; the
+   selected row opens as numbered steps beside it. No tiles: controls are
+   pills, facts are ruled rows, warnings are a tinted rule, not a box.
+
+   Status dots follow the report's outcome encoding and always carry a label:
+   connected is filled green, needs attention is hollow amber, error is red,
+   not connected is an empty ring.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+.setup {
+  --setup-error: #c9303a;
+}
+
+.dark .setup {
+  --setup-error: #d04a4d;
+}
+
+/* ── index ─────────────────────────────────────────────────────────────── */
+
+.setup-nav-row {
+  border-radius: calc(var(--radius) - 6px);
+  transition:
+    background-color 180ms var(--motion-snappy),
+    box-shadow 180ms var(--motion-snappy);
+}
+
+.setup-nav-row:hover {
+  background: color-mix(in srgb, var(--foreground) 4%, transparent);
+}
+
+.setup-nav-row[aria-current="true"] {
+  background: var(--glass-raised, var(--card));
+  box-shadow:
+    var(--glass-edge, none),
+    0 8px 24px -14px rgb(30 41 90 / 0.3);
+}
+
+.setup-nav-row[aria-current="true"] .setup-nav-chevron {
+  color: var(--primary);
+  transform: translateX(2px);
+}
+
+.setup-nav-chevron {
+  transition:
+    transform 200ms var(--motion-snappy),
+    color 200ms var(--motion-snappy);
+}
+
+.setup-glyph {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: var(--muted-foreground);
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+}
+
+.setup-glyph[data-size="lg"] {
+  background: var(--glass-raised, var(--card));
+  box-shadow:
+    var(--glass-edge, none),
+    0 10px 24px -14px rgb(30 41 90 / 0.35);
+}
+
+/* ── status ────────────────────────────────────────────────────────────── */
+
+.setup-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  flex-shrink: 0;
+  border-radius: 999px;
+}
+
+.setup-dot[data-tone="live"] {
+  background: var(--outcome-resolved);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--outcome-resolved) 18%, transparent);
+}
+
+.setup-dot[data-tone="attention"] {
+  box-shadow: inset 0 0 0 2px var(--outcome-open);
+}
+
+.setup-dot[data-tone="error"] {
+  background: var(--setup-error);
+}
+
+.setup-dot[data-tone="off"] {
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--foreground) 30%, transparent);
+}
+
+.setup-dot[data-tone="neutral"] {
+  background: color-mix(in srgb, var(--foreground) 25%, transparent);
+}
+
+/* ── panel ─────────────────────────────────────────────────────────────── */
+
+.setup-panel {
+  animation: setup-panel-in 300ms var(--motion-snappy) backwards;
+}
+
+.setup-panel-title {
+  font-size: clamp(1.5rem, 1.2rem + 1vw, 2rem);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  color: var(--foreground);
+}
+
+/* Numbered steps joined by a hairline. */
+.setup-steps > li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr);
+  gap: 1rem;
+  padding-bottom: 2.25rem;
+}
+
+.setup-steps > li:last-child {
+  padding-bottom: 0;
+}
+
+.setup-steps > li:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  top: 2.25rem;
+  bottom: 0.25rem;
+  left: calc(1rem - 0.5px);
+  width: 1px;
+  background: var(--report-rule);
+}
+
+.setup-step-index {
+  display: inline-flex;
+  width: 2rem;
+  height: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 11%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 24%, transparent);
+}
+
+.setup-step-title {
+  padding-top: 0.3rem;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  color: var(--foreground);
+}
+
+/* Pill radio choices. */
+.setup-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  border-radius: 999px;
+  padding: 0.45rem 1rem 0.45rem 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  box-shadow: inset 0 0 0 1px var(--report-rule);
+  transition:
+    background-color 180ms var(--motion-snappy),
+    box-shadow 180ms var(--motion-snappy),
+    color 180ms var(--motion-snappy);
+}
+
+.setup-choice:hover {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 4%, transparent);
+}
+
+.setup-choice:focus-visible {
+  outline: none;
+  box-shadow:
+    inset 0 0 0 1px var(--report-rule),
+    0 0 0 3px color-mix(in srgb, var(--ring) 40%, transparent);
+}
+
+.setup-choice[aria-checked="true"] {
+  color: var(--foreground);
+  background: var(--glass-raised, var(--card));
+  box-shadow:
+    inset 0 0 0 1.5px color-mix(in srgb, var(--primary) 55%, transparent),
+    0 6px 16px -10px rgb(30 41 90 / 0.3);
+}
+
+.setup-choice-icon {
+  display: inline-flex;
+  width: 1.75rem;
+  height: 1.75rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 5%, transparent);
+}
+
+/* Code: the one dark surface, because it is code. */
+.setup-code {
+  position: relative;
+  overflow: hidden;
+  border-radius: calc(var(--radius) - 4px);
+  background: #0c0e17;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.06),
+    0 18px 40px -22px rgb(10 12 30 / 0.7);
+}
+
+.setup-code pre {
+  max-height: 22rem;
+  overflow: auto;
+  padding: 3.5rem 1.25rem 1.25rem;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.78rem;
+  line-height: 1.7;
+  white-space: pre;
+}
+
+/* Key/value rows with a copy action. */
+.setup-field {
+  border-bottom: 1px solid var(--report-rule);
+}
+
+.setup-field:first-child {
+  border-top: 1px solid var(--report-rule);
+}
+
+/* A warning is a tinted rule, not a box. */
+.setup-callout {
+  border-left: 2px solid var(--callout, var(--outcome-open));
+  padding: 0.15rem 0 0.15rem 0.9rem;
+}
+
+.setup-callout[data-tone="error"] {
+  --callout: var(--setup-error);
+}
+
+.setup-callout[data-tone="info"] {
+  --callout: color-mix(in srgb, var(--primary) 70%, transparent);
+}
+
+/* Progressive disclosure for the technical bits. */
+.setup-disclosure > summary {
+  display: flex;
+  cursor: pointer;
+  list-style: none;
+  align-items: center;
+  gap: 0.5rem;
+  padding-block: 0.9rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  transition: color 160ms var(--motion-snappy);
+}
+
+.setup-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.setup-disclosure > summary:hover {
+  color: var(--foreground);
+}
+
+.setup-disclosure > summary svg {
+  transition: transform 220ms var(--motion-snappy);
+}
+
+.setup-disclosure[open] > summary svg {
+  transform: rotate(90deg);
+}
+
+.setup-row {
+  border-bottom: 1px solid var(--report-rule);
+  transition: background-color 160ms var(--motion-snappy);
+}
+
+.setup-row:first-child {
+  border-top: 1px solid var(--report-rule);
+}
+
+.setup-row:hover {
+  background: color-mix(in srgb, var(--foreground) 3%, transparent);
+}
+
+.setup-check {
+  border-bottom: 1px solid var(--report-rule);
+}
+
+@keyframes setup-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

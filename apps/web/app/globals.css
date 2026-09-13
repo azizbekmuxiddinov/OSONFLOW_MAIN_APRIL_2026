@@ -1,8 +1,3 @@
-:root,
-.dark {
-  --font-sans: "Google Sans", sans-serif;
-}
-
 html {
   font-size: 17px;
   scroll-behavior: smooth;
@@ -1607,70 +1602,80 @@ button[data-sidebar="rail"] {
 
 /* Auth — Japandi / landing-aligned sign-in & sign-up */
 .auth-page {
-  --auth-linen-50: #fafafa;
-  --auth-linen-100: #f5f5f5;
-  --auth-linen-150: #f0f0f0;
-  --auth-linen-200: #e5e5e5;
-  --auth-linen-300: #d4d4d4;
-  --auth-ink: #121214;
-  --auth-ink-soft: #737373;
-  --auth-moss: #397dff;
-  --auth-moss-hover: #306ad9;
-  --auth-moss-soft: #eff4ff;
-  --auth-ochre: #f55c15;
-  --auth-radius: 12px;
-  --auth-radius-lg: 20px;
-  --auth-shadow-panel:
-    0 24px 64px -24px rgba(0, 0, 0, 0.14),
-    0 1px 0 rgba(0, 0, 0, 0.04);
+  /* Force the theme's light ramp: these screens are a light split panel, and a
+     dark system preference used to wash the text out on the cards. Values are
+     the shared light theme verbatim, so auth and the console stay one skin. */
+  --background: rgb(231, 229, 228);
+  --foreground: rgb(30, 41, 59);
+  --card: rgb(245, 245, 244);
+  --card-foreground: rgb(30, 41, 59);
+  --popover: rgb(245, 245, 244);
+  --popover-foreground: rgb(30, 41, 59);
+  --primary: rgb(99, 102, 241);
+  --primary-foreground: rgb(255, 255, 255);
+  --secondary: rgb(214, 211, 209);
+  --secondary-foreground: rgb(75, 85, 99);
+  --muted: rgb(231, 229, 228);
+  --muted-foreground: rgb(107, 114, 128);
+  --accent: rgb(243, 229, 245);
+  --accent-foreground: rgb(55, 65, 81);
+  --border: rgb(214, 211, 209);
+  --input: rgb(214, 211, 209);
+  --ring: rgb(99, 102, 241);
+
+  /* Local aliases, so one block drives the split panel rather than 40 rules. */
+  --auth-canvas: var(--background);
+  --auth-canvas-2: color-mix(in srgb, var(--card) 52%, var(--background));
+  --auth-surface: var(--card);
+  --auth-line: var(--border);
+  --auth-line-strong: color-mix(in srgb, var(--border) 84%, var(--foreground));
+  --auth-ink: var(--foreground);
+  --auth-ink-soft: var(--muted-foreground);
+  --auth-accent: var(--primary);
+  --auth-accent-hover: color-mix(in srgb, var(--primary) 84%, black);
+  --auth-accent-soft: var(--accent);
+  --auth-radius: var(--radius);
+  --auth-radius-sm: calc(var(--radius) - 6px);
+  --auth-radius-lg: calc(var(--radius) + 4px);
+  --auth-shadow-panel: var(--shadow-lg);
   --auth-ease: cubic-bezier(0.22, 1, 0.36, 1);
 
-  /* Force light tokens so dark-mode system prefs don't wash text out on white cards */
-  --background: #ffffff;
-  --foreground: #121214;
-  --card: #ffffff;
-  --card-foreground: #121214;
-  --popover: #ffffff;
-  --popover-foreground: #121214;
-  --primary: #397dff;
-  --primary-foreground: #ffffff;
-  --secondary: #f5f5f5;
-  --secondary-foreground: #121214;
-  --muted: #f5f5f5;
-  --muted-foreground: #737373;
-  --accent: #f5f5f5;
-  --accent-foreground: #121214;
-  --border: #e5e5e5;
-  --input: #e5e5e5;
-  --ring: #397dff;
-
   color-scheme: light;
-  background: var(--auth-linen-100);
+  background: var(--auth-canvas);
   color: var(--auth-ink);
 }
 
-.auth-page :is(
-  .auth-title,
-  .auth-brand-headline,
-  .auth-brand-logo__name,
-  .auth-brand-card__title,
-  .auth-mobile-brand,
-  [data-slot="field-label"],
-  [data-slot="label"]
-) {
+.auth-page
+  :is(
+    .auth-title,
+    .auth-brand-headline,
+    .auth-brand-logo__name,
+    .auth-brand-card__title,
+    .auth-mobile-brand,
+    [data-slot="field-label"],
+    [data-slot="label"]
+  ) {
   color: var(--auth-ink);
 }
 
 .auth-brand-panel {
-  background: var(--auth-linen-100);
-  border-right: 1px solid var(--auth-linen-200);
+  background: var(--auth-canvas);
+  border-right: 1px solid var(--auth-line);
 }
 
 .auth-brand-ambient {
   background:
-    radial-gradient(900px 560px at 88% -8%, rgba(57, 125, 255, 0.1), transparent 58%),
-    radial-gradient(720px 480px at -4% 12%, rgba(245, 92, 21, 0.07), transparent 55%),
-    linear-gradient(180deg, var(--auth-linen-50) 0%, var(--auth-linen-100) 100%);
+    radial-gradient(
+      900px 560px at 88% -8%,
+      color-mix(in srgb, var(--auth-accent) 13%, transparent),
+      transparent 58%
+    ),
+    radial-gradient(
+      720px 480px at -4% 12%,
+      color-mix(in srgb, var(--auth-accent-soft) 82%, transparent),
+      transparent 55%
+    ),
+    linear-gradient(180deg, var(--auth-surface) 0%, var(--auth-canvas) 100%);
 }
 
 .auth-brand-logo__mark {
@@ -1698,7 +1703,7 @@ button[data-sidebar="rail"] {
 }
 
 .auth-brand-headline__accent {
-  color: var(--auth-moss);
+  color: var(--auth-accent);
 }
 
 .auth-brand-lede {
@@ -1713,10 +1718,10 @@ button[data-sidebar="rail"] {
   display: flex;
   gap: 0.9rem;
   padding: 0.95rem 1rem;
-  border: 1px solid var(--auth-linen-200);
+  border: 1px solid var(--auth-line);
   border-radius: var(--auth-radius);
-  background: rgba(255, 255, 255, 0.78);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  background: color-mix(in srgb, var(--auth-surface) 82%, transparent);
+  box-shadow: var(--shadow-2xs);
   animation: auth-card-rise 0.65s var(--auth-ease) both;
 }
 
@@ -1727,9 +1732,9 @@ button[data-sidebar="rail"] {
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  border-radius: 10px;
-  background: var(--auth-moss-soft);
-  color: var(--auth-moss);
+  border-radius: var(--auth-radius-sm);
+  background: var(--auth-accent-soft);
+  color: var(--auth-accent);
 }
 
 .auth-brand-card__title {
@@ -1749,7 +1754,7 @@ button[data-sidebar="rail"] {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  border-top: 1px solid var(--auth-linen-200);
+  border-top: 1px solid var(--auth-line);
   padding: 1.25rem 2.5rem;
 }
 
@@ -1769,23 +1774,31 @@ button[data-sidebar="rail"] {
 }
 
 .auth-brand-footer__link:hover {
-  color: var(--auth-moss);
+  color: var(--auth-accent);
 }
 
 .auth-form-side {
-  background: var(--auth-linen-100);
+  background: var(--auth-canvas);
 }
 
 .auth-form-ambient {
   background:
-    radial-gradient(640px 420px at 50% 0%, rgba(57, 125, 255, 0.07), transparent 62%),
-    radial-gradient(520px 360px at 100% 100%, rgba(245, 92, 21, 0.05), transparent 58%);
+    radial-gradient(
+      640px 420px at 50% 0%,
+      color-mix(in srgb, var(--auth-accent) 9%, transparent),
+      transparent 62%
+    ),
+    radial-gradient(
+      520px 360px at 100% 100%,
+      color-mix(in srgb, var(--auth-accent-soft) 60%, transparent),
+      transparent 58%
+    );
 }
 
 .auth-lang-switch label,
 .auth-lang-switch select {
-  border-color: var(--auth-linen-200) !important;
-  background: rgba(255, 255, 255, 0.9) !important;
+  border-color: var(--auth-line) !important;
+  background: var(--auth-surface) !important;
   color: var(--auth-ink) !important;
   border-radius: 999px !important;
 }
@@ -1796,9 +1809,9 @@ button[data-sidebar="rail"] {
 
 .auth-form-card {
   padding: 1.65rem 1.5rem;
-  border: 1px solid var(--auth-linen-200);
+  border: 1px solid var(--auth-line);
   border-radius: var(--auth-radius-lg);
-  background: rgba(255, 255, 255, 0.94);
+  background: color-mix(in srgb, var(--auth-surface) 94%, transparent);
   box-shadow: var(--auth-shadow-panel);
   backdrop-filter: blur(10px);
 }
@@ -1851,7 +1864,7 @@ button[data-sidebar="rail"] {
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--auth-ochre);
+  color: var(--auth-accent);
 }
 
 .auth-eyebrow--panel {
@@ -1884,7 +1897,7 @@ button[data-sidebar="rail"] {
 .auth-divider__line {
   height: 1px;
   flex: 1;
-  background: var(--auth-linen-200);
+  background: var(--auth-line);
 }
 
 .auth-divider__label {
@@ -1898,9 +1911,9 @@ button[data-sidebar="rail"] {
 
 .auth-input {
   height: 2.75rem;
-  border-color: var(--auth-linen-200);
-  border-radius: 10px;
-  background: #fff;
+  border-color: var(--auth-line);
+  border-radius: var(--auth-radius-sm);
+  background: var(--auth-surface);
   color: var(--auth-ink);
   font-size: 0.94rem;
 }
@@ -1910,8 +1923,12 @@ button[data-sidebar="rail"] {
 }
 
 .auth-input:focus-visible {
-  border-color: color-mix(in srgb, var(--auth-moss) 55%, var(--auth-linen-200) 45%);
-  box-shadow: 0 0 0 4px rgba(57, 125, 255, 0.14);
+  border-color: color-mix(
+    in srgb,
+    var(--auth-accent) 55%,
+    var(--auth-line) 45%
+  );
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--auth-accent) 16%, transparent);
 }
 
 .auth-page [data-slot="field-label"] {
@@ -1924,12 +1941,12 @@ button[data-sidebar="rail"] {
   height: 2.75rem;
   border: 0;
   border-radius: 999px;
-  background: var(--auth-moss);
-  color: #fff;
+  background: var(--auth-accent);
+  color: var(--primary-foreground);
   font-size: 0.94rem;
   font-weight: 600;
   letter-spacing: -0.01em;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--shadow-2xs);
   transition:
     background 0.25s var(--auth-ease),
     transform 0.25s var(--auth-ease),
@@ -1937,22 +1954,23 @@ button[data-sidebar="rail"] {
 }
 
 .auth-primary-btn:hover:not(:disabled) {
-  background: var(--auth-moss-hover);
+  background: var(--auth-accent-hover);
   transform: translateY(-1px);
-  box-shadow: 0 12px 28px -16px rgba(57, 125, 255, 0.55);
+  box-shadow: 0 12px 28px -16px
+    color-mix(in srgb, var(--auth-accent) 55%, transparent);
 }
 
 .auth-social-btn {
   height: 2.75rem;
   justify-content: center;
   gap: 0.65rem;
-  border-color: var(--auth-linen-200);
+  border-color: var(--auth-line);
   border-radius: 999px;
-  background: #fff;
+  background: var(--auth-surface);
   color: var(--auth-ink);
   font-size: 0.92rem;
   font-weight: 600;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--shadow-2xs);
   transition:
     border-color 0.2s var(--auth-ease),
     background 0.2s var(--auth-ease),
@@ -1960,14 +1978,14 @@ button[data-sidebar="rail"] {
 }
 
 .auth-social-btn:hover:not(:disabled) {
-  border-color: var(--auth-linen-300);
-  background: var(--auth-linen-50);
+  border-color: var(--auth-line-strong);
+  background: var(--auth-surface);
   transform: translateY(-1px);
 }
 
 .auth-link {
   font-weight: 600;
-  color: var(--auth-moss);
+  color: var(--auth-accent);
   text-underline-offset: 3px;
 }
 
@@ -1994,7 +2012,7 @@ button[data-sidebar="rail"] {
 
 .auth-error {
   border: 1px solid color-mix(in srgb, var(--destructive) 24%, transparent);
-  border-radius: 10px;
+  border-radius: var(--auth-radius-sm);
   background: color-mix(in srgb, var(--destructive) 6%, white);
   padding: 0.65rem 0.8rem;
   font-size: 0.88rem;
@@ -2004,10 +2022,10 @@ button[data-sidebar="rail"] {
 .auth-otp-slot {
   width: 2.65rem;
   height: 2.65rem;
-  border-color: var(--auth-linen-200);
-  border-radius: 10px;
+  border-color: var(--auth-line);
+  border-radius: var(--auth-radius-sm);
   color: var(--auth-ink);
-  background: #fff;
+  background: var(--auth-surface);
 }
 
 @keyframes auth-card-rise {

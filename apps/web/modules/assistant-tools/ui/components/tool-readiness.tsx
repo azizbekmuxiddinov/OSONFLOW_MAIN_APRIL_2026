@@ -1,15 +1,16 @@
 "use client"
 
-import { cn } from "@workspace/ui/lib/utils"
-import { CheckIcon, CircleDashedIcon } from "lucide-react"
+import { Button } from "@workspace/ui/components/button"
+import { ArrowRightIcon } from "lucide-react"
 
-import { Meter, toneClass } from "@/modules/dashboard/ui/components/console"
+import { Callout, Step, Steps } from "./tools-primitives"
 
 /**
  * The setup checklist for the tool being edited.
  *
  * A tool that is half-configured fails at call time, inside a conversation,
- * where nobody sees it. This states what is still missing before it ships.
+ * where nobody sees it. This states what is still missing before it ships, in
+ * order, with a way to jump to the step that fixes it.
  */
 
 export type ReadinessStep = {
@@ -17,68 +18,50 @@ export type ReadinessStep = {
   label: string
   description?: string
   done: boolean
+  /** Where the fix lives, when it is not on the overview itself. */
+  action?: { label: string; onClick: () => void }
 }
 
-export const ToolReadiness = ({
-  steps,
-  className,
-}: {
-  steps: ReadinessStep[]
-  className?: string
-}) => {
+export const ToolReadiness = ({ steps }: { steps: ReadinessStep[] }) => {
   const done = steps.filter((step) => step.done).length
-  const total = steps.length
-  const isReady = done === total
-  const tone = isReady ? "positive" : done === 0 ? "warning" : "accent"
+  const isReady = done === steps.length
+
+  if (isReady) {
+    return (
+      <Callout tone="info">
+        <span className="font-medium">Everything is in place.</span>{" "}
+        <span className="text-muted-foreground">
+          Your assistant will use this tool whenever a conversation matches the
+          description below.
+        </span>
+      </Callout>
+    )
+  }
 
   return (
-    <div className={cn("space-y-3", className)}>
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-medium">
-          {isReady ? "Ready to call" : "Finish setup"}
-        </p>
-        <span className="console-numeral text-xs text-muted-foreground">
-          {done}/{total}
-        </span>
-      </div>
-
-      <Meter tone={tone} value={total === 0 ? 0 : (done / total) * 100} />
-
-      <ul className="space-y-1.5">
-        {steps.map((step) => (
-          <li className="flex items-start gap-2.5" key={step.id}>
-            <span
-              className={cn(
-                "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border",
-                step.done
-                  ? cn("console-tone-wash", toneClass.positive)
-                  : "border-[var(--console-hairline)] text-muted-foreground"
-              )}
-            >
-              {step.done ? (
-                <CheckIcon className="size-2.5" />
-              ) : (
-                <CircleDashedIcon className="size-2.5" />
-              )}
-            </span>
-            <span className="min-w-0">
-              <span
-                className={cn(
-                  "block text-xs font-medium",
-                  step.done ? "text-muted-foreground" : "text-foreground"
-                )}
+    <Steps>
+      {steps.map((step, index) => (
+        <Step
+          aside={
+            !step.done && step.action ? (
+              <Button
+                onClick={step.action.onClick}
+                size="sm"
+                type="button"
+                variant="outline"
               >
-                {step.label}
-              </span>
-              {step.description && !step.done ? (
-                <span className="mt-0.5 block text-[0.7rem] leading-snug text-muted-foreground">
-                  {step.description}
-                </span>
-              ) : null}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </div>
+                {step.action.label}
+                <ArrowRightIcon data-icon="inline-end" />
+              </Button>
+            ) : null
+          }
+          description={step.done ? undefined : step.description}
+          done={step.done}
+          index={index + 1}
+          key={step.id}
+          title={step.label}
+        />
+      ))}
+    </Steps>
   )
 }

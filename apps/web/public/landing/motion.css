@@ -109,8 +109,8 @@ html.mo-on .japandi-landing .mo-host:not(.mo-in) .mo-word {
   aspect-ratio: 1.6;
   translate: -50% 0;
   background:
-    radial-gradient(42% 46% at 32% 42%, rgba(57, 125, 255, .16), transparent 70%),
-    radial-gradient(38% 42% at 68% 52%, rgba(245, 92, 21, .12), transparent 72%);
+    radial-gradient(42% 46% at 32% 42%, rgba(99, 102, 241, .16), transparent 70%),
+    radial-gradient(38% 42% at 68% 52%, rgba(146, 90, 167, .12), transparent 72%);
   filter: blur(28px);
   z-index: 0;
   pointer-events: none;
@@ -155,14 +155,14 @@ html.mo-on .japandi-landing .mo-host:not(.mo-in) .mo-word {
 .japandi-landing .btn:hover::after { animation: moSheen .85s var(--mo-soft) forwards; }
 @keyframes moSheen { to { translate: 130% 0; } }
 .japandi-landing .btn:active { scale: .975; }
-.japandi-landing .btn--primary { box-shadow: 0 6px 22px -10px rgba(57, 125, 255, .8); }
-.japandi-landing .btn--primary:hover { box-shadow: 0 14px 34px -12px rgba(57, 125, 255, .85); }
+.japandi-landing .btn--primary { box-shadow: 0 6px 22px -10px rgba(99, 102, 241, .8); }
+.japandi-landing .btn--primary:hover { box-shadow: 0 14px 34px -12px rgba(99, 102, 241, .85); }
 .japandi-landing .hero__actions .btn--primary::before {
   content: "";
   position: absolute;
   inset: -2px;
   border-radius: inherit;
-  border: 1px solid rgba(57, 125, 255, .55);
+  border: 1px solid rgba(99, 102, 241, .55);
   opacity: 0;
   animation: moHalo 3.6s var(--mo-out) infinite;
   pointer-events: none;
@@ -192,7 +192,7 @@ html.mo-on .japandi-landing .mo-host:not(.mo-in) .mo-word {
   transform-origin: 0 50%;
   transform: scaleX(var(--mo-p, 0));
   background: linear-gradient(90deg, var(--moss-800), var(--moss-500) 55%, var(--ochre-500));
-  box-shadow: 0 0 12px rgba(57, 125, 255, .45);
+  box-shadow: 0 0 12px rgba(99, 102, 241, .45);
 }
 .japandi-landing .nav__capsule { transition: max-width .5s var(--mo-out), background .4s var(--mo-soft), box-shadow .4s var(--mo-soft), transform .5s var(--mo-out); }
 .japandi-landing .nav.is-scrolled .nav__capsule { box-shadow: 0 10px 34px -18px rgba(0, 0, 0, .28); }
@@ -238,7 +238,7 @@ html.mo-on .japandi-landing .mo-host:not(.mo-in) .mo-word {
   z-index: 3;
   transition: opacity .4s var(--mo-soft);
   background: radial-gradient(300px circle at var(--mo-px, 50%) var(--mo-py, 50%),
-    rgba(157, 186, 163, .16), transparent 62%);
+    rgba(165, 168, 247, .16), transparent 62%);
 }
 .japandi-landing .mo-spot:hover::after { opacity: 1; }
 .japandi-landing .plan:hover,
@@ -285,7 +285,7 @@ html.mo-on .japandi-landing .mo-host:not(.mo-in) .mo-word {
   transition: transform .2s linear;
 }
 .japandi-landing .method__step { transition: background .4s var(--mo-soft); }
-.japandi-landing .method__step:hover { background: rgba(93, 122, 99, .05); }
+.japandi-landing .method__step:hover { background: rgba(79, 70, 229, .05); }
 .japandi-landing .method__idx { transition: color .35s var(--mo-soft), transform .5s var(--mo-spring); }
 .japandi-landing .method__step:hover .method__idx { color: var(--verdant-500); transform: translateY(-2px); }
 
@@ -371,7 +371,7 @@ html.mo-on .japandi-landing .mo-host:not(.mo-in) .mo-word {
    12 · ACCORDION — smoother open, arrow morph, row hover
    ============================================================ */
 .japandi-landing .acc { transition: background .35s var(--mo-soft), border-color .35s var(--mo-soft); }
-.japandi-landing .acc:hover { background: rgba(57, 125, 255, .03); }
+.japandi-landing .acc:hover { background: rgba(99, 102, 241, .03); }
 .japandi-landing .acc__a { transition: max-height .55s var(--mo-out), opacity .45s var(--mo-soft); opacity: 0; }
 .japandi-landing .acc.is-open .acc__a { opacity: 1; }
 .japandi-landing .acc.is-open .acc__a > p { animation: moAccIn .55s var(--mo-out) both .08s; }
@@ -417,7 +417,7 @@ html.mo-on .japandi-landing .mo-host:not(.mo-in) .mo-word {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(110deg, transparent 35%, rgba(57, 125, 255, .1) 50%, transparent 65%);
+  background: linear-gradient(110deg, transparent 35%, rgba(99, 102, 241, .1) 50%, transparent 65%);
   translate: -100% 0;
   animation: moSlotSweep 4.5s var(--mo-soft) infinite;
   pointer-events: none;
@@ -436,11 +436,11 @@ html.mo-on .japandi-landing .mo-host:not(.mo-in) .mo-word {
   display: grid;
   place-items: center;
   border-radius: 50%;
-  border: 1px solid var(--linen-200, #e5e5e5);
+  border: 1px solid var(--linen-200, rgb(214, 211, 209));
   background: rgba(255, 255, 255, .82);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  color: #121214;
+  color: rgb(30, 41, 59);
   cursor: pointer;
   z-index: 90;
   opacity: 0;

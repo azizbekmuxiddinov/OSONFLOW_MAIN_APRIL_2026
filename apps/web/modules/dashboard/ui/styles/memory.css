@@ -1,0 +1,123 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Customer memory — a directory and a dossier.
+
+   Builds on report.css (tokens, headline, figures, timeline). People are a
+   ruled index on the left; the selected person opens as a dossier beside it on
+   wide screens, and inline beneath their row on narrow ones. No tiles: the only
+   raised surface is the selected row.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+.memory-row {
+  position: relative;
+  border-bottom: 1px solid var(--report-rule);
+  transition: background-color 180ms var(--motion-snappy);
+}
+
+.memory-row-button {
+  border-radius: calc(var(--radius) - 6px);
+  transition:
+    background-color 180ms var(--motion-snappy),
+    box-shadow 180ms var(--motion-snappy);
+}
+
+.memory-row-button:hover {
+  background: color-mix(in srgb, var(--foreground) 4%, transparent);
+}
+
+.memory-row-button[aria-current="true"] {
+  background: var(--glass-raised, var(--card));
+  box-shadow:
+    var(--glass-edge, none),
+    0 8px 24px -14px rgb(30 41 90 / 0.3);
+}
+
+/* Narrow screens: the first row is only the desktop default, so it is not
+   highlighted until its dossier is actually opened inline. */
+@media (max-width: 1023px) {
+  .memory-row-button[aria-current="true"][data-peek] {
+    background: transparent;
+    box-shadow: none;
+  }
+}
+
+.memory-avatar {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 22%, transparent);
+}
+
+/* The last few outcomes, oldest to newest, in the report's status encoding. */
+.memory-trail {
+  display: flex;
+  gap: 3px;
+}
+
+.memory-trail > span {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 2px;
+}
+
+.memory-trail > [data-outcome="resolved"] {
+  background: var(--outcome-resolved);
+}
+
+.memory-trail > [data-outcome="handed"] {
+  background: var(--outcome-handed);
+}
+
+.memory-trail > [data-outcome="open"] {
+  box-shadow: inset 0 0 0 1.5px var(--outcome-open);
+}
+
+.memory-dossier {
+  animation: memory-dossier-in 320ms var(--motion-snappy) backwards;
+}
+
+.memory-name {
+  font-size: clamp(1.6rem, 1.2rem + 1.4vw, 2.3rem);
+  font-weight: 600;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+  color: var(--foreground);
+  overflow-wrap: anywhere;
+}
+
+.memory-summary {
+  font-size: clamp(1.02rem, 0.96rem + 0.3vw, 1.2rem);
+  line-height: 1.55;
+  letter-spacing: -0.012em;
+  color: var(--foreground);
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+
+.memory-block + .memory-block {
+  border-top: 1px solid var(--report-rule);
+}
+
+.memory-fact {
+  border-bottom: 1px solid var(--report-rule);
+}
+
+.memory-fact:last-child {
+  border-bottom: 0;
+}
+
+@keyframes memory-dossier-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

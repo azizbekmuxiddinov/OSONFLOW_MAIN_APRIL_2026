@@ -1,19 +1,15 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { useConvex, useQuery } from "convex/react"
+import type { FunctionReturnType } from "convex/server"
+import { formatDistanceToNow } from "date-fns"
 import {
-  AlertCircleIcon,
-  BotIcon,
-  CheckCircle2Icon,
-  ChartColumnBigIcon,
-  Clock3Icon,
+  ArrowUpRightIcon,
   DownloadIcon,
-  HelpCircleIcon,
   MessageSquareIcon,
-  SparklesIcon,
-  TrendingUpIcon,
-  UserRoundCheckIcon,
+  MicIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -23,33 +19,14 @@ import { GettingStartedCallout } from "@/modules/onboarding/ui/components/gettin
 import type { Doc } from "@workspace/backend/_generated/dataModel"
 import { Button } from "@workspace/ui/components/button"
 import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@workspace/ui/components/tabs"
-import { cn } from "@workspace/ui/lib/utils"
-import {
   formatCsvTimestamp,
   stringifyCsvRows,
   type CsvValue,
 } from "../lib/conversation-export"
-import {
-  ConsoleHeader,
-  ConsoleMeta,
-  ConsolePage,
-  ConsoleSkeleton,
-  consoleTabsListClass,
-  consoleTabsTriggerClass,
-  EmptyState,
-  Meter,
-  Panel,
-  PanelBody,
-  PanelHeader,
-  Pill,
-  Stat,
-  StatGrid,
-} from "../components/console"
+import { ConsolePage } from "../components/console"
+import { AnalyticsSkeleton } from "../components/report-skeleton"
+import { ReportQuiet, ReportSection } from "../components/report"
+import "../styles/report.css"
 
 const ANALYTICS_EXPORT_LIMIT = 5000
 
@@ -101,38 +78,446 @@ const insightToCsvRow = (insight: ConversationInsight) => [
   formatCsvTimestamp(insight.updatedAt),
 ]
 
+type Overview = FunctionReturnType<typeof api.private.analytics.getOverview>
+
+type Outcome = "resolved" | "handed" | "open"
+
+const OUTCOME_LABEL: Record<Outcome, string> = {
+  resolved: "Resolved by the assistant",
+  handed: "Handed to your team",
+  open: "Still open",
+}
+
+const percentOf = (part: number, whole: number) =>
+  whole > 0 ? Math.round((part / whole) * 100) : 0
+
 /**
- * Ranked magnitude bar. One hue for the whole set — the bars encode size, not
- * identity, so a categorical palette here would be noise.
+ * Splits the window into three exclusive outcomes. The overview's flags can
+ * overlap (a conversation can be escalated and later resolved), so resolution
+ * wins, then hand-off, and whatever is left is still open.
  */
-const RankedBar = ({
+const getOutcomes = (overview: Overview) => {
+  const total = overview.totalConversations
+  const resolved = Math.min(overview.resolved, total)
+  const handed = Math.min(overview.escalated, total - resolved)
+  const open = Math.max(0, total - resolved - handed)
+
+  return { total, counts: { resolved, handed, open } }
+}
+
+/* ── hero ───────────────────────────────────────────────────────────────── */
+
+/**
+ * A 10×10 waffle: each square is 1% of analysed conversations. Squares are
+ * allocated by largest remainder so the three groups always sum to 100.
+ */
+const OutcomeWaffle = ({
+  counts,
+  total,
+}: {
+  counts: Record<Outcome, number>
+  total: number
+}) => {
+  const [focus, setFocus] = useState<Outcome | null>(null)
+  const order: Outcome[] = ["resolved", "handed", "open"]
+
+  const raw = order.map((key) => (total ? (counts[key] / total) * 100 : 0))
+  const cells = raw.map(Math.floor)
+  let remaining = total ? 100 - cells.reduce((sum, value) => sum + value, 0) : 0
+  raw
+    .map((value, index) => ({ index, rest: value - Math.floor(value) }))
+    .sort((a, b) => b.rest - a.rest)
+    .forEach(({ index }) => {
+      if (remaining > 0) {
+        cells[index] = (cells[index] ?? 0) + 1
+        remaining -= 1
+      }
+    })
+
+  const squares: (Outcome | null)[] = order.flatMap((key, index) =>
+    Array.from({ length: cells[index] ?? 0 }, () => key)
+  )
+  while (squares.length < 100) squares.push(null)
+
+  const summary = total
+    ? order
+        .map((key) => `${OUTCOME_LABEL[key]}: ${counts[key]}`)
+        .join(", ")
+    : "No conversations analysed yet"
+
+  return (
+    <figure className="flex w-full flex-col gap-5 sm:flex-row sm:items-center lg:flex-col lg:items-stretch">
+      <div
+        aria-label={summary}
+        className="report-waffle shrink-0"
+        data-focus={focus ?? undefined}
+        role="img"
+      >
+        {squares.map((outcome, index) => (
+          <span
+            className="report-cell"
+            data-outcome={outcome ?? undefined}
+            key={index}
+            style={{ "--i": index } as React.CSSProperties}
+          />
+        ))}
+      </div>
+
+      <figcaption className="min-w-0 flex-1">
+        <ul
+          className="report-legend flex flex-col gap-0.5"
+          data-focus={focus ?? undefined}
+        >
+          {order.map((key) => (
+            <li key={key}>
+              <button
+                className="report-legend-item flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-foreground/5 focus-visible:bg-foreground/5 focus-visible:outline-none"
+                data-active={focus === key ? "" : undefined}
+                onBlur={() => setFocus(null)}
+                onFocus={() => setFocus(key)}
+                onMouseEnter={() => setFocus(key)}
+                onMouseLeave={() => setFocus(null)}
+                type="button"
+              >
+                <span className="report-swatch" data-outcome={key} />
+                <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                  {OUTCOME_LABEL[key]}
+                </span>
+                <span className="console-numeral text-sm">{counts[key]}</span>
+                <span className="w-9 text-right text-xs tabular-nums text-muted-foreground">
+                  {percentOf(counts[key], total)}%
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-2 px-2 text-[0.7rem] text-muted-foreground">
+          Each square is 1% of {total} conversations
+        </p>
+      </figcaption>
+    </figure>
+  )
+}
+
+const Figure = ({
   label,
-  count,
-  max,
-  rank,
+  value,
+  note,
 }: {
   label: string
-  count: number
-  max: number
-  rank: number
+  value: React.ReactNode
+  note: string
 }) => (
-  <div className="grid grid-cols-[1.5rem_minmax(0,1fr)_auto] items-center gap-3">
-    <span className="console-numeral text-xs text-muted-foreground/70">
-      {String(rank).padStart(2, "0")}
-    </span>
-    <div className="min-w-0">
-      <div className="flex items-baseline justify-between gap-3">
-        <span className="truncate text-sm text-foreground">{label}</span>
-      </div>
-      <Meter
-        className="mt-2"
-        tone="accent"
-        value={max > 0 ? Math.max(4, (count / max) * 100) : 0}
-      />
-    </div>
-    <span className="console-numeral text-sm">{count}</span>
+  <div className="report-figure flex flex-col gap-3 px-1 py-5 sm:px-5 md:first:pl-0">
+    <p className="console-label">{label}</p>
+    <p className="report-figure-value">{value}</p>
+    <p className="text-xs leading-snug text-muted-foreground">{note}</p>
   </div>
 )
+
+/* ── sections ───────────────────────────────────────────────────────────── */
+
+const IntentRanking = ({ overview }: { overview: Overview }) => {
+  const max = Math.max(1, ...overview.topIntents.map((intent) => intent.count))
+
+  if (!overview.topIntents.length) {
+    return (
+      <ReportQuiet>
+        Intents are classified automatically once conversations start coming
+        in.
+      </ReportQuiet>
+    )
+  }
+
+  return (
+    <ol className="report-rows flex flex-col">
+      {overview.topIntents.map((intent, index) => (
+        <li
+          className="report-row grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4 gap-y-2 py-3"
+          key={intent.label}
+        >
+          <span className="truncate text-[0.95rem] text-foreground">
+            {formatIntent(intent.label)}
+          </span>
+          <span className="flex items-baseline gap-2">
+            <span className="console-numeral text-sm">{intent.count}</span>
+            <span className="w-9 text-right text-xs tabular-nums text-muted-foreground">
+              {percentOf(intent.count, overview.totalConversations)}%
+            </span>
+          </span>
+          <div className="report-bar-track col-span-2">
+            <div
+              className="report-bar"
+              style={
+                {
+                  width: `${Math.max(2, (intent.count / max) * 100)}%`,
+                  "--i": index,
+                } as React.CSSProperties
+              }
+            />
+          </div>
+        </li>
+      ))}
+    </ol>
+  )
+}
+
+const KnowledgeGaps = ({ overview }: { overview: Overview }) => {
+  if (!overview.unansweredQuestions.length) {
+    return (
+      <ReportQuiet>
+        Nothing went unanswered in this window — the knowledge base covered
+        every question.
+      </ReportQuiet>
+    )
+  }
+
+  return (
+    <div>
+      <ol className="border-t border-[var(--report-rule)]">
+        {overview.unansweredQuestions.map((question) => (
+          <li
+            className="report-gap grid grid-cols-[4.5rem_minmax(0,1fr)] gap-4 py-5"
+            key={question.question}
+          >
+            <div className="flex flex-col items-start gap-1.5">
+              <span className="report-gap-count">{question.count}×</span>
+              <span className="text-[0.7rem] text-muted-foreground">asked</span>
+            </div>
+            <div className="min-w-0">
+              <p className="report-gap-quote">“{question.question}”</p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                {formatIntent(question.intent)}
+              </p>
+            </div>
+          </li>
+        ))}
+      </ol>
+      <Button asChild className="mt-6" variant="outline">
+        <Link href="/files">
+          Add these answers to your knowledge base
+          <ArrowUpRightIcon data-icon="inline-end" />
+        </Link>
+      </Button>
+    </div>
+  )
+}
+
+const ChannelSplit = ({ overview }: { overview: Overview }) => (
+  <div className="flex flex-col gap-8">
+    {overview.channelMetrics.map((metric) => {
+      const Icon = metric.channel === "voice" ? MicIcon : MessageSquareIcon
+      const resolved = Math.min(metric.resolved, metric.total)
+      const handed = Math.min(metric.escalated, metric.total - resolved)
+      const open = Math.max(0, metric.total - resolved - handed)
+      const segments = (
+        [
+          ["resolved", resolved],
+          ["handed", handed],
+          ["open", open],
+        ] as const
+      ).filter(([, count]) => count > 0)
+
+      return (
+        <div key={metric.channel}>
+          <div className="flex items-baseline justify-between gap-4">
+            <p className="flex items-center gap-2 text-[0.95rem] font-medium text-foreground">
+              <Icon aria-hidden className="size-4 text-muted-foreground" />
+              {metric.channel === "voice" ? "Voice calls" : "Website chat"}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              <span className="console-numeral text-foreground">
+                {metric.resolutionRate}%
+              </span>{" "}
+              resolved · {metric.total} total
+            </p>
+          </div>
+
+          {metric.total ? (
+            <>
+              <div
+                aria-label={segments
+                  .map(([key, count]) => `${OUTCOME_LABEL[key]}: ${count}`)
+                  .join(", ")}
+                className="report-stack mt-3"
+                role="img"
+              >
+                {segments.map(([key, count]) => (
+                  <span
+                    key={key}
+                    style={{
+                      width: `${(count / metric.total) * 100}%`,
+                      background:
+                        key === "open"
+                          ? "color-mix(in srgb, var(--outcome-open) 22%, transparent)"
+                          : `var(--outcome-${key})`,
+                      boxShadow:
+                        key === "open"
+                          ? "inset 0 0 0 2px var(--outcome-open)"
+                          : undefined,
+                    }}
+                    title={`${OUTCOME_LABEL[key]}: ${count}`}
+                  />
+                ))}
+              </div>
+              <div className="mt-2.5 flex flex-wrap gap-x-5 gap-y-1">
+                {segments.map(([key, count]) => (
+                  <span
+                    className="flex items-center gap-1.5 text-xs text-muted-foreground"
+                    key={key}
+                  >
+                    <span className="report-swatch" data-outcome={key} />
+                    {OUTCOME_LABEL[key]}
+                    <span className="console-numeral text-foreground">
+                      {count}
+                    </span>
+                  </span>
+                ))}
+              </div>
+            </>
+          ) : (
+            <p className="mt-3 text-sm text-muted-foreground">
+              No {metric.channel === "voice" ? "voice calls" : "chats"} in this
+              window.
+            </p>
+          )}
+        </div>
+      )
+    })}
+  </div>
+)
+
+/** Sentiment is diverging (two poles, neutral midpoint), so it gets its own
+ *  blue/orange pair rather than borrowing the outcome status colours. */
+const MoodStrip = ({ overview }: { overview: Overview }) => {
+  const order = ["positive", "neutral", "negative"] as const
+  const counts = Object.fromEntries(
+    overview.sentimentMix.map((item) => [item.label, item.count])
+  ) as Partial<Record<(typeof order)[number], number>>
+  const total = order.reduce((sum, key) => sum + (counts[key] ?? 0), 0)
+
+  if (!total) {
+    return null
+  }
+
+  const label = { positive: "Happy", neutral: "Neutral", negative: "Frustrated" }
+
+  return (
+    <div className="mt-10">
+      <p className="console-label">How customers felt</p>
+      <div
+        aria-label={order
+          .map((key) => `${label[key]}: ${counts[key] ?? 0}`)
+          .join(", ")}
+        className="report-stack mt-3"
+        role="img"
+      >
+        {order
+          .filter((key) => counts[key])
+          .map((key) => (
+            <span
+              key={key}
+              style={{
+                width: `${((counts[key] ?? 0) / total) * 100}%`,
+                background: `var(--mood-${key})`,
+              }}
+              title={`${label[key]}: ${counts[key]}`}
+            />
+          ))}
+      </div>
+      <div className="mt-2.5 flex flex-wrap gap-x-5 gap-y-1">
+        {order.map((key) => (
+          <span
+            className="flex items-center gap-1.5 text-xs text-muted-foreground"
+            key={key}
+          >
+            <span
+              className="report-swatch"
+              style={{ background: `var(--mood-${key})` }}
+            />
+            {label[key]}
+            <span className="console-numeral text-foreground">
+              {percentOf(counts[key] ?? 0, total)}%
+            </span>
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+const STATUS_NODE: Record<
+  ConversationInsight["status"],
+  { label: string; color: string; filled: boolean }
+> = {
+  resolved: {
+    label: "Resolved",
+    color: "var(--outcome-resolved)",
+    filled: true,
+  },
+  escalated: {
+    label: "Handed to team",
+    color: "var(--outcome-handed)",
+    filled: true,
+  },
+  unresolved: {
+    label: "Still open",
+    color: "var(--outcome-open)",
+    filled: false,
+  },
+}
+
+const SignalTimeline = ({ overview }: { overview: Overview }) => {
+  if (!overview.recentInsights.length) {
+    return (
+      <ReportQuiet>
+        Summaries appear here after new chat or voice conversations are
+        analysed.
+      </ReportQuiet>
+    )
+  }
+
+  return (
+    <ol className="report-timeline flex flex-col gap-7">
+      {overview.recentInsights.map((insight) => {
+        const node = STATUS_NODE[insight.status]
+
+        return (
+          <li
+            className="grid grid-cols-[0.625rem_minmax(0,1fr)] gap-4"
+            key={insight._id}
+          >
+            <span
+              className="report-node mt-1.5"
+              data-filled={node.filled ? "" : undefined}
+              style={{ color: node.color }}
+            />
+            <div className="min-w-0">
+              <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">
+                  {node.label}
+                </span>
+                <span aria-hidden>·</span>
+                <span>{formatIntent(insight.intent)}</span>
+                <span aria-hidden>·</span>
+                <span className="capitalize">{insight.channel}</span>
+                <span aria-hidden>·</span>
+                <time dateTime={new Date(insight.updatedAt).toISOString()}>
+                  {formatDistanceToNow(insight.updatedAt, { addSuffix: true })}
+                </time>
+              </p>
+              <p className="mt-1.5 text-[0.95rem] leading-relaxed text-foreground">
+                {insight.summary}
+              </p>
+            </div>
+          </li>
+        )
+      })}
+    </ol>
+  )
+}
+
+/* ── page ───────────────────────────────────────────────────────────────── */
 
 export const AnalyticsView = () => {
   const { t } = useLanguage()
@@ -143,24 +528,16 @@ export const AnalyticsView = () => {
   })
 
   if (overview === undefined) {
-    return <ConsoleSkeleton rows={2} />
+    return <AnalyticsSkeleton />
   }
 
-  const maxIntentCount = Math.max(
-    1,
-    ...overview.topIntents.map((intent) => intent.count)
-  )
-  const maxQuestionCount = Math.max(
-    1,
-    ...overview.unansweredQuestions.map((question) => question.count)
-  )
+  const { total, counts } = getOutcomes(overview)
   const humanSavedHours = Math.floor(overview.humanSavedMinutes / 60)
   const humanSavedRemainder = overview.humanSavedMinutes % 60
   const savedTimeLabel = humanSavedHours
     ? `${humanSavedHours}h ${humanSavedRemainder}m`
     : `${overview.humanSavedMinutes}m`
-  const answerRate = 100 - overview.unansweredRate
-  const attentionSignals = overview.unanswered + overview.escalated
+  const answerRate = total ? 100 - overview.unansweredRate : 0
 
   const handleDownloadCsv = async () => {
     setIsExporting(true)
@@ -268,304 +645,121 @@ export const AnalyticsView = () => {
   }
 
   return (
-    <ConsolePage>
+    <ConsolePage width="wide">
       <GettingStartedCallout />
 
-      <ConsoleHeader
-        actions={
-          <Button
-            disabled={isExporting}
-            onClick={handleDownloadCsv}
-            variant="outline"
-          >
-            <DownloadIcon data-icon="inline-start" />
-            {isExporting ? t("Exporting...") : t("Download CSV")}
-          </Button>
-        }
-        description="How much of your customer support the assistant handled by itself, where someone still had to step in, and which questions it could not answer yet."
-        eyebrow="Overview"
-        icon={ChartColumnBigIcon}
-        meta={
-          <>
-            <ConsoleMeta
-              label={`${t("Last")} ${overview.windowDays} ${t("days")}`}
-              value={`${overview.totalConversations} analyzed`}
-            />
-            <ConsoleMeta
-              dot
-              label={attentionSignals ? "Attention signals" : "Status"}
-              tone={attentionSignals ? "warning" : "positive"}
-              value={attentionSignals ? attentionSignals : "All clear"}
-            />
-          </>
-        }
-        title="AI performance"
-      />
+      <div className="report">
+        {/* Hero: the one sentence an owner needs, and the picture of it. */}
+        <section className="grid gap-10 pt-2 pb-10 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-end lg:gap-16">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="console-eyebrow">
+                {t("Last")} {overview.windowDays} {t("days")} · {total}{" "}
+                conversations analysed
+              </p>
+              <Button
+                disabled={isExporting}
+                onClick={handleDownloadCsv}
+                size="sm"
+                variant="ghost"
+              >
+                <DownloadIcon data-icon="inline-start" />
+                {isExporting ? t("Exporting...") : t("Download CSV")}
+              </Button>
+            </div>
 
-      <StatGrid>
-        <Stat
-          hint={`${overview.resolved} ${t("resolved by AI or voice AI")}`}
-          icon={CheckCircle2Icon}
-          label="AI resolution rate"
-          progress={overview.resolutionRate}
-          tone="positive"
-          value={`${overview.resolutionRate}%`}
-        />
-        <Stat
-          hint={`${overview.escalated} ${t("conversations needed a human")}`}
-          icon={UserRoundCheckIcon}
-          label="Escalation rate"
-          progress={overview.escalationRate}
-          tone="critical"
-          value={`${overview.escalationRate}%`}
-        />
-        <Stat
-          hint={t(
-            "Measured from first customer message to first operator reply"
-          )}
-          icon={Clock3Icon}
-          label="Avg. human response"
-          tone="warning"
-          value={formatDuration(overview.averageHumanResponseMs)}
-        />
-        <Stat
-          hint={t("Estimated support minutes handled by AI")}
-          icon={TrendingUpIcon}
-          label="Human time saved"
-          tone="info"
-          value={savedTimeLabel}
-        />
-      </StatGrid>
-
-      <Tabs defaultValue="overview">
-        <TabsList className={consoleTabsListClass}>
-          <TabsTrigger className={consoleTabsTriggerClass} value="overview">
-            <SparklesIcon />
-            Overview
-          </TabsTrigger>
-          <TabsTrigger className={consoleTabsTriggerClass} value="questions">
-            <HelpCircleIcon />
-            Questions
-          </TabsTrigger>
-          <TabsTrigger className={consoleTabsTriggerClass} value="channels">
-            <BotIcon />
-            Channels
-          </TabsTrigger>
-          <TabsTrigger className={consoleTabsTriggerClass} value="insights">
-            <AlertCircleIcon />
-            Insights
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent className="mt-1" value="overview">
-          <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-            <Panel>
-              <PanelHeader
-                description="The recurring jobs customers are trying to complete across chat and voice."
-                icon={MessageSquareIcon}
-                title="Top customer intents"
-              />
-              <PanelBody>
-                {overview.topIntents.length ? (
-                  <div className="space-y-4">
-                    {overview.topIntents.map((intent, index) => (
-                      <RankedBar
-                        count={intent.count}
-                        key={intent.label}
-                        label={formatIntent(intent.label)}
-                        max={maxIntentCount}
-                        rank={index + 1}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <EmptyState
-                    className="min-h-[12rem]"
-                    description="Intents are classified automatically once conversations start coming in."
-                    icon={MessageSquareIcon}
-                    title="Nothing classified yet"
-                  />
-                )}
-              </PanelBody>
-            </Panel>
-
-            <Panel>
-              <PanelHeader
-                description="Whether customers get a complete answer before the team has to step in."
-                icon={CheckCircle2Icon}
-                title="Answer health"
-              />
-              <PanelBody className="space-y-5">
-                <div>
-                  <div className="mb-2 flex items-baseline justify-between gap-3">
-                    <span className="flex items-center gap-2 text-sm text-foreground">
-                      <CheckCircle2Icon className="console-tone-positive size-3.5" />
-                      Answered
-                    </span>
-                    <span className="console-numeral text-sm">
-                      {answerRate}%
-                    </span>
-                  </div>
-                  <Meter tone="positive" value={answerRate} />
-                </div>
-
-                <div>
-                  <div className="mb-2 flex items-baseline justify-between gap-3">
-                    <span className="flex items-center gap-2 text-sm text-foreground">
-                      <HelpCircleIcon className="console-tone-warning size-3.5" />
-                      Unanswered
-                    </span>
-                    <span className="console-numeral text-sm">
-                      {overview.unansweredRate}%
-                    </span>
-                  </div>
-                  <Meter tone="warning" value={overview.unansweredRate} />
-                </div>
-
-                <div className="console-rule" />
-
-                <div className="grid grid-cols-3 gap-2 text-center">
-                  {(
-                    [
-                      ["Resolved", overview.resolved, "positive"],
-                      ["Escalated", overview.escalated, "critical"],
-                      ["Unanswered", overview.unanswered, "warning"],
-                    ] as const
-                  ).map(([label, value, tone]) => (
-                    <div className="console-inset px-2 py-2.5" key={label}>
-                      <p
-                        className={cn(
-                          "console-numeral text-base",
-                          `console-tone-${tone}`
-                        )}
-                      >
-                        {value}
-                      </p>
-                      <p className="mt-1 text-[0.7rem] text-muted-foreground">
-                        {label}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </PanelBody>
-            </Panel>
-          </div>
-        </TabsContent>
-
-        <TabsContent className="mt-1" value="questions">
-          <Panel>
-            <PanelHeader
-              description="The highest-leverage queue for improving the knowledge base."
-              icon={HelpCircleIcon}
-              title="Most common unanswered questions"
-            />
-            {overview.unansweredQuestions.length ? (
-              <div>
-                {overview.unansweredQuestions.map((question) => (
-                  <div
-                    className="console-row border-b border-[var(--console-hairline-soft)] px-4 py-4 last:border-b-0 sm:px-5"
-                    key={question.question}
-                  >
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="min-w-0">
-                        <p className="text-sm leading-relaxed text-foreground">
-                          {question.question}
-                        </p>
-                        <p className="mt-1.5 text-xs text-muted-foreground">
-                          {formatIntent(question.intent)}
-                        </p>
-                      </div>
-                      <Pill tone="warning">{question.count} asked</Pill>
-                    </div>
-                    <Meter
-                      className="mt-3"
-                      tone="warning"
-                      value={(question.count / maxQuestionCount) * 100}
-                    />
-                  </div>
-                ))}
-              </div>
+            {total ? (
+              <>
+                <h1 className="report-headline mt-6 max-w-[22ch]">
+                  Your assistant resolved{" "}
+                  <span className="report-headline-figure">
+                    {percentOf(counts.resolved, total)}%
+                  </span>{" "}
+                  of conversations on its own.
+                </h1>
+                <p className="report-lede mt-6 max-w-[60ch]">
+                  <strong>{counts.handed}</strong> were handed to your team,{" "}
+                  <strong>{overview.unanswered}</strong>{" "}
+                  {overview.unanswered === 1
+                    ? "question went"
+                    : "questions went"}{" "}
+                  unanswered, and it saved about{" "}
+                  <strong>{savedTimeLabel}</strong> of support time.
+                </p>
+              </>
             ) : (
-              <EmptyState
-                description="No knowledge gaps have been detected in this window."
-                icon={CheckCircle2Icon}
-                title="Nothing unanswered"
-              />
+              <>
+                <h1 className="report-headline mt-6 max-w-[20ch]">
+                  Your report starts with the first conversation.
+                </h1>
+                <p className="report-lede mt-6 max-w-[60ch]">
+                  Once customers talk to your assistant, this page shows how
+                  much it handled on its own, where your team stepped in, and
+                  what it still needs to learn.
+                </p>
+              </>
             )}
-          </Panel>
-        </TabsContent>
-
-        <TabsContent className="mt-1" value="channels">
-          <div className="grid gap-4 md:grid-cols-2">
-            {overview.channelMetrics.map((metric) => {
-              const Icon =
-                metric.channel === "voice" ? BotIcon : MessageSquareIcon
-
-              return (
-                <Panel key={metric.channel}>
-                  <PanelHeader
-                    actions={
-                      <Pill tone="positive">
-                        {metric.resolutionRate}% resolved
-                      </Pill>
-                    }
-                    description={`${metric.total} analyzed conversations`}
-                    icon={Icon}
-                    title={
-                      <span className="capitalize">{metric.channel}</span>
-                    }
-                  />
-                  <PanelBody className="space-y-4">
-                    <Meter tone="positive" value={metric.resolutionRate} />
-                    <div className="flex flex-wrap gap-2">
-                      <Pill tone="positive">{metric.resolved} resolved</Pill>
-                      <Pill tone="critical">{metric.escalated} escalated</Pill>
-                      <Pill>{metric.total} total</Pill>
-                    </div>
-                  </PanelBody>
-                </Panel>
-              )
-            })}
           </div>
-        </TabsContent>
 
-        <TabsContent className="mt-1" value="insights">
-          <Panel>
-            <PanelHeader
-              description="Latest AI summaries, classifications, and unresolved signals."
-              icon={AlertCircleIcon}
-              title="Recent intelligence"
-            />
-            {overview.recentInsights.length ? (
-              <div>
-                {overview.recentInsights.map((insight) => (
-                  <div
-                    className="console-row grid gap-3 border-b border-[var(--console-hairline-soft)] px-4 py-4 last:border-b-0 sm:px-5 lg:grid-cols-[13rem_minmax(0,1fr)_auto] lg:items-start"
-                    key={insight._id}
-                  >
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <Pill className="capitalize">{insight.channel}</Pill>
-                      <Pill tone="info">{formatIntent(insight.intent)}</Pill>
-                    </div>
-                    <p className="text-sm leading-relaxed text-foreground">
-                      {insight.summary}
-                    </p>
-                    <Pill tone={insight.isUnanswered ? "critical" : "neutral"}>
-                      {insight.status}
-                    </Pill>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <EmptyState
-                description="Insights appear after new chat or voice conversations are analyzed."
-                icon={SparklesIcon}
-                title="No insights yet"
-              />
-            )}
-          </Panel>
-        </TabsContent>
-      </Tabs>
+          <OutcomeWaffle counts={counts} total={total} />
+        </section>
+
+        <div className="report-figures grid grid-cols-2 md:grid-cols-4">
+          <Figure
+            label="Answered fully"
+            note="Customers who got a complete answer"
+            value={`${answerRate}%`}
+          />
+          <Figure
+            label="Handed to a person"
+            note="Share of conversations your team took over"
+            value={`${overview.escalationRate}%`}
+          />
+          <Figure
+            label="First human reply"
+            note="From the customer's first message to your team's reply"
+            value={formatDuration(overview.averageHumanResponseMs)}
+          />
+          <Figure
+            label="Time saved"
+            note="Support minutes the assistant handled for you"
+            value={savedTimeLabel}
+          />
+        </div>
+
+        <ReportSection
+          index={1}
+          lede="The jobs customers came to get done, across chat and voice."
+          title="What customers asked for"
+        >
+          <IntentRanking overview={overview} />
+          <MoodStrip overview={overview} />
+        </ReportSection>
+
+        <ReportSection
+          index={2}
+          lede="Questions the assistant couldn't answer. Each one you add to the knowledge base stops the next customer from waiting."
+          title="What it still needs to learn"
+        >
+          <KnowledgeGaps overview={overview} />
+        </ReportSection>
+
+        <ReportSection
+          index={3}
+          lede="How each channel ended — solved by the assistant, taken over by your team, or still open."
+          title="Chat and voice"
+        >
+          <ChannelSplit overview={overview} />
+        </ReportSection>
+
+        <ReportSection
+          index={4}
+          lede="The latest conversations, summarised as they were analysed."
+          title="Recent conversations"
+        >
+          <SignalTimeline overview={overview} />
+        </ReportSection>
+      </div>
     </ConsolePage>
   )
 }

@@ -2248,9 +2248,9 @@ export const supplementalTranslations: Record<string, TranslationValue> = {
     uz: "Playbook",
     ru: "Playbook",
   },
-  "Please provide a valid HEX color (e.g. #3b82f6)": {
-    uz: "Yaroqli HEX rang kiriting (masalan, #3b82f6)",
-    ru: "Введите корректный HEX-цвет (например, #3b82f6)",
+  "Please provide a valid HEX color (e.g. #6366f1)": {
+    uz: "Yaroqli HEX rang kiriting (masalan, #6366f1)",
+    ru: "Введите корректный HEX-цвет (например, #6366f1)",
   },
   Pop: {
     uz: "Pop",

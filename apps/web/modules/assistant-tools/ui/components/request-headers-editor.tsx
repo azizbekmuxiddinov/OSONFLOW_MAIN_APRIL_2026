@@ -198,26 +198,26 @@ export const RequestHeadersEditor = ({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {authSpec && authSpec.kind !== "none" ? (
-        <div className="console-inset flex flex-wrap items-start justify-between gap-2 px-3.5 py-2.5">
-          <div className="min-w-0">
-            <p className="text-xs font-medium">{authSpec.label}</p>
-            {authSpec.hint ? (
-              <p className="mt-0.5 text-[0.7rem] leading-snug text-muted-foreground">
-                {authSpec.hint}
-              </p>
-            ) : null}
-          </div>
+        <div className="setup-callout" data-tone="info">
+          <p className="text-sm font-medium text-foreground">
+            {authSpec.label}
+          </p>
+          {authSpec.hint ? (
+            <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+              {authSpec.hint}
+            </p>
+          ) : null}
           {authSpec.docsUrl ? (
             <a
-              className="inline-flex shrink-0 items-center gap-1 text-[0.7rem] text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground"
+              className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-foreground underline underline-offset-4"
               href={authSpec.docsUrl}
               rel="noreferrer"
               target="_blank"
             >
-              Where to get it
-              <ExternalLinkIcon className="size-3" />
+              Where to find it
+              <ExternalLinkIcon aria-hidden className="size-3" />
             </a>
           ) : null}
         </div>
@@ -225,7 +225,7 @@ export const RequestHeadersEditor = ({
 
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-3">
-          <Label>Authentication</Label>
+          <Label>How it signs in</Label>
           <Button
             onClick={() => setIsRawMode(true)}
             size="xs"
@@ -245,16 +245,16 @@ export const RequestHeadersEditor = ({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">No auth header</SelectItem>
-              <SelectItem value="bearer">Bearer token</SelectItem>
-              <SelectItem value="basic">Basic (base64)</SelectItem>
+              <SelectItem value="none">No key needed</SelectItem>
+              <SelectItem value="bearer">API key (Bearer)</SelectItem>
+              <SelectItem value="basic">Basic auth</SelectItem>
             </SelectContent>
           </Select>
 
           {authMode === "none" ? (
-            <p className="console-inset flex items-center px-3 text-xs text-muted-foreground">
-              Add an API key as a custom header below if the provider expects
-              one.
+            <p className="flex items-center text-xs leading-relaxed text-muted-foreground">
+              If the service expects its key in a named header, add it under
+              extra headers below.
             </p>
           ) : (
             <div className="relative">
@@ -289,7 +289,7 @@ export const RequestHeadersEditor = ({
 
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-3">
-          <Label>Request headers</Label>
+          <Label>Extra headers</Label>
           <Button
             onClick={() =>
               commit(authMode, credential, [
@@ -301,13 +301,13 @@ export const RequestHeadersEditor = ({
             type="button"
             variant="outline"
           >
-            <PlusIcon />
+            <PlusIcon data-icon="inline-start" />
             Add header
           </Button>
         </div>
 
         {rows.length === 0 ? (
-          <p className="console-inset px-3 py-3 text-xs text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             Only{" "}
             <code className="font-mono">Content-Type: application/json</code> is
             sent by default.
@@ -350,7 +350,7 @@ export const RequestHeadersEditor = ({
                       )
                     )
                   }
-                  placeholder="value"
+                  placeholder="Value"
                   value={row.value}
                 />
                 <Button
@@ -362,6 +362,7 @@ export const RequestHeadersEditor = ({
                       rows.filter((_, entryIndex) => entryIndex !== index)
                     )
                   }
+                  className="text-muted-foreground hover:text-destructive"
                   size="icon-sm"
                   type="button"
                   variant="ghost"

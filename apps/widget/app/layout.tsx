@@ -1,19 +1,30 @@
-import { IBM_Plex_Mono, Plus_Jakarta_Sans } from "next/font/google"
+import { Chakra_Petch, Lora, Roboto_Mono } from "next/font/google"
 
 import "@workspace/ui/styles/globals.css"
 import "./widget-chat.css"
 import { Providers } from "@/components/theme-provider"
 import { cn } from "@workspace/ui/lib/utils"
 
-const fontSans = Plus_Jakarta_Sans({
+// Matches the dashboard's stack so a merchant who has not picked a widget font
+// sees the same three families here as in the console.
+const fontSans = Chakra_Petch({
   subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
   variable: "--font-sans",
+  display: "swap",
 })
 
-const fontMono = IBM_Plex_Mono({
+const fontSerif = Lora({
+  subsets: ["latin"],
+  variable: "--font-serif",
+  display: "swap",
+})
+
+const fontMono = Roboto_Mono({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
   variable: "--font-mono",
+  display: "swap",
 })
 
 export default function RootLayout({
@@ -28,6 +39,7 @@ export default function RootLayout({
       className={cn(
         "h-full overflow-hidden antialiased",
         fontMono.variable,
+        fontSerif.variable,
         "font-sans",
         fontSans.variable
       )}

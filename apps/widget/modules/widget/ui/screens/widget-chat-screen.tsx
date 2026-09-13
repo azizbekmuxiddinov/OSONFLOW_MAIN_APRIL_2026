@@ -498,22 +498,38 @@ export const WidgetChatScreen = () => {
     () => visibleMessages.filter((message) => message.role === "user").length,
     [visibleMessages]
   )
+  // The thread is read through a sliding pagination window (`initialNumItems`
+  // below), and a turn adds one user and one assistant message at a time — so
+  // once the thread is longer than the window, one old user message drops off
+  // the front for every new one that arrives and `userMessageCount` stops
+  // growing. Anything that waits for the server to "echo" a send therefore has
+  // to compare `order`, which the server assigns per turn and never reuses,
+  // rather than how many messages happen to be loaded right now.
+  const latestUserOrder = useMemo(
+    () =>
+      visibleMessages.reduce(
+        (latest, message) =>
+          message.role === "user" ? Math.max(latest, message.order) : latest,
+        -1
+      ),
+    [visibleMessages]
+  )
   const [pendingAssistantMessageCount, setPendingAssistantMessageCount] =
     useState<number | null>(null)
   const [optimisticUserMessage, setOptimisticUserMessage] = useState<{
     text: string
-    baseCount: number
+    baseOrder: number
     attachments: ChatMessageAttachment[]
   } | null>(null)
   const showOptimisticUserMessage =
     optimisticUserMessage !== null &&
-    userMessageCount <= optimisticUserMessage.baseCount
+    latestUserOrder <= optimisticUserMessage.baseOrder
   const submittedInitialMessageRef = useRef<string | null>(null)
   // Messages composed before the visitor shares their email; sent once
   // identified. Images are held with their text rather than being sent ahead of
   // it, so an attachment cannot slip past the email gate.
   const [heldMessages, setHeldMessages] = useState<{
-    baseCount: number
+    baseOrder: number
     messages: HeldMessage[]
   } | null>(null)
   const [receivedDetails, setReceivedDetails] = useState<{
@@ -552,16 +568,26 @@ export const WidgetChatScreen = () => {
       setPendingAssistantMessageCount(null)
     }
   }
+  // How many of the held messages the server has taken delivery of, counted by
+  // order so a full pagination window cannot stall the reconciliation.
+  const confirmedHeldCount = useMemo(() => {
+    if (!heldMessages) {
+      return 0
+    }
+
+    return visibleMessages.filter(
+      (message) =>
+        message.role === "user" && message.order > heldMessages.baseOrder
+    ).length
+  }, [heldMessages, visibleMessages])
   const visibleHeldMessages = useMemo(() => {
     if (!heldMessages) {
       return []
     }
 
     // Hide held bubbles as the server confirms them to avoid duplicates.
-    return heldMessages.messages.slice(
-      Math.max(0, userMessageCount - heldMessages.baseCount)
-    )
-  }, [heldMessages, userMessageCount])
+    return heldMessages.messages.slice(confirmedHeldCount)
+  }, [confirmedHeldCount, heldMessages])
   const showEmailCapture =
     (needsEmail === true &&
       (visibleHeldMessages.length > 0 || userMessageCount > 0)) ||
@@ -642,12 +668,12 @@ export const WidgetChatScreen = () => {
   useEffect(() => {
     if (
       optimisticUserMessage !== null &&
-      userMessageCount > optimisticUserMessage.baseCount
+      latestUserOrder > optimisticUserMessage.baseOrder
     ) {
       releaseOptimisticPreviews(optimisticUserMessage.attachments)
       setOptimisticUserMessage(null)
     }
-  }, [optimisticUserMessage, userMessageCount])
+  }, [latestUserOrder, optimisticUserMessage])
 
   /**
    * Creation time of the newest message that was already in the thread when
@@ -789,7 +815,7 @@ export const WidgetChatScreen = () => {
     setHeldMessages((previous) =>
       previous
         ? { ...previous, messages: [...previous.messages, message] }
-        : { baseCount: userMessageCount, messages: [message] }
+        : { baseOrder: latestUserOrder, messages: [message] }
     )
   }
 
@@ -882,14 +908,11 @@ export const WidgetChatScreen = () => {
 
   // Drop held state once every held message is confirmed by the server.
   useEffect(() => {
-    if (
-      heldMessages &&
-      userMessageCount - heldMessages.baseCount >= heldMessages.messages.length
-    ) {
+    if (heldMessages && confirmedHeldCount >= heldMessages.messages.length) {
       releaseHeldPreviews(heldMessages.messages)
       setHeldMessages(null)
     }
-  }, [heldMessages, userMessageCount])
+  }, [confirmedHeldCount, heldMessages])
 
   useEffect(() => {
     const prompt = pendingInitialMessage?.trim()
@@ -920,7 +943,7 @@ export const WidgetChatScreen = () => {
 
     setOptimisticUserMessage({
       text: prompt,
-      baseCount: userMessageCount,
+      baseOrder: latestUserOrder,
       attachments: [],
     })
     setPendingAssistantMessageCount(assistantMessageCount + 1)
@@ -943,7 +966,7 @@ export const WidgetChatScreen = () => {
       })
   }, [
     assistantMessageCount,
-    userMessageCount,
+    latestUserOrder,
     contactSessionId,
     conversation?.threadId,
     createMessage,
@@ -1018,7 +1041,7 @@ export const WidgetChatScreen = () => {
 
     setOptimisticUserMessage({
       text: prompt,
-      baseCount: userMessageCount,
+      baseOrder: latestUserOrder,
       attachments: optimisticAttachments,
     })
     setPendingAssistantMessageCount(assistantMessageCount + 1)
@@ -1068,7 +1091,7 @@ export const WidgetChatScreen = () => {
 
     setOptimisticUserMessage({
       text: button.label,
-      baseCount: userMessageCount,
+      baseOrder: latestUserOrder,
       attachments: [],
     })
     setPendingAssistantMessageCount(assistantMessageCount + 1)

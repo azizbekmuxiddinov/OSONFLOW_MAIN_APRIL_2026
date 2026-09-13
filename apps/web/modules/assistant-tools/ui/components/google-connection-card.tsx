@@ -1,24 +1,30 @@
 "use client"
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@workspace/ui/components/alert-dialog"
 import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
-import { cn } from "@workspace/ui/lib/utils"
+import { Skeleton } from "@workspace/ui/components/skeleton"
 import {
+  ChevronRightIcon,
   ExternalLinkIcon,
-  KeyRoundIcon,
   Loader2Icon,
   LogOutIcon,
   RefreshCwIcon,
-  ShieldCheckIcon,
-  TriangleAlertIcon,
+  Table2Icon,
 } from "lucide-react"
 
-import {
-  Panel,
-  PanelBody,
-  PanelHeader,
-  Pill,
-} from "@/modules/dashboard/ui/components/console"
+import { BrandMark } from "./brand-mark"
+import { Callout, Disclosure, StatusLine } from "./tools-primitives"
 
 export type GoogleSheetsStatus =
   | {
@@ -42,7 +48,7 @@ type GoogleConnectionCardProps = {
   onSaveApiKey: () => void
   onConnect: () => void
   onDisconnect: () => void
-  /** Compact variant only — jumps to the connections section. */
+  /** Compact variant only — jumps to the accounts section. */
   onManage?: () => void
   spreadsheetCount?: number
   loadError?: string | null
@@ -50,28 +56,23 @@ type GoogleConnectionCardProps = {
   isRefreshing?: boolean
 }
 
-const StatusPill = ({ status }: { status: GoogleSheetsStatus }) => {
-  if (status?.authMethod === "oauth") {
-    return (
-      <Pill icon={ShieldCheckIcon} tone="positive">
-        {status.email ?? "Connected"}
-      </Pill>
-    )
+const GOOGLE_SHEETS_BRAND = "#0f9d58"
+
+const statusOf = (status: GoogleSheetsStatus) => {
+  if (status === undefined) return null
+
+  if (status.authMethod === "oauth") {
+    return {
+      tone: "live" as const,
+      label: status.email ? `Connected as ${status.email}` : "Connected",
+    }
   }
 
-  if (status?.authMethod === "api_key") {
-    return (
-      <Pill icon={KeyRoundIcon} tone="warning">
-        API key — lookups only
-      </Pill>
-    )
+  if (status.authMethod === "api_key") {
+    return { tone: "attention" as const, label: "API key — lookups only" }
   }
 
-  return (
-    <Pill icon={TriangleAlertIcon} tone="neutral">
-      Not connected
-    </Pill>
-  )
+  return { tone: "off" as const, label: "Not connected" }
 }
 
 export const GoogleConnectionCard = ({
@@ -96,205 +97,236 @@ export const GoogleConnectionCard = ({
   const isOAuth = status?.authMethod === "oauth"
   // The server has no Google Sheets OAuth app, so no connect flow can start.
   const isOAuthUnavailable = status !== undefined && !status.oauthAvailable
+  const state = statusOf(status)
+
+  const connectButton = (
+    <Button
+      disabled={isConnecting || !status?.oauthAvailable}
+      onClick={onConnect}
+      size={variant === "compact" ? "sm" : "default"}
+      type="button"
+    >
+      {isConnecting ? (
+        <Loader2Icon className="animate-spin" data-icon="inline-start" />
+      ) : null}
+      {isConnecting ? "Opening Google…" : "Connect Google"}
+    </Button>
+  )
+
+  const refreshButton =
+    isOAuth && onRefresh ? (
+      <Button
+        disabled={isRefreshing}
+        onClick={onRefresh}
+        size="sm"
+        type="button"
+        variant="ghost"
+      >
+        {isRefreshing ? (
+          <Loader2Icon className="animate-spin" data-icon="inline-start" />
+        ) : (
+          <RefreshCwIcon data-icon="inline-start" />
+        )}
+        Refresh
+      </Button>
+    ) : null
 
   if (variant === "compact") {
     return (
-      <div className="console-inset flex flex-wrap items-center justify-between gap-3 px-3 py-2.5">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <StatusPill status={status} />
-          <span
-            className={cn(
-              "min-w-0 text-xs",
-              isOAuthUnavailable && !isOAuth
-                ? "console-tone-warning"
-                : "text-muted-foreground"
-            )}
-          >
-            {isOAuth
-              ? `${spreadsheetCount ?? 0} spreadsheet${
-                  spreadsheetCount === 1 ? "" : "s"
-                } available`
-              : isOAuthUnavailable
-                ? "Google sign-in isn't set up on this server yet — an admin needs to add the Sheets OAuth credentials in Convex."
-                : "Connect Google to browse spreadsheets and tabs here."}
-          </span>
-        </div>
-
-        <div className="flex shrink-0 items-center gap-1.5">
-          {isOAuth && onRefresh ? (
-            <Button
-              disabled={isRefreshing}
-              onClick={onRefresh}
-              size="xs"
-              type="button"
-              variant="ghost"
-            >
-              {isRefreshing ? (
-                <Loader2Icon className="animate-spin" />
-              ) : (
-                <RefreshCwIcon />
-              )}
-              Refresh
-            </Button>
-          ) : null}
-          {isOAuth ? (
-            onManage ? (
-              <Button
-                onClick={onManage}
-                size="xs"
-                type="button"
-                variant="ghost"
-              >
-                Manage
-              </Button>
-            ) : null
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {state ? (
+            <StatusLine
+              label={
+                isOAuth
+                  ? `${state.label} · ${spreadsheetCount ?? 0} spreadsheet${
+                      spreadsheetCount === 1 ? "" : "s"
+                    }`
+                  : state.label
+              }
+              tone={state.tone}
+            />
           ) : (
-            <Button
-              disabled={isConnecting || !status?.oauthAvailable}
-              onClick={onConnect}
-              size="xs"
-              type="button"
-            >
-              {isConnecting ? <Loader2Icon className="animate-spin" /> : null}
-              Connect Google
-            </Button>
+            <Skeleton className="h-2.5 w-40 rounded-full" />
           )}
+          <div className="flex shrink-0 items-center gap-1.5">
+            {refreshButton}
+            {isOAuth ? (
+              onManage ? (
+                <Button
+                  onClick={onManage}
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  Manage
+                </Button>
+              ) : null
+            ) : (
+              connectButton
+            )}
+          </div>
         </div>
+        {isOAuthUnavailable && !isOAuth ? (
+          <Callout>
+            Google sign-in isn&apos;t switched on for this workspace yet. Ask
+            whoever runs your Osonflow account to add the Google Sheets sign-in
+            keys.
+          </Callout>
+        ) : null}
+        {loadError ? <Callout tone="error">{loadError}</Callout> : null}
       </div>
     )
   }
 
   return (
-    <Panel>
-      <PanelHeader
-        actions={<StatusPill status={status} />}
-        description="Used by every Google Sheets tool in this workspace. Connect once — individual tools then only pick a spreadsheet and tab."
-        icon={ShieldCheckIcon}
-        title="Google account"
-      />
-      <PanelBody className="space-y-4">
-        {!status?.oauthAvailable ? (
-          <p className="console-tone-warning console-tone-wash rounded-[10px] border px-3 py-2 text-xs">
-            Google sign-in is not configured on the server yet. Ask an admin to
-            set the Google OAuth environment variables in Convex, or use an API
-            key below.
-          </p>
-        ) : isOAuth ? (
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            If spreadsheets do not appear, remove Osonflow from your{" "}
-            <a
-              className="inline-flex items-center gap-1 underline underline-offset-2"
-              href="https://myaccount.google.com/permissions"
-              rel="noreferrer"
-              target="_blank"
-            >
-              Google account permissions
-              <ExternalLinkIcon className="size-3" />
-            </a>
-            , then disconnect and reconnect so Drive access is granted again.
-            The Google Drive API also has to be enabled for the OAuth project.
-          </p>
-        ) : (
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            Connect the Google account that owns — or can open — the
-            spreadsheets your assistant should read and write. Sheets tools
-            other than lookup require OAuth.
-          </p>
-        )}
+    <div className="setup-row px-2 py-5">
+      <div className="grid grid-cols-[3rem_minmax(0,1fr)] gap-x-4 gap-y-3 sm:grid-cols-[3rem_minmax(0,1fr)_auto]">
+        <BrandMark brand={GOOGLE_SHEETS_BRAND} icon={Table2Icon} size="lg" />
 
-        {loadError ? (
-          <p className="console-tone-warning console-tone-wash rounded-[10px] border px-3 py-2 text-xs">
-            {loadError}
+        <div className="min-w-0">
+          <p className="text-[0.95rem] font-medium text-foreground">
+            Google Sheets
           </p>
-        ) : null}
-
-        <div className="flex flex-wrap items-center gap-2">
-          {isOAuth ? (
-            <Button
-              disabled={isDisconnecting}
-              onClick={onDisconnect}
-              type="button"
-              variant="outline"
-            >
-              {isDisconnecting ? (
-                <Loader2Icon className="animate-spin" />
-              ) : (
-                <LogOutIcon />
-              )}
-              Disconnect
-            </Button>
+          {state ? (
+            <StatusLine
+              className="mt-1"
+              label={state.label}
+              tone={state.tone}
+            />
           ) : (
-            <Button
-              disabled={isConnecting || !status?.oauthAvailable}
-              onClick={onConnect}
-              type="button"
-            >
-              {isConnecting ? <Loader2Icon className="animate-spin" /> : null}
-              Connect Google account
-            </Button>
+            <Skeleton className="mt-2 h-2.5 w-36 rounded-full" />
           )}
-
-          {onRefresh && isOAuth ? (
-            <Button
-              disabled={isRefreshing}
-              onClick={onRefresh}
-              type="button"
-              variant="outline"
-            >
-              {isRefreshing ? (
-                <Loader2Icon className="animate-spin" />
-              ) : (
-                <RefreshCwIcon />
-              )}
-              Refresh spreadsheets
-            </Button>
-          ) : null}
-
-          <Button
-            className="ml-auto"
-            onClick={onToggleApiKeyFallback}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            {showApiKeyFallback ? "Hide API key option" : "Use API key instead"}
-          </Button>
+          <p className="mt-2 max-w-[60ch] text-sm leading-relaxed text-muted-foreground">
+            Connect once and every spreadsheet tool uses this account. The
+            assistant only sees spreadsheets this Google account can open.
+          </p>
         </div>
 
-        {showApiKeyFallback ? (
-          <div
-            className={cn(
-              "space-y-2 rounded-[10px] border border-dashed border-[var(--console-hairline-soft)] bg-muted/35 p-3"
-            )}
+        <div className="col-span-2 flex flex-wrap items-center gap-1.5 sm:col-span-1 sm:col-start-3 sm:justify-end">
+          {refreshButton}
+          {isOAuth ? (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  className="text-muted-foreground hover:text-destructive"
+                  disabled={isDisconnecting}
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  {isDisconnecting ? (
+                    <Loader2Icon
+                      className="animate-spin"
+                      data-icon="inline-start"
+                    />
+                  ) : (
+                    <LogOutIcon data-icon="inline-start" />
+                  )}
+                  Disconnect
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Disconnect Google Sheets?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Every spreadsheet tool stops working until an account is
+                    connected again. Your tools and their settings are kept.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Keep connected</AlertDialogCancel>
+                  <AlertDialogAction onClick={onDisconnect}>
+                    Disconnect
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          ) : (
+            connectButton
+          )}
+        </div>
+
+        <div className="col-span-2 min-w-0 space-y-3 sm:col-start-2">
+          {isOAuthUnavailable ? (
+            <Callout>
+              Google sign-in isn&apos;t switched on for this workspace yet. Ask
+              whoever runs your Osonflow account to add the Google Sheets
+              sign-in keys, or use an API key below for lookups.
+            </Callout>
+          ) : null}
+
+          {loadError ? <Callout tone="error">{loadError}</Callout> : null}
+
+          {isOAuth ? (
+            <Disclosure summary="Spreadsheets not showing up?">
+              <p className="max-w-[62ch] text-sm leading-relaxed text-muted-foreground">
+                Remove Osonflow from your{" "}
+                <a
+                  className="inline-flex items-center gap-1 font-medium text-foreground underline underline-offset-4"
+                  href="https://myaccount.google.com/permissions"
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  Google account permissions
+                  <ExternalLinkIcon aria-hidden className="size-3" />
+                </a>
+                , then disconnect and connect again so Drive access is granted.
+                The Google Drive API also has to be enabled for the sign-in
+                project.
+              </p>
+            </Disclosure>
+          ) : null}
+
+          <details
+            className="setup-disclosure"
+            onToggle={(event) => {
+              if (event.currentTarget.open !== showApiKeyFallback) {
+                onToggleApiKeyFallback()
+              }
+            }}
+            open={showApiKeyFallback}
           >
-            <p className="text-xs text-muted-foreground">
-              Advanced: an API key only works for public sheets, or sheets
-              shared with your Google Cloud project, and only for lookups.
-            </p>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Input
-                className="font-mono text-xs"
-                onChange={(event) => onApiKeyChange(event.target.value)}
-                placeholder="AIza…"
-                type="password"
-                value={apiKey}
-              />
-              <Button
-                disabled={isSavingApiKey}
-                onClick={onSaveApiKey}
-                type="button"
-                variant="outline"
-              >
-                {isSavingApiKey ? (
-                  <Loader2Icon className="animate-spin" />
-                ) : (
-                  "Save key"
-                )}
-              </Button>
+            <summary>
+              <ChevronRightIcon aria-hidden className="size-4" />
+              Use an API key instead
+            </summary>
+            <div className="space-y-3 pb-2">
+              <p className="max-w-[62ch] text-sm leading-relaxed text-muted-foreground">
+                For developers. An API key only reads public sheets or sheets
+                shared with your Google Cloud project, and it can only look rows
+                up — adding, changing or deleting rows needs a connected
+                account.
+              </p>
+              <div className="flex max-w-xl flex-col gap-2 sm:flex-row">
+                <Input
+                  aria-label="Google Sheets API key"
+                  autoComplete="off"
+                  className="font-mono text-xs"
+                  onChange={(event) => onApiKeyChange(event.target.value)}
+                  placeholder="AIza…"
+                  type="password"
+                  value={apiKey}
+                />
+                <Button
+                  disabled={isSavingApiKey || !apiKey.trim()}
+                  onClick={onSaveApiKey}
+                  type="button"
+                  variant="outline"
+                >
+                  {isSavingApiKey ? (
+                    <Loader2Icon
+                      className="animate-spin"
+                      data-icon="inline-start"
+                    />
+                  ) : null}
+                  Save key
+                </Button>
+              </div>
             </div>
-          </div>
-        ) : null}
-      </PanelBody>
-    </Panel>
+          </details>
+        </div>
+      </div>
+    </div>
   )
 }

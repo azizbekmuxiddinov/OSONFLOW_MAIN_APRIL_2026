@@ -5,39 +5,39 @@ import { ConvexError } from "convex/values"
 import { api } from "@workspace/backend/_generated/api"
 import { Button } from "@workspace/ui/components/button"
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@workspace/ui/components/card"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@workspace/ui/components/dialog"
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@workspace/ui/components/alert-dialog"
 import { Switch } from "@workspace/ui/components/switch"
 import { Textarea } from "@workspace/ui/components/textarea"
 import { Label } from "@workspace/ui/components/label"
 import {
-  ArrowLeftRightIcon,
+  ArrowUpRightIcon,
+  CheckIcon,
+  ChevronRightIcon,
   ClipboardCopyIcon,
   ClipboardPasteIcon,
   DownloadIcon,
+  FileJsonIcon,
   Loader2Icon,
   UploadIcon,
+  XIcon,
 } from "lucide-react"
 import Link from "next/link"
-import { useRef, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import { copyTextToClipboard } from "@/lib/clipboard"
-import {
-  ConsoleHeader,
-  ConsolePage,
-} from "@/modules/dashboard/ui/components/console"
+import { ConsolePage } from "@/modules/dashboard/ui/components/console"
+import { ReportSection } from "@/modules/dashboard/ui/components/report"
+import "@/modules/dashboard/ui/styles/report.css"
+import "@/modules/integrations/ui/styles/setup.css"
+import "../styles/transfer.css"
 
 type ExportSummary = {
   widgetSettings: boolean
@@ -60,6 +60,8 @@ type ImportSummary = {
   integrationWebhooks: number
   warnings?: string[]
 }
+
+type ManifestItem = { label: string; value: number | boolean }
 
 const getTransferErrorMessage = (error: unknown, fallback: string) => {
   if (error instanceof ConvexError) {
@@ -85,70 +87,160 @@ const getTransferErrorMessage = (error: unknown, fallback: string) => {
   return fallback
 }
 
-const formatSummaryLines = (summary: ExportSummary | ImportSummary) => {
-  const lines: string[] = []
+const exportManifest = (summary: ExportSummary): ManifestItem[] => [
+  { label: "Widget look and settings", value: summary.widgetSettings },
+  { label: "Knowledge sources", value: summary.knowledgeBaseCount },
+  { label: "Saved replies", value: summary.savedRepliesCount },
+  { label: "Workflows", value: summary.workflowsCount },
+  { label: "Integration keys", value: summary.pluginsCount },
+  { label: "Event webhooks", value: summary.integrationWebhooksCount },
+]
 
-  if ("widgetSettings" in summary && summary.widgetSettings) {
-    lines.push("Widget customization")
+const importManifest = (summary: ImportSummary): ManifestItem[] => [
+  { label: "Widget look and settings", value: summary.widgetSettings },
+  {
+    label: "Widget published to your site",
+    value: summary.publishedWidgetSettings,
+  },
+  { label: "Knowledge sources added", value: summary.knowledgeBaseImported },
+  {
+    label: "Knowledge sources skipped (already here)",
+    value: summary.knowledgeBaseSkipped,
+  },
+  {
+    label: "Existing knowledge sources removed",
+    value: summary.knowledgeBaseCleared,
+  },
+  { label: "Saved replies", value: summary.savedReplies },
+  { label: "Workflows", value: summary.workflows },
+  { label: "Integration keys", value: summary.plugins },
+  { label: "Event webhooks", value: summary.integrationWebhooks },
+]
+
+const countOf = (value: unknown) => (Array.isArray(value) ? value.length : 0)
+
+/**
+ * Reads a pasted or uploaded file in the browser so the owner sees what it
+ * contains before anything is written. The server still validates on import;
+ * this only previews.
+ */
+const previewBundle = (
+  text: string
+):
+  | { kind: "empty" }
+  | { kind: "invalid"; reason: string }
+  | { kind: "bundle"; exportedAt?: string; items: ManifestItem[] } => {
+  if (!text.trim()) return { kind: "empty" }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text)
+  } catch {
+    return {
+      kind: "invalid",
+      reason: "This isn't valid JSON — make sure you copied the whole file.",
+    }
   }
 
-  if ("publishedWidgetSettings" in summary && summary.publishedWidgetSettings) {
-    lines.push("Published widget settings")
+  if (!parsed || typeof parsed !== "object") {
+    return { kind: "invalid", reason: "This isn't an Osonflow setup file." }
   }
 
-  if ("knowledgeBaseCount" in summary && summary.knowledgeBaseCount > 0) {
-    lines.push(`${summary.knowledgeBaseCount} knowledge sources`)
+  const bundle = parsed as Record<string, unknown>
+
+  if (bundle.type === "osonflow-widget-settings") {
+    return {
+      kind: "bundle",
+      exportedAt:
+        typeof bundle.exportedAt === "string" ? bundle.exportedAt : undefined,
+      items: [{ label: "Widget look and settings", value: true }],
+    }
   }
 
-  if ("knowledgeBaseImported" in summary && summary.knowledgeBaseImported > 0) {
-    lines.push(`${summary.knowledgeBaseImported} knowledge sources imported`)
+  if (bundle.type !== "osonflow-org-bundle") {
+    return { kind: "invalid", reason: "This isn't an Osonflow setup file." }
   }
 
-  if ("knowledgeBaseSkipped" in summary && summary.knowledgeBaseSkipped > 0) {
-    lines.push(`${summary.knowledgeBaseSkipped} duplicate knowledge sources skipped`)
+  if (bundle.version !== 1) {
+    return {
+      kind: "invalid",
+      reason: "This file comes from a newer version of Osonflow.",
+    }
   }
 
-  if ("knowledgeBaseCleared" in summary && summary.knowledgeBaseCleared > 0) {
-    lines.push(`${summary.knowledgeBaseCleared} existing knowledge sources removed`)
-  }
+  const widget = bundle.widgetSettings as
+    | { published?: unknown }
+    | undefined
 
-  if ("savedRepliesCount" in summary && summary.savedRepliesCount > 0) {
-    lines.push(`${summary.savedRepliesCount} saved replies`)
+  return {
+    kind: "bundle",
+    exportedAt:
+      typeof bundle.exportedAt === "string" ? bundle.exportedAt : undefined,
+    items: [
+      { label: "Widget look and settings", value: Boolean(widget) },
+      { label: "Knowledge sources", value: countOf(bundle.knowledgeBase) },
+      { label: "Saved replies", value: countOf(bundle.savedReplies) },
+      { label: "Workflows", value: countOf(bundle.workflows) },
+      { label: "Integration keys", value: countOf(bundle.plugins) },
+      {
+        label: "Event webhooks",
+        value: countOf(bundle.integrationWebhooks),
+      },
+    ],
   }
-
-  if ("savedReplies" in summary && summary.savedReplies > 0) {
-    lines.push(`${summary.savedReplies} saved replies imported`)
-  }
-
-  if ("workflowsCount" in summary && summary.workflowsCount > 0) {
-    lines.push(`${summary.workflowsCount} workflows`)
-  }
-
-  if ("workflows" in summary && summary.workflows > 0) {
-    lines.push(`${summary.workflows} workflows imported`)
-  }
-
-  if ("pluginsCount" in summary && summary.pluginsCount > 0) {
-    lines.push(`${summary.pluginsCount} integration keys`)
-  }
-
-  if ("plugins" in summary && summary.plugins > 0) {
-    lines.push(`${summary.plugins} integration keys imported`)
-  }
-
-  if (
-    "integrationWebhooksCount" in summary &&
-    summary.integrationWebhooksCount > 0
-  ) {
-    lines.push(`${summary.integrationWebhooksCount} outbound webhooks`)
-  }
-
-  if ("integrationWebhooks" in summary && summary.integrationWebhooks > 0) {
-    lines.push(`${summary.integrationWebhooks} outbound webhooks imported`)
-  }
-
-  return lines
 }
+
+const formatDate = (iso?: string) => {
+  if (!iso) return null
+  const date = new Date(iso)
+  return Number.isNaN(date.getTime())
+    ? null
+    : new Intl.DateTimeFormat(undefined, {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }).format(date)
+}
+
+/** A ruled list of what a file holds. Empty lines stay, muted, so nothing
+ *  looks silently missing. */
+const Manifest = ({ items }: { items: ManifestItem[] }) => (
+  <ul className="transfer-manifest">
+    {items.map((item) => {
+      const present = item.value === true || (typeof item.value === "number" && item.value > 0)
+
+      return (
+        <li
+          className="flex items-center justify-between gap-4 px-1 py-2.5"
+          key={item.label}
+        >
+          <span
+            className={
+              present
+                ? "flex items-center gap-2.5 text-sm text-foreground"
+                : "flex items-center gap-2.5 text-sm text-muted-foreground"
+            }
+          >
+            {present ? (
+              <CheckIcon aria-hidden className="size-4 text-primary" />
+            ) : (
+              <span aria-hidden className="inline-block size-4" />
+            )}
+            {item.label}
+          </span>
+          <span
+            className={present ? "transfer-count" : "text-sm text-muted-foreground"}
+          >
+            {typeof item.value === "boolean"
+              ? item.value
+                ? "Included"
+                : "—"
+              : item.value || "—"}
+          </span>
+        </li>
+      )
+    })}
+  </ul>
+)
 
 export const OrgTransferView = () => {
   const exportBundle = useAction(api.private.orgTransfer.exportBundle)
@@ -156,14 +248,21 @@ export const OrgTransferView = () => {
 
   const [isExporting, setIsExporting] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
-  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
+  const [isPasting, setIsPasting] = useState(false)
+  const [confirmReplace, setConfirmReplace] = useState(false)
   const [importPayload, setImportPayload] = useState("")
+  const [importFileName, setImportFileName] = useState<string | null>(null)
   const [lastExportJson, setLastExportJson] = useState<string | null>(null)
   const [lastExportSummary, setLastExportSummary] =
     useState<ExportSummary | null>(null)
+  const [lastImportSummary, setLastImportSummary] =
+    useState<ImportSummary | null>(null)
   const [publishWidgetSettings, setPublishWidgetSettings] = useState(true)
   const [replaceKnowledgeBase, setReplaceKnowledgeBase] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const preview = useMemo(() => previewBundle(importPayload), [importPayload])
 
   const onExport = async () => {
     setIsExporting(true)
@@ -171,8 +270,6 @@ export const OrgTransferView = () => {
     try {
       const result = await exportBundle({})
       const json = JSON.stringify(result.bundle, null, 2)
-      const summaryText =
-        formatSummaryLines(result.summary).join(" · ") || "No data found"
 
       setLastExportJson(json)
       setLastExportSummary(result.summary)
@@ -180,12 +277,10 @@ export const OrgTransferView = () => {
       const copied = await copyTextToClipboard(json)
 
       if (copied) {
-        toast.success("Organization bundle copied to clipboard", {
-          description: summaryText,
-        })
+        toast.success("Setup copied to your clipboard")
       } else {
-        toast.success("Organization bundle exported", {
-          description: `${summaryText}. Clipboard unavailable — use Download JSON.`,
+        toast.success("Setup copy is ready", {
+          description: "Your clipboard isn't available — download the file instead.",
         })
       }
     } catch (error) {
@@ -194,6 +289,16 @@ export const OrgTransferView = () => {
       )
     } finally {
       setIsExporting(false)
+    }
+  }
+
+  const onCopyAgain = async () => {
+    if (!lastExportJson) return
+    const copied = await copyTextToClipboard(lastExportJson)
+    if (copied) {
+      toast.success("Copied again")
+    } else {
+      toast.error("Clipboard unavailable — download the file instead")
     }
   }
 
@@ -213,27 +318,15 @@ export const OrgTransferView = () => {
     toast.success("Bundle downloaded")
   }
 
-  const onOpenImportDialog = () => {
-    setIsImportDialogOpen(true)
-
-    if (importPayload.trim()) {
-      return
+  const loadFile = async (file: File) => {
+    try {
+      const text = await file.text()
+      setImportPayload(text)
+      setImportFileName(file.name)
+      setLastImportSummary(null)
+    } catch {
+      toast.error("Could not read that JSON file")
     }
-
-    void navigator.clipboard
-      .readText()
-      .then((clipboardText) => {
-        if (clipboardText.trim()) {
-          setImportPayload(clipboardText)
-        } else if (lastExportJson) {
-          setImportPayload(lastExportJson)
-        }
-      })
-      .catch(() => {
-        if (lastExportJson) {
-          setImportPayload(lastExportJson)
-        }
-      })
   }
 
   const onPickBundleFile = async (
@@ -242,17 +335,40 @@ export const OrgTransferView = () => {
     const file = event.target.files?.[0]
     event.target.value = ""
 
-    if (!file) {
-      return
+    if (file) {
+      await loadFile(file)
     }
+  }
 
-    try {
-      const text = await file.text()
-      setImportPayload(text)
-      setIsImportDialogOpen(true)
-    } catch {
-      toast.error("Could not read that JSON file")
+  const onDrop = async (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    setIsDragging(false)
+    const file = event.dataTransfer.files?.[0]
+    if (file) {
+      await loadFile(file)
     }
+  }
+
+  const onPasteFromClipboard = async () => {
+    try {
+      const clipboardText = await navigator.clipboard.readText()
+      if (clipboardText.trim()) {
+        setImportPayload(clipboardText)
+        setImportFileName(null)
+        setLastImportSummary(null)
+        return
+      }
+      toast.info("Your clipboard is empty — paste the file contents below")
+    } catch {
+      toast.info("Paste the file contents into the box below")
+    }
+    setIsPasting(true)
+  }
+
+  const clearImport = () => {
+    setImportPayload("")
+    setImportFileName(null)
+    setIsPasting(false)
   }
 
   const onImport = async () => {
@@ -267,21 +383,16 @@ export const OrgTransferView = () => {
         },
       })
 
-      setIsImportDialogOpen(false)
       setImportPayload("")
+      setImportFileName(null)
+      setIsPasting(false)
+      setLastImportSummary(result.summary)
 
-      const importedText =
-        formatSummaryLines(result.summary).join(" · ") || "Nothing was imported"
       const warnings = result.summary.warnings ?? []
-
       if (warnings.length > 0) {
-        toast.success("Organization bundle imported with warnings", {
-          description: `${importedText}. ${warnings[0]}`,
-        })
+        toast.success("Setup imported — with a few notes below")
       } else {
-        toast.success("Organization bundle imported", {
-          description: importedText,
-        })
+        toast.success("Setup imported")
       }
     } catch (error) {
       toast.error(
@@ -292,180 +403,391 @@ export const OrgTransferView = () => {
     }
   }
 
+  const requestImport = () => {
+    if (replaceKnowledgeBase) {
+      setConfirmReplace(true)
+      return
+    }
+    void onImport()
+  }
+
+  const exportedOn = preview.kind === "bundle" ? formatDate(preview.exportedAt) : null
+  const hasPayload = preview.kind !== "empty"
+
   return (
-    <ConsolePage width="narrow" className="max-w-5xl">
-      <ConsoleHeader
-        description="Export this organization's configuration before switching Convex environments, or paste it into another Clerk organization. Covers widget customization, knowledge base sources, saved replies, workflows, integration keys, and outbound webhooks."
-        eyebrow="Data transfer"
-        icon={ArrowLeftRightIcon}
-        title="Copy organization setup"
-      />
+    <ConsolePage width="wide">
+      <div className="report setup">
+        {/* Hero */}
+        <section className="pt-2 pb-10">
+          <p className="console-eyebrow">Data transfer</p>
+          <h1 className="report-headline mt-6 max-w-[22ch]">
+            Move your whole setup in{" "}
+            <span className="report-headline-figure">one file</span>.
+          </h1>
+          <p className="report-lede mt-5 max-w-[62ch]">
+            Take a copy of this organization — your widget, knowledge base,
+            saved replies, workflows, keys and webhooks — and bring it into
+            another organization or environment. Customer conversations stay
+            where they are.
+          </p>
+        </section>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Export current org</CardTitle>
-            <CardDescription>
-              Creates a JSON bundle from the active Clerk organization in this
-              Convex environment.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-              <li>Widget customization draft and published settings</li>
-              <li>Knowledge base indexed text for files and websites</li>
-              <li>Saved replies, workflows, API keys, and outbound webhooks</li>
-            </ul>
+        {/* 01 · Export */}
+        <ReportSection
+          index={1}
+          lede="Makes a file with everything needed to rebuild this setup somewhere else. Nothing here changes."
+          title="Take a copy"
+        >
+          <ol className="setup-steps">
+            <li>
+              <span className="setup-step-index">1</span>
+              <div className="min-w-0">
+                <p className="setup-step-title">Create the copy</p>
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <Button disabled={isExporting} onClick={onExport}>
+                    {isExporting ? (
+                      <Loader2Icon className="animate-spin" data-icon="inline-start" />
+                    ) : (
+                      <ClipboardCopyIcon data-icon="inline-start" />
+                    )}
+                    {isExporting
+                      ? "Gathering your setup…"
+                      : lastExportSummary
+                        ? "Create a fresh copy"
+                        : "Create copy"}
+                  </Button>
+                  <p className="text-sm text-muted-foreground">
+                    It&apos;s also copied to your clipboard.
+                  </p>
+                </div>
 
-            {lastExportSummary ? (
-              <div className="console-inset p-3 text-sm">
-                <p className="console-label">Last export</p>
-                <p className="mt-1 text-muted-foreground">
-                  {formatSummaryLines(lastExportSummary).join(" · ") ||
-                    "No organization data found"}
-                </p>
+                {lastExportSummary ? (
+                  <div className="transfer-result mt-6 max-w-xl">
+                    <p className="console-label mb-2">In this copy</p>
+                    <Manifest items={exportManifest(lastExportSummary)} />
+                  </div>
+                ) : null}
               </div>
-            ) : null}
+            </li>
 
-            <div className="flex flex-wrap gap-2">
-              <Button disabled={isExporting} onClick={onExport}>
-                {isExporting ? (
-                  <Loader2Icon className="size-4 animate-spin" />
-                ) : (
-                  <ClipboardCopyIcon className="size-4" />
-                )}
-                {isExporting ? "Exporting..." : "Copy bundle"}
-              </Button>
-              <Button
-                disabled={!lastExportJson}
-                onClick={onDownload}
-                variant="outline"
-              >
-                <DownloadIcon className="size-4" />
-                Download JSON
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+            <li>
+              <span className="setup-step-index">2</span>
+              <div className="min-w-0">
+                <p className="setup-step-title">Keep it somewhere safe</p>
+                <p className="mt-2 max-w-[60ch] text-sm leading-relaxed text-muted-foreground">
+                  Download the file, or paste it straight into the other
+                  organization. It can contain your API keys, so share it only
+                  with people you trust.
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button
+                    disabled={!lastExportJson}
+                    onClick={onDownload}
+                    variant="outline"
+                  >
+                    <DownloadIcon data-icon="inline-start" />
+                    Download file
+                  </Button>
+                  <Button
+                    disabled={!lastExportJson}
+                    onClick={() => void onCopyAgain()}
+                    variant="ghost"
+                  >
+                    <ClipboardCopyIcon data-icon="inline-start" />
+                    Copy again
+                  </Button>
+                </div>
+              </div>
+            </li>
+          </ol>
+        </ReportSection>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Import into this org</CardTitle>
-            <CardDescription>
-              Paste a bundle exported from another environment or organization.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-              <li>Does not move conversations, customer memory, or channel bots</li>
-              <li>Re-upload widget images if logos or backgrounds break</li>
-              <li>Telegram, Instagram, and WhatsApp need reconnecting on prod</li>
-            </ul>
+        {/* 02 · Import */}
+        <ReportSection
+          index={2}
+          lede="Adds a copy into the organization you're signed in to now. You'll see what's inside before anything is written."
+          title="Bring a copy in"
+        >
+          <ol className="setup-steps">
+            <li>
+              <span className="setup-step-index">1</span>
+              <div className="min-w-0">
+                <p className="setup-step-title">Add the file</p>
 
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={onOpenImportDialog} variant="outline">
-                <ClipboardPasteIcon className="size-4" />
-                Import bundle
-              </Button>
-              <Button
-                onClick={() => fileInputRef.current?.click()}
-                type="button"
-                variant="outline"
-              >
-                <UploadIcon className="size-4" />
-                Upload JSON
-              </Button>
-              <input
-                accept="application/json,.json"
-                className="hidden"
-                onChange={onPickBundleFile}
-                ref={fileInputRef}
-                type="file"
-              />
-            </div>
+                {!hasPayload && !isPasting ? (
+                  <div
+                    className="transfer-drop mt-3 max-w-2xl"
+                    data-dragging={isDragging ? "" : undefined}
+                    onDragLeave={() => setIsDragging(false)}
+                    onDragOver={(event) => {
+                      event.preventDefault()
+                      setIsDragging(true)
+                    }}
+                    onDrop={(event) => void onDrop(event)}
+                  >
+                    <span className="transfer-drop-icon">
+                      <FileJsonIcon className="size-5" />
+                    </span>
+                    <p className="text-sm font-medium text-foreground">
+                      Drop the setup file here
+                    </p>
+                    <div className="flex flex-wrap justify-center gap-2">
+                      <Button
+                        onClick={() => fileInputRef.current?.click()}
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                      >
+                        <UploadIcon data-icon="inline-start" />
+                        Choose file
+                      </Button>
+                      <Button
+                        onClick={() => void onPasteFromClipboard()}
+                        size="sm"
+                        type="button"
+                        variant="ghost"
+                      >
+                        <ClipboardPasteIcon data-icon="inline-start" />
+                        Paste from clipboard
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
 
-            <p className="text-xs text-muted-foreground">
-              Need only widget styling? Use the quick copy tools on{" "}
-              <Link className="underline" href="/customization">
-                Widget customization
-              </Link>
-              .
-            </p>
-          </CardContent>
-        </Card>
+                <input
+                  accept="application/json,.json"
+                  className="hidden"
+                  onChange={onPickBundleFile}
+                  ref={fileInputRef}
+                  type="file"
+                />
+
+                {isPasting && !hasPayload ? (
+                  <div className="mt-3 max-w-2xl">
+                    <Label className="sr-only" htmlFor="transfer-paste">
+                      Setup file contents
+                    </Label>
+                    <Textarea
+                      autoFocus
+                      className="h-48 field-sizing-fixed resize-none font-mono text-xs"
+                      id="transfer-paste"
+                      onChange={(event) => setImportPayload(event.target.value)}
+                      placeholder='Paste the copied setup here — it starts with {"type":"osonflow-org-bundle"'
+                      value={importPayload}
+                    />
+                    <button
+                      className="mt-2 text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                      onClick={() => setIsPasting(false)}
+                      type="button"
+                    >
+                      Choose a file instead
+                    </button>
+                  </div>
+                ) : null}
+
+                {hasPayload ? (
+                  <div className="transfer-result mt-3 max-w-xl">
+                    <div className="flex items-center justify-between gap-3 py-1">
+                      <p className="flex min-w-0 items-center gap-2 text-sm text-foreground">
+                        <FileJsonIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+                        <span className="truncate">
+                          {importFileName ?? "Pasted setup"}
+                        </span>
+                      </p>
+                      <Button
+                        onClick={clearImport}
+                        size="sm"
+                        type="button"
+                        variant="ghost"
+                      >
+                        <XIcon data-icon="inline-start" />
+                        Remove
+                      </Button>
+                    </div>
+
+                    {preview.kind === "invalid" ? (
+                      <div className="mt-3">
+                        <div className="setup-callout text-sm" data-tone="error" role="alert">
+                          {preview.reason}
+                        </div>
+                      </div>
+                    ) : preview.kind === "bundle" ? (
+                      <div className="mt-3">
+                        <p className="console-label mb-2">
+                          Inside{exportedOn ? ` · copied ${exportedOn}` : ""}
+                        </p>
+                        <Manifest items={preview.items} />
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            </li>
+
+            <li>
+              <span className="setup-step-index">2</span>
+              <div className="min-w-0">
+                <p className="setup-step-title">Choose how it lands</p>
+                <div className="mt-3 max-w-xl">
+                  <div className="transfer-option flex items-center justify-between gap-4 py-3.5">
+                    <div>
+                      <Label htmlFor="publish-widget-settings">
+                        Put the widget live right away
+                      </Label>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        Otherwise it&apos;s saved as a draft you publish from
+                        Widget customization.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={publishWidgetSettings}
+                      id="publish-widget-settings"
+                      onCheckedChange={setPublishWidgetSettings}
+                    />
+                  </div>
+                  <div className="transfer-option flex items-center justify-between gap-4 py-3.5">
+                    <div>
+                      <Label htmlFor="replace-knowledge-base">
+                        Replace the current knowledge base
+                      </Label>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        Removes the sources already here first. Leave off to
+                        add alongside them — duplicates are skipped.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={replaceKnowledgeBase}
+                      id="replace-knowledge-base"
+                      onCheckedChange={setReplaceKnowledgeBase}
+                    />
+                  </div>
+                </div>
+              </div>
+            </li>
+
+            <li>
+              <span className="setup-step-index">3</span>
+              <div className="min-w-0">
+                <p className="setup-step-title">Import</p>
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <Button
+                    disabled={isImporting || preview.kind !== "bundle"}
+                    onClick={requestImport}
+                    type="button"
+                  >
+                    {isImporting ? (
+                      <Loader2Icon className="animate-spin" data-icon="inline-start" />
+                    ) : (
+                      <UploadIcon data-icon="inline-start" />
+                    )}
+                    {isImporting ? "Importing…" : "Import into this organization"}
+                  </Button>
+                  {preview.kind !== "bundle" && !lastImportSummary ? (
+                    <p className="text-sm text-muted-foreground">
+                      Add a setup file first.
+                    </p>
+                  ) : null}
+                </div>
+
+                {lastImportSummary ? (
+                  <div className="transfer-result mt-6 max-w-xl">
+                    <p className="console-label mb-2">Imported</p>
+                    <Manifest items={importManifest(lastImportSummary)} />
+                    {lastImportSummary.warnings?.length ? (
+                      <div className="mt-5 flex flex-col gap-2">
+                        {lastImportSummary.warnings.map((warning) => (
+                          <div className="setup-callout text-sm" key={warning}>
+                            {warning}
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            </li>
+          </ol>
+        </ReportSection>
+
+        {/* 03 · What stays behind */}
+        <ReportSection
+          index={3}
+          lede="A copy carries your setup, not your history or connected accounts. After importing, finish these by hand."
+          title="What doesn't move"
+        >
+          <ul className="max-w-2xl">
+            {[
+              {
+                title: "Conversations and customer memory",
+                body: "They stay with the original organization.",
+              },
+              {
+                title: "Telegram, Instagram and WhatsApp",
+                body: "Reconnect each one in the new organization.",
+                href: "/integrations?section=telegram",
+                cta: "Open Setup & integrations",
+              },
+              {
+                title: "Widget images",
+                body: "If a logo or background looks broken, upload it again.",
+                href: "/customization",
+                cta: "Open Widget customization",
+              },
+            ].map((item) => (
+              <li className="setup-row flex flex-wrap items-center justify-between gap-3 px-1 py-4" key={item.title}>
+                <div className="min-w-0">
+                  <p className="text-[0.95rem] font-medium text-foreground">
+                    {item.title}
+                  </p>
+                  <p className="mt-0.5 text-sm text-muted-foreground">
+                    {item.body}
+                  </p>
+                </div>
+                {item.href ? (
+                  <Button asChild size="sm" variant="ghost">
+                    <Link href={item.href}>
+                      {item.cta}
+                      <ArrowUpRightIcon data-icon="inline-end" />
+                    </Link>
+                  </Button>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-5 flex items-center gap-1.5 text-sm text-muted-foreground">
+            <ChevronRightIcon aria-hidden className="size-4" />
+            Only need the widget&apos;s look? Use the quick copy tools in{" "}
+            <Link className="text-foreground underline underline-offset-4" href="/customization">
+              Widget customization
+            </Link>
+            .
+          </p>
+        </ReportSection>
       </div>
 
-      <Dialog onOpenChange={setIsImportDialogOpen} open={isImportDialogOpen}>
-        <DialogContent className="!flex max-h-[90vh] max-w-3xl flex-col overflow-hidden sm:max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Import organization bundle</DialogTitle>
-            <DialogDescription>
-              Paste a bundle or upload the downloaded JSON file. This writes
-              into the currently selected Clerk organization on the connected
-              Convex deployment.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-[var(--console-hairline-soft)] p-3">
-              <div>
-                <Label htmlFor="publish-widget-settings">
-                  Publish widget settings after import
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  Saves the imported widget draft and publishes it immediately.
-                </p>
-              </div>
-              <Switch
-                checked={publishWidgetSettings}
-                id="publish-widget-settings"
-                onCheckedChange={setPublishWidgetSettings}
-              />
-            </div>
-
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-[var(--console-hairline-soft)] p-3">
-              <div>
-                <Label htmlFor="replace-knowledge-base">
-                  Replace existing knowledge base
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  Remove current knowledge sources before importing the bundle.
-                </p>
-              </div>
-              <Switch
-                checked={replaceKnowledgeBase}
-                id="replace-knowledge-base"
-                onCheckedChange={setReplaceKnowledgeBase}
-              />
-            </div>
-
-            <Textarea
-              className="h-[min(42vh,360px)] field-sizing-fixed resize-none overflow-y-auto font-mono text-xs"
-              onChange={(event) => setImportPayload(event.target.value)}
-              placeholder='Paste exported JSON here, e.g. {"type":"osonflow-org-bundle",...}'
-              value={importPayload}
-            />
-          </div>
-
-          <DialogFooter>
-            <Button
-              disabled={isImporting}
-              onClick={() => setIsImportDialogOpen(false)}
-              type="button"
-              variant="outline"
+      <AlertDialog onOpenChange={setConfirmReplace} open={confirmReplace}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Replace your knowledge base?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Every knowledge source currently in this organization will be
+              removed, then the ones in the file are added. Your assistant
+              answers only from the imported sources afterwards.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmReplace(false)
+                void onImport()
+              }}
             >
-              Cancel
-            </Button>
-            <Button
-              disabled={isImporting || !importPayload.trim()}
-              onClick={onImport}
-              type="button"
-            >
-              {isImporting ? "Importing..." : "Import bundle"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              Replace and import
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </ConsolePage>
   )
 }

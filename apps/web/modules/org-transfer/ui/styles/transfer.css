@@ -1,0 +1,74 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Data transfer — take a copy, bring a copy in.
+
+   Builds on report.css (layout, sections) and setup.css (steps, callouts,
+   status dots, ruled fields). What a file contains is always shown as a ruled
+   manifest *before* anything is written, so an import is never a leap of faith.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+/* The one place a dashed outline is honest: it is a drop target. */
+.transfer-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  border-radius: calc(var(--radius) - 2px);
+  padding: 2.25rem 1.5rem;
+  text-align: center;
+  border: 1.5px dashed color-mix(in srgb, var(--foreground) 22%, transparent);
+  transition:
+    background-color 180ms var(--motion-snappy),
+    box-shadow 180ms var(--motion-snappy);
+}
+
+.transfer-drop[data-dragging] {
+  background-color: color-mix(in srgb, var(--primary) 8%, transparent);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--primary) 55%, transparent);
+}
+
+.transfer-drop-icon {
+  display: inline-flex;
+  width: 3rem;
+  height: 3rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: var(--primary);
+  background: var(--glass-raised, var(--card));
+  box-shadow:
+    var(--glass-edge, none),
+    0 10px 24px -14px rgb(30 41 90 / 0.35);
+}
+
+.transfer-manifest > li {
+  border-bottom: 1px solid var(--report-rule);
+}
+
+.transfer-manifest > li:first-child {
+  border-top: 1px solid var(--report-rule);
+}
+
+.transfer-manifest[data-muted] > li {
+  color: var(--muted-foreground);
+}
+
+.transfer-count {
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--foreground);
+}
+
+.transfer-option {
+  border-bottom: 1px solid var(--report-rule);
+}
+
+.transfer-option:first-child {
+  border-top: 1px solid var(--report-rule);
+}
+
+.transfer-result {
+  animation: setup-panel-in 320ms var(--motion-snappy) backwards;
+}

@@ -1,0 +1,188 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Leads — a follow-up desk.
+
+   Builds on report.css. The page answers three questions in order: how many
+   people arrived (headline + 30-day arrivals), who to contact next (the ruled
+   lead list, with one-click contact), and where they come from (origins).
+
+   Status dots reuse the report's outcome colours so a colour means the same
+   thing on every page: green resolved, blue with your team, hollow amber
+   waiting on you. Channels are identity, not status, so they take the
+   categorical series in a fixed order.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+/* ── arrivals chart ────────────────────────────────────────────────────── */
+
+.leads-chart {
+  position: relative;
+  border-radius: 10px;
+  outline: none;
+}
+
+.leads-chart:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 40%, transparent);
+}
+
+.leads-bars {
+  display: grid;
+  grid-template-columns: repeat(30, minmax(0, 1fr));
+  align-items: end;
+  gap: 3px;
+  height: 7.5rem;
+  border-bottom: 1px solid var(--report-rule);
+}
+
+.leads-bar-slot {
+  display: flex;
+  height: 100%;
+  align-items: flex-end;
+  cursor: default;
+}
+
+.leads-bar {
+  width: 100%;
+  min-height: 2px;
+  border-radius: 4px 4px 0 0;
+  background: color-mix(in srgb, var(--primary) 45%, transparent);
+  transform-origin: bottom center;
+  animation: leads-bar-in 620ms var(--motion-smooth) backwards;
+  animation-delay: calc(var(--i) * 14ms);
+  transition: background-color 160ms var(--motion-snappy);
+}
+
+.leads-bar[data-empty] {
+  background: var(--report-track);
+}
+
+.leads-bar[data-today] {
+  background: var(--primary);
+}
+
+.leads-chart[data-active] .leads-bar {
+  background: color-mix(in srgb, var(--primary) 22%, transparent);
+}
+
+.leads-chart[data-active] .leads-bar[data-empty] {
+  background: var(--report-track);
+}
+
+.leads-chart[data-active] .leads-bar-slot[data-active] .leads-bar {
+  background: var(--primary);
+}
+
+/* ── list ──────────────────────────────────────────────────────────────── */
+
+.leads-row {
+  border-bottom: 1px solid var(--report-rule);
+  transition: background-color 160ms var(--motion-snappy);
+}
+
+.leads-row:hover,
+.leads-row:focus-within {
+  background: color-mix(in srgb, var(--foreground) 3.5%, transparent);
+}
+
+.leads-avatar {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 22%, transparent);
+}
+
+.leads-new {
+  border-radius: 999px;
+  padding: 0.05rem 0.45rem;
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+}
+
+.leads-status-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  flex-shrink: 0;
+  border-radius: 999px;
+}
+
+.leads-status-dot[data-status="resolved"] {
+  background: var(--outcome-resolved);
+}
+
+.leads-status-dot[data-status="team"] {
+  background: var(--outcome-handed);
+}
+
+.leads-status-dot[data-status="waiting"] {
+  box-shadow: inset 0 0 0 2px var(--outcome-open);
+}
+
+.leads-status-dot[data-status="assistant"] {
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--foreground) 40%, transparent);
+}
+
+/* One-click contact. Always visible: reaching out is the point of the page. */
+.leads-contact {
+  display: inline-flex;
+  width: 2rem;
+  height: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: var(--muted-foreground);
+  transition:
+    background-color 160ms var(--motion-snappy),
+    color 160ms var(--motion-snappy);
+}
+
+.leads-contact:hover,
+.leads-contact:focus-visible {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 7%, transparent);
+  outline: none;
+}
+
+/* ── origins ───────────────────────────────────────────────────────────── */
+
+.leads-series-1 {
+  --series: var(--console-series-1);
+}
+.leads-series-2 {
+  --series: var(--console-series-2);
+}
+.leads-series-3 {
+  --series: var(--console-series-3);
+}
+.leads-series-4 {
+  --series: var(--console-series-4);
+}
+.leads-series-5 {
+  --series: var(--console-series-5);
+}
+.leads-series-6 {
+  --series: var(--console-series-6);
+}
+
+.leads-swatch {
+  width: 0.7rem;
+  height: 0.7rem;
+  flex-shrink: 0;
+  border-radius: 3px;
+  background: var(--series);
+}
+
+@keyframes leads-bar-in {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}

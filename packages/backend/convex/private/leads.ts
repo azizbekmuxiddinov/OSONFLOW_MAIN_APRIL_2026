@@ -10,6 +10,28 @@ import { paginateArray } from "../lib/paginateArray"
 export const LEADS_EXPORT_LIMIT = 5000
 const LEADS_LIST_SCAN_LIMIT = 2000
 const NEWCOMER_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
+const ARRIVALS_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
+const TOP_ORIGINS_LIMIT = 5
+
+const conversationStatusValidator = v.union(
+  v.literal("unresolved"),
+  v.literal("escalated"),
+  v.literal("resolved")
+)
+
+/**
+ * The slices of the lead list an owner works from. `waiting` is the follow-up
+ * queue: the latest conversation was handed to a person and the customer
+ * spoke last. `no_chats` left contact details without ever starting a chat.
+ */
+const leadSegmentValidator = v.union(
+  v.literal("all"),
+  v.literal("waiting"),
+  v.literal("newcomers"),
+  v.literal("no_chats")
+)
+
+type LeadSegment = "all" | "waiting" | "newcomers" | "no_chats"
 
 const leadRecordValidator = v.object({
   contactSessionId: v.id("contactSessions"),
@@ -25,6 +47,9 @@ const leadRecordValidator = v.object({
   firstSeenAt: v.number(),
   conversationCount: v.number(),
   latestConversationId: v.optional(v.id("conversations")),
+  latestConversationStatus: v.optional(conversationStatusValidator),
+  lastActiveAt: v.number(),
+  isAwaitingReply: v.boolean(),
   isNewcomer: v.boolean(),
 })
 
@@ -42,6 +67,10 @@ export type LeadRecord = {
   firstSeenAt: number
   conversationCount: number
   latestConversationId?: Id<"conversations">
+  latestConversationStatus?: Doc<"conversations">["status"]
+  /** Latest customer message, else latest conversation start, else capture. */
+  lastActiveAt: number
+  isAwaitingReply: boolean
   isNewcomer: boolean
 }
 
@@ -117,6 +146,8 @@ const toLeadRecord = (
   const latestConversation = [...conversations].sort(
     (left, right) => right._creationTime - left._creationTime
   )[0]
+  const lastCustomerMessageAt = latestConversation?.lastCustomerMessageAt ?? 0
+  const lastOperatorMessageAt = latestConversation?.lastOperatorMessageAt ?? 0
 
   return {
     contactSessionId: session._id,
@@ -132,6 +163,15 @@ const toLeadRecord = (
     firstSeenAt: session._creationTime,
     conversationCount: conversations.length,
     latestConversationId: latestConversation?._id,
+    latestConversationStatus: latestConversation?.status,
+    lastActiveAt: Math.max(
+      session._creationTime,
+      latestConversation?._creationTime ?? 0,
+      lastCustomerMessageAt
+    ),
+    isAwaitingReply:
+      latestConversation?.status === "escalated" &&
+      lastCustomerMessageAt > lastOperatorMessageAt,
     isNewcomer: session._creationTime >= newcomerCutoff,
   }
 }
@@ -159,13 +199,56 @@ const matchesSearchQuery = (lead: LeadRecord, normalizedQuery: string) => {
   return haystack.includes(normalizedQuery)
 }
 
+const matchesSegment = (lead: LeadRecord, segment: LeadSegment) => {
+  switch (segment) {
+    case "waiting":
+      return lead.isAwaitingReply
+    case "newcomers":
+      return lead.isNewcomer
+    case "no_chats":
+      return lead.conversationCount === 0
+    default:
+      return true
+  }
+}
+
+const hostOf = (url?: string) => {
+  if (!url) return undefined
+  try {
+    return new URL(url).hostname.replace(/^www\./, "") || undefined
+  } catch {
+    return undefined
+  }
+}
+
+const pathOf = (url?: string) => {
+  if (!url) return undefined
+  try {
+    const path = decodeURIComponent(new URL(url).pathname).replace(/\/+$/, "")
+    return path || "/"
+  } catch {
+    return undefined
+  }
+}
+
+/** Counts labels and keeps the most common, largest first. */
+const topCounts = (labels: (string | undefined)[]) => {
+  const counts = new Map<string, number>()
+  for (const label of labels) {
+    if (label) counts.set(label, (counts.get(label) ?? 0) + 1)
+  }
+  return Array.from(counts.entries())
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, TOP_ORIGINS_LIMIT)
+}
+
 const loadLeads = async (
   ctx: QueryCtx,
   organizationId: string,
   options: {
     scanLimit: number
-    newcomersOnly?: boolean
-    withChatsOnly?: boolean
+    segment?: LeadSegment
     searchQuery?: string
   }
 ) => {
@@ -200,11 +283,7 @@ const loadLeads = async (
       )
     )
     .filter((lead) => {
-      if (options.newcomersOnly && !lead.isNewcomer) {
-        return false
-      }
-
-      if (options.withChatsOnly && lead.conversationCount === 0) {
+      if (!matchesSegment(lead, options.segment ?? "all")) {
         return false
       }
 
@@ -216,8 +295,7 @@ export const getMany = query({
   args: {
     paginationOpts: paginationOptsValidator,
     searchQuery: v.optional(v.string()),
-    newcomersOnly: v.optional(v.boolean()),
-    withChatsOnly: v.optional(v.boolean()),
+    segment: v.optional(leadSegmentValidator),
   },
   returns: v.object({
     page: v.array(leadRecordValidator),
@@ -230,8 +308,7 @@ export const getMany = query({
 
     const leads = await loadLeads(ctx, orgId, {
       scanLimit: LEADS_LIST_SCAN_LIMIT,
-      newcomersOnly: args.newcomersOnly,
-      withChatsOnly: args.withChatsOnly,
+      segment: args.segment,
       searchQuery: args.searchQuery,
     })
 
@@ -242,8 +319,7 @@ export const getMany = query({
 export const getForExport = query({
   args: {
     searchQuery: v.optional(v.string()),
-    newcomersOnly: v.optional(v.boolean()),
-    withChatsOnly: v.optional(v.boolean()),
+    segment: v.optional(leadSegmentValidator),
     limit: v.optional(v.number()),
   },
   returns: v.array(leadRecordValidator),
@@ -256,8 +332,7 @@ export const getForExport = query({
 
     const leads = await loadLeads(ctx, orgId, {
       scanLimit: LEADS_EXPORT_LIMIT,
-      newcomersOnly: args.newcomersOnly,
-      withChatsOnly: args.withChatsOnly,
+      segment: args.segment,
       searchQuery: args.searchQuery,
     })
 
@@ -271,6 +346,13 @@ export const getSummary = query({
     totalLeads: v.number(),
     newcomerCount: v.number(),
     withConversationsCount: v.number(),
+    awaitingReplyCount: v.number(),
+    noChatsCount: v.number(),
+    /** Capture times in the last 30 days, bucketed by day in the browser's
+     *  own timezone rather than UTC. */
+    recentArrivals: v.array(v.number()),
+    topReferrers: v.array(v.object({ label: v.string(), count: v.number() })),
+    topPages: v.array(v.object({ label: v.string(), count: v.number() })),
     channelCounts: v.object({
       widget: v.number(),
       voice: v.number(),
@@ -287,6 +369,7 @@ export const getSummary = query({
       scanLimit: LEADS_LIST_SCAN_LIMIT,
     })
 
+    const arrivalsCutoff = Date.now() - ARRIVALS_WINDOW_MS
     const channelCounts = {
       widget: 0,
       voice: 0,
@@ -325,6 +408,22 @@ export const getSummary = query({
       withConversationsCount: leads.filter(
         (lead) => lead.conversationCount > 0
       ).length,
+      awaitingReplyCount: leads.filter((lead) => lead.isAwaitingReply).length,
+      noChatsCount: leads.filter((lead) => lead.conversationCount === 0)
+        .length,
+      recentArrivals: leads
+        .map((lead) => lead.firstSeenAt)
+        .filter((at) => at >= arrivalsCutoff),
+      // A referrer on the site's own host is in-site navigation, not a source.
+      topReferrers: topCounts(
+        leads.map((lead) => {
+          const referrer = hostOf(lead.referrer)
+          return referrer && referrer !== hostOf(lead.currentUrl)
+            ? referrer
+            : undefined
+        })
+      ),
+      topPages: topCounts(leads.map((lead) => pathOf(lead.currentUrl))),
       channelCounts,
     }
   },

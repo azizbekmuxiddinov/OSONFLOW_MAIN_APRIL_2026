@@ -11,13 +11,14 @@ import type { CatalogIcon } from "../../catalog"
  * recognisable at a glance rather than by reading its name.
  */
 
-type BrandMarkSize = "xs" | "sm" | "md" | "lg"
+type BrandMarkSize = "xs" | "sm" | "md" | "lg" | "xl"
 
 const SIZE_CLASS: Record<BrandMarkSize, string> = {
   xs: "size-7 rounded-[8px]",
-  sm: "size-8",
+  sm: "size-9",
   md: "size-10",
   lg: "size-12",
+  xl: "size-14",
 }
 
 const ICON_CLASS: Record<BrandMarkSize, string> = {
@@ -25,6 +26,7 @@ const ICON_CLASS: Record<BrandMarkSize, string> = {
   sm: "size-4",
   md: "size-[18px]",
   lg: "size-5",
+  xl: "size-6",
 }
 
 export const BrandMark = ({
@@ -42,8 +44,10 @@ export const BrandMark = ({
   className?: string
 }) => (
   <span
+    aria-hidden
     className={cn("brand-mark shrink-0", SIZE_CLASS[size], className)}
     data-muted={muted || undefined}
+    data-size={size}
     style={{ "--brand-hue": brand } as CSSProperties}
   >
     <Icon className={ICON_CLASS[size]} />

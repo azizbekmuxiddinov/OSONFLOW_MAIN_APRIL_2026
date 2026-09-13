@@ -117,7 +117,7 @@ export const ColorFormField = ({
   name,
   label,
   description,
-  placeholder = "#3b82f6",
+  placeholder = "#6366f1",
   fallbackColor = "#111111",
   contrastAgainst,
   contrastLabel = "Text on this colour",

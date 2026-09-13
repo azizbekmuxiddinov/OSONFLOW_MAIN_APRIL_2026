@@ -102,7 +102,7 @@ const NOTIFICATION_SOUND_PATH = "/sounds/notification.mp3"
       | "animation"
     >
   > = {
-    launcherColor: "#3b82f6",
+    launcherColor: "#6366f1",
     launcherLabel: "Chat with us",
     voiceLauncherLabel: LIVE_VOICE_LAUNCHER_LABEL,
     launcherIcon: "chat",
@@ -384,7 +384,7 @@ const NOTIFICATION_SOUND_PATH = "/sounds/notification.mp3"
   const toShadowColor = (color: string): string => {
     const normalizedHex = normalizeHexColor(color)
     if (!normalizedHex) {
-      return "rgba(59, 130, 246, 0.35)"
+      return "rgba(99, 102, 241, 0.35)"
     }
 
     const red = parseInt(normalizedHex.slice(1, 3), 16)
@@ -432,9 +432,9 @@ const NOTIFICATION_SOUND_PATH = "/sounds/notification.mp3"
       bottom: ${launcherOffsetY + launcherSize + LAUNCHER_PROMPT_GAP}px;
       max-width: ${LAUNCHER_PROMPT_MAX_WIDTH}px;
       padding: 8px 12px;
-      border-radius: 16px;
-      background: #ffffff;
-      color: #020617;
+      border-radius: 20px;
+      background: #f5f5f4;
+      color: #1e293b;
       box-shadow: 0 16px 34px -22px rgba(15, 23, 42, 0.45);
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       font-size: 12px;

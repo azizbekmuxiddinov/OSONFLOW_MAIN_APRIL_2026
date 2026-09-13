@@ -1,0 +1,178 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Knowledge base — ask first, then the library.
+
+   Builds on the dashboard report layout (report.css). The question field is the
+   page's one raised glass surface; sources are a ruled index grouped by
+   category. Colour is reserved for what needs attention: a ready source is
+   plain ink, a source still being read is hollow amber, a failed one is red.
+   (Green↔red fails the CVD check, so "ready" deliberately carries no hue.)
+   ──────────────────────────────────────────────────────────────────────────── */
+
+.knowledge {
+  --source-reading: #d49824;
+  --source-failed: #c9303a;
+  --support-strong: #219761;
+  --support-partial: #2b8cd5;
+  --support-weak: #d49824;
+  --support-none: #c9303a;
+}
+
+.dark .knowledge {
+  --source-reading: #c38824;
+  --source-failed: #d04a4d;
+  --support-strong: #239d6a;
+  --support-partial: #347ec4;
+  --support-weak: #c38824;
+  --support-none: #d04a4d;
+}
+
+/* ── ask ───────────────────────────────────────────────────────────────── */
+
+.knowledge-ask {
+  border-radius: 999px;
+  transition: box-shadow 220ms var(--motion-snappy);
+}
+
+.knowledge-ask:focus-within {
+  box-shadow:
+    var(--glass-edge, none),
+    0 0 0 4px color-mix(in srgb, var(--primary) 22%, transparent),
+    0 18px 40px -20px rgb(30 41 90 / 0.35);
+}
+
+.knowledge-ask input {
+  min-width: 0;
+  flex: 1;
+  background: transparent;
+  font-size: clamp(1rem, 0.95rem + 0.3vw, 1.15rem);
+  color: var(--foreground);
+  outline: none;
+}
+
+.knowledge-ask input::placeholder {
+  color: var(--muted-foreground);
+}
+
+.knowledge-answer {
+  animation: knowledge-answer-in 360ms var(--motion-snappy) backwards;
+}
+
+.knowledge-answer-text {
+  font-size: clamp(1.02rem, 0.96rem + 0.3vw, 1.2rem);
+  line-height: 1.6;
+  letter-spacing: -0.01em;
+  color: var(--foreground);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.knowledge-confidence {
+  height: 0.375rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--report-track);
+}
+
+.knowledge-confidence > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: currentColor;
+  transform-origin: left center;
+  animation: report-grow 700ms var(--motion-smooth) backwards;
+}
+
+.knowledge-footnote {
+  border-top: 1px solid var(--report-rule);
+}
+
+/* ── library ───────────────────────────────────────────────────────────── */
+
+.knowledge-group + .knowledge-group {
+  margin-top: 2.25rem;
+}
+
+.knowledge-row {
+  border-bottom: 1px solid var(--report-rule);
+  transition: background-color 160ms var(--motion-snappy);
+}
+
+.knowledge-row:hover,
+.knowledge-row:focus-within {
+  background: color-mix(in srgb, var(--foreground) 3.5%, transparent);
+}
+
+.knowledge-glyph {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: var(--muted-foreground);
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+}
+
+.knowledge-status-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  flex-shrink: 0;
+  border-radius: 999px;
+}
+
+.knowledge-status-dot[data-status="ready"] {
+  background: color-mix(in srgb, var(--foreground) 35%, transparent);
+}
+
+.knowledge-status-dot[data-status="processing"] {
+  box-shadow: inset 0 0 0 2px var(--source-reading);
+  animation: knowledge-pulse 1.6s ease-in-out infinite;
+}
+
+.knowledge-status-dot[data-status="error"] {
+  background: var(--source-failed);
+}
+
+.knowledge-actions {
+  transition: opacity 160ms var(--motion-snappy);
+}
+
+@media (hover: hover) {
+  .knowledge-row:not(:hover):not(:focus-within) .knowledge-actions {
+    opacity: 0;
+  }
+}
+
+/* Readiness strip: ink for ready, hollow amber for reading, red for failed. */
+.knowledge-strip > [data-status="ready"] {
+  background: color-mix(in srgb, var(--foreground) 32%, transparent);
+}
+
+.knowledge-strip > [data-status="processing"] {
+  background: color-mix(in srgb, var(--source-reading) 18%, transparent);
+  box-shadow: inset 0 0 0 2px var(--source-reading);
+}
+
+.knowledge-strip > [data-status="error"] {
+  background: var(--source-failed);
+}
+
+@keyframes knowledge-answer-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes knowledge-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}

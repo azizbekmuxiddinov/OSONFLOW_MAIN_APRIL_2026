@@ -2,19 +2,14 @@
 
 import { useMemo, useState } from "react"
 import { useConvex, useQuery } from "convex/react"
+import { formatDistanceToNow } from "date-fns"
 import {
-  AlertTriangleIcon,
-  BrainIcon,
-  CheckCircle2Icon,
-  Clock3Icon,
+  ArrowLeftIcon,
   DownloadIcon,
-  HistoryIcon,
   LanguagesIcon,
-  ListFilterIcon,
   MailIcon,
-  MessagesSquareIcon,
-  QuoteIcon,
-  UsersIcon,
+  MessageSquareIcon,
+  MicIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -22,36 +17,22 @@ import { api } from "@workspace/backend/_generated/api"
 import type { Doc } from "@workspace/backend/_generated/dataModel"
 import { Button } from "@workspace/ui/components/button"
 import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@workspace/ui/components/tabs"
-import {
   formatCsvTimestamp,
   stringifyCsvRows,
 } from "../lib/conversation-export"
 import {
-  ConsoleHeader,
-  ConsoleMeta,
   ConsolePage,
   ConsoleSearch,
-  ConsoleSkeleton,
-  consoleTabsListClass,
-  consoleTabsTriggerClass,
-  EmptyState,
-  Meter,
-  Panel,
-  Pill,
-  Stat,
-  StatGrid,
-  TabCount,
 } from "../components/console"
+import { MemorySkeleton } from "../components/report-skeleton"
+import { ReportFilter } from "../components/report"
+import "../styles/report.css"
+import "../styles/memory.css"
 
 const CUSTOMER_MEMORY_EXPORT_LIMIT = 5000
 
 type CustomerMemory = Doc<"customerMemories">
-type MemoryTab = "all" | "attention" | "recent" | "resolved"
+type MemoryFilter = "all" | "attention" | "recent" | "resolved"
 
 const formatIntent = (intent: string) =>
   intent
@@ -135,166 +116,306 @@ const buildCustomerMemoryCsv = (memories: CustomerMemory[]) => {
   return stringifyCsvRows(rows)
 }
 
-const MemoryCard = ({ memory }: { memory: CustomerMemory }) => {
-  const hasEscalations = memory.totalEscalations > 0
+type IssueStatus = CustomerMemory["issueHistory"][number]["status"]
+
+/** Same status encoding as the Analytics report, so a green square means the
+ *  same thing on both pages. */
+const STATUS: Record<
+  IssueStatus,
+  { outcome: "resolved" | "handed" | "open"; label: string; filled: boolean }
+> = {
+  resolved: { outcome: "resolved", label: "Resolved", filled: true },
+  escalated: { outcome: "handed", label: "Handed to team", filled: true },
+  unresolved: { outcome: "open", label: "Still open", filled: false },
+}
+
+const FILTERS: { id: MemoryFilter; label: string }[] = [
+  { id: "all", label: "Everyone" },
+  { id: "attention", label: "Needed your team" },
+  { id: "recent", label: "Back this month" },
+  { id: "resolved", label: "Mostly resolved" },
+]
+
+const matchesFilter = (memory: CustomerMemory, filter: MemoryFilter) => {
+  if (filter === "attention") return memory.totalEscalations > 0
+  if (filter === "recent") return isRecentlySeen(memory.lastSeenAt)
+  if (filter === "resolved") {
+    return (
+      memory.totalResolved > 0 &&
+      memory.totalResolved >= memory.totalEscalations
+    )
+  }
+  return true
+}
+
+const displayName = (memory: CustomerMemory) =>
+  memory.name?.trim() || memory.email.split("@")[0] || "Unknown customer"
+
+const seenLabel = (timestamp: number) =>
+  formatDistanceToNow(timestamp, { addSuffix: true })
+
+/* ── directory ──────────────────────────────────────────────────────────── */
+
+const OutcomeTrail = ({ memory }: { memory: CustomerMemory }) => {
+  const recent = [...memory.issueHistory]
+    .sort((a, b) => a.at - b.at)
+    .slice(-8)
+
+  if (!recent.length) {
+    return null
+  }
+
+  return (
+    <span
+      aria-label={`Last ${recent.length} conversations: ${recent
+        .map((item) => STATUS[item.status].label)
+        .join(", ")}`}
+      className="memory-trail"
+      role="img"
+    >
+      {recent.map((item) => (
+        <span
+          data-outcome={STATUS[item.status].outcome}
+          key={`${item.at}-${item.summary}`}
+        />
+      ))}
+    </span>
+  )
+}
+
+const PersonRow = ({
+  memory,
+  selected,
+  peek,
+  onSelect,
+}: {
+  memory: CustomerMemory
+  selected: boolean
+  /** Selected only as the wide-screen default, not opened by the owner. */
+  peek: boolean
+  onSelect: () => void
+}) => (
+  <button
+    aria-current={selected}
+    data-peek={peek ? "" : undefined}
+    className="memory-row-button grid w-full grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-3.5 px-3 py-3.5 text-left focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none"
+    onClick={onSelect}
+    type="button"
+  >
+    <span className="memory-avatar size-10 text-xs">
+      {initialsOf(memory.name, memory.email)}
+    </span>
+    <span className="min-w-0">
+      <span className="flex min-w-0 items-baseline gap-2">
+        <span className="truncate text-[0.95rem] font-medium text-foreground">
+          {displayName(memory)}
+        </span>
+        {memory.totalEscalations > 0 ? (
+          <span className="hidden shrink-0 text-[0.7rem] text-muted-foreground sm:inline">
+            · needed team {memory.totalEscalations}×
+          </span>
+        ) : null}
+      </span>
+      <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+        {memory.summary}
+      </span>
+    </span>
+    <span className="flex flex-col items-end gap-2">
+      <span className="text-[0.7rem] whitespace-nowrap text-muted-foreground">
+        {seenLabel(memory.lastSeenAt)}
+      </span>
+      <OutcomeTrail memory={memory} />
+    </span>
+  </button>
+)
+
+/* ── dossier ────────────────────────────────────────────────────────────── */
+
+const Dossier = ({
+  memory,
+  onClose,
+}: {
+  memory: CustomerMemory
+  onClose?: () => void
+}) => {
   const resolvedRate =
     memory.totalConversations > 0
       ? Math.round((memory.totalResolved / memory.totalConversations) * 100)
       : 0
+  const history = [...memory.issueHistory].sort((a, b) => b.at - a.at)
 
   return (
-    <Panel className="console-interactive flex flex-col">
-      {/* identity */}
-      <div className="flex items-start justify-between gap-3 px-4 pt-4 sm:px-5 sm:pt-5">
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="console-medallion console-numeral size-10 shrink-0 text-xs">
-            {initialsOf(memory.name, memory.email)}
-          </span>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-foreground">
-              {memory.name || "Unknown customer"}
-            </p>
-            <p className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-              <MailIcon className="size-3 shrink-0" />
-              <span className="truncate">{memory.email}</span>
-            </p>
-          </div>
-        </div>
-        {hasEscalations ? (
-          <Pill icon={AlertTriangleIcon} tone="critical">
-            {memory.totalEscalations}
-          </Pill>
-        ) : null}
-      </div>
-
-      {/* summary */}
-      <div className="px-4 pt-4 sm:px-5">
-        <p className="border-l-2 border-[var(--console-hairline)] pl-3 text-sm leading-relaxed break-words text-foreground/90">
-          {memory.summary}
-        </p>
-      </div>
-
-      {/* intents */}
-      {memory.recentIntents.length ? (
-        <div className="flex flex-wrap gap-1.5 px-4 pt-4 sm:px-5">
-          {memory.recentIntents.slice(0, 4).map((intent) => (
-            <Pill key={intent} tone="info">
-              {formatIntent(intent)}
-            </Pill>
-          ))}
-        </div>
+    <article className="memory-dossier" key={memory._id}>
+      {onClose ? (
+        <Button
+          className="mb-4 -ml-2 lg:hidden"
+          onClick={onClose}
+          size="sm"
+          variant="ghost"
+        >
+          <ArrowLeftIcon data-icon="inline-start" />
+          Close
+        </Button>
       ) : null}
 
-      {/* facts + history */}
-      <div className="mt-4 grid flex-1 gap-px border-y border-[var(--console-hairline-soft)] bg-[var(--console-hairline-soft)] sm:grid-cols-2">
-        <div className="min-w-0 bg-card px-4 py-3.5 sm:px-5">
-          <p className="console-label flex items-center gap-1.5">
-            <QuoteIcon className="size-3" />
-            Notable facts
+      <header className="flex items-start gap-4">
+        <span className="memory-avatar size-14 text-base">
+          {initialsOf(memory.name, memory.email)}
+        </span>
+        <div className="min-w-0">
+          <h2 className="memory-name">{displayName(memory)}</h2>
+          <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            <span className="flex min-w-0 items-center gap-1.5">
+              <MailIcon aria-hidden className="size-3 shrink-0" />
+              <span className="truncate">{memory.email}</span>
+            </span>
+            {memory.preferredLanguage ? (
+              <span className="flex items-center gap-1.5">
+                <LanguagesIcon aria-hidden className="size-3" />
+                {memory.preferredLanguage}
+              </span>
+            ) : null}
+            <span>Last seen {formatDate(memory.lastSeenAt)}</span>
           </p>
-          <div className="mt-2.5 space-y-1.5">
-            {memory.notableFacts.length ? (
-              memory.notableFacts.slice(0, 3).map((fact) => (
-                <p
-                  className="console-inset px-2.5 py-1.5 text-xs leading-relaxed break-words text-foreground/90"
-                  key={fact}
-                >
-                  {fact}
-                </p>
-              ))
-            ) : (
-              <p className="py-3 text-xs text-muted-foreground/70">
-                Nothing captured yet.
-              </p>
-            )}
-          </div>
         </div>
+      </header>
 
-        <div className="min-w-0 bg-card px-4 py-3.5 sm:px-5">
-          <p className="console-label flex items-center gap-1.5">
-            <HistoryIcon className="size-3" />
-            Recent history
+      <p className="memory-summary mt-7">{memory.summary}</p>
+
+      <div className="report-figures mt-8 grid grid-cols-3">
+        {(
+          [
+            ["Conversations", memory.totalConversations],
+            ["Resolved", `${resolvedRate}%`],
+            ["Needed your team", memory.totalEscalations],
+          ] as const
+        ).map(([label, value]) => (
+          <div
+            className="report-figure flex flex-col gap-2 px-3 py-4 first:pl-0 sm:px-5"
+            key={label}
+          >
+            <p className="console-label">{label}</p>
+            <p className="report-figure-value">{value}</p>
+          </div>
+        ))}
+      </div>
+
+      <section className="memory-block py-7">
+        <h3 className="console-label">What your assistant remembers</h3>
+        {memory.notableFacts.length ? (
+          <ol className="mt-3">
+            {memory.notableFacts.map((fact, index) => (
+              <li
+                className="memory-fact grid grid-cols-[1.75rem_minmax(0,1fr)] gap-2 py-2.5"
+                key={fact}
+              >
+                <span className="report-section-index pt-0.5">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <span className="text-sm leading-relaxed break-words text-foreground">
+                  {fact}
+                </span>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className="mt-3 text-sm text-muted-foreground">
+            Nothing specific captured yet — facts appear as this customer
+            shares them.
           </p>
-          <div className="mt-2.5 space-y-1.5">
-            {memory.issueHistory.length ? (
-              memory.issueHistory.slice(0, 3).map((item) => (
-                <div
-                  className="console-inset px-2.5 py-1.5"
+        )}
+
+        {memory.recentIntents.length ? (
+          <p className="mt-6 text-sm leading-relaxed text-muted-foreground">
+            Usually asks about{" "}
+            <span className="text-foreground">
+              {memory.recentIntents.map(formatIntent).join(", ")}
+            </span>
+            .
+          </p>
+        ) : null}
+      </section>
+
+      <section className="memory-block pt-7">
+        <h3 className="console-label">History</h3>
+        {history.length ? (
+          <ol className="report-timeline mt-5 flex flex-col gap-6">
+            {history.map((item) => {
+              const status = STATUS[item.status]
+              const ChannelIcon =
+                item.channel === "voice" ? MicIcon : MessageSquareIcon
+
+              return (
+                <li
+                  className="grid grid-cols-[0.625rem_minmax(0,1fr)] gap-4"
                   key={`${item.at}-${item.summary}`}
                 >
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="truncate text-[0.72rem] font-medium text-foreground">
-                      {formatIntent(item.intent)}
-                    </span>
-                    <span className="shrink-0 text-[0.68rem] text-muted-foreground">
-                      {formatDate(item.at)}
-                    </span>
+                  <span
+                    className="report-node mt-1.5"
+                    data-filled={status.filled ? "" : undefined}
+                    style={{ color: `var(--outcome-${status.outcome})` }}
+                  />
+                  <div className="min-w-0">
+                    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                      <span className="font-medium text-foreground">
+                        {status.label}
+                      </span>
+                      <span aria-hidden>·</span>
+                      <span>{formatIntent(item.intent)}</span>
+                      <span aria-hidden>·</span>
+                      <span className="flex items-center gap-1">
+                        <ChannelIcon aria-hidden className="size-3" />
+                        <span className="capitalize">{item.channel}</span>
+                      </span>
+                      <span aria-hidden>·</span>
+                      <time dateTime={new Date(item.at).toISOString()}>
+                        {formatDate(item.at)}
+                      </time>
+                    </p>
+                    <p className="mt-1.5 text-sm leading-relaxed break-words text-foreground">
+                      {item.summary}
+                    </p>
                   </div>
-                  <p className="mt-1 line-clamp-2 text-xs leading-relaxed break-words text-muted-foreground">
-                    {item.summary}
-                  </p>
-                </div>
-              ))
-            ) : (
-              <p className="py-3 text-xs text-muted-foreground/70">
-                No issue history yet.
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* footer */}
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-3 sm:px-5">
-        <span className="flex min-w-[7rem] flex-1 items-center gap-2.5">
-          <span className="console-label shrink-0">Resolved</span>
-          <Meter
-            className="flex-1"
-            tone={resolvedRate >= 60 ? "positive" : "warning"}
-            value={resolvedRate}
-          />
-          <span className="console-numeral shrink-0 text-xs">
-            {resolvedRate}%
-          </span>
-        </span>
-        <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <MessagesSquareIcon className="size-3" />
-          <span className="console-numeral text-xs">
-            {memory.totalConversations}
-          </span>
-        </span>
-        {memory.preferredLanguage ? (
-          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <LanguagesIcon className="size-3" />
-            {memory.preferredLanguage}
-          </span>
-        ) : null}
-        <span className="text-xs text-muted-foreground/70">
-          Seen {formatDate(memory.lastSeenAt)}
-        </span>
-      </div>
-    </Panel>
+                </li>
+              )
+            })}
+          </ol>
+        ) : (
+          <p className="mt-3 text-sm text-muted-foreground">
+            No conversations recorded yet.
+          </p>
+        )}
+      </section>
+    </article>
   )
 }
 
+/* ── page ───────────────────────────────────────────────────────────────── */
+
 export const CustomerMemoryView = () => {
   const [searchQuery, setSearchQuery] = useState("")
-  const [activeTab, setActiveTab] = useState<MemoryTab>("all")
+  const [filter, setFilter] = useState<MemoryFilter>("all")
+  const [selectedId, setSelectedId] = useState<CustomerMemory["_id"] | null>(
+    null
+  )
+  // On narrow screens the dossier opens inline, so it only appears once the
+  // owner actually picks someone rather than defaulting to the first row.
+  const [openedInline, setOpenedInline] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
   const convex = useConvex()
   const memories = useQuery(api.private.customerMemories.getMany, {
     limit: 75,
   })
 
-  const filteredMemories = useMemo(() => {
+  const searched = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
 
     if (!memories || !query) {
       return memories ?? []
     }
 
-    return memories.filter((memory) => {
-      const haystack = [
+    return memories.filter((memory) =>
+      [
         memory.name,
         memory.email,
         memory.summary,
@@ -305,51 +426,24 @@ export const CustomerMemoryView = () => {
         .filter(Boolean)
         .join(" ")
         .toLowerCase()
-
-      return haystack.includes(query)
-    })
+        .includes(query)
+    )
   }, [memories, searchQuery])
 
-  const tabbedMemories = useMemo(() => {
-    if (activeTab === "attention") {
-      return filteredMemories.filter((memory) => memory.totalEscalations > 0)
-    }
-
-    if (activeTab === "recent") {
-      return filteredMemories.filter((memory) =>
-        isRecentlySeen(memory.lastSeenAt)
-      )
-    }
-
-    if (activeTab === "resolved") {
-      return filteredMemories.filter(
-        (memory) =>
-          memory.totalResolved > 0 &&
-          memory.totalResolved >= memory.totalEscalations
-      )
-    }
-
-    return filteredMemories
-  }, [activeTab, filteredMemories])
-
-  const attentionCount = filteredMemories.filter(
-    (memory) => memory.totalEscalations > 0
-  ).length
-  const recentCount = filteredMemories.filter((memory) =>
-    isRecentlySeen(memory.lastSeenAt)
-  ).length
-  const resolvedCount = filteredMemories.filter(
-    (memory) =>
-      memory.totalResolved > 0 &&
-      memory.totalResolved >= memory.totalEscalations
-  ).length
-  const totalConversations = filteredMemories.reduce(
-    (total, memory) => total + memory.totalConversations,
-    0
+  const counts = useMemo(
+    () =>
+      Object.fromEntries(
+        FILTERS.map(({ id }) => [
+          id,
+          searched.filter((memory) => matchesFilter(memory, id)).length,
+        ])
+      ) as Record<MemoryFilter, number>,
+    [searched]
   )
-  const totalEscalations = filteredMemories.reduce(
-    (total, memory) => total + memory.totalEscalations,
-    0
+
+  const visible = useMemo(
+    () => searched.filter((memory) => matchesFilter(memory, filter)),
+    [filter, searched]
   )
 
   const handleDownloadCsv = async () => {
@@ -391,149 +485,153 @@ export const CustomerMemoryView = () => {
   }
 
   if (memories === undefined) {
-    return <ConsoleSkeleton rows={2} />
+    return <MemorySkeleton />
   }
 
-  const tabTitle =
-    activeTab === "all"
-      ? "All customer memories"
-      : activeTab === "attention"
-        ? "Needs attention"
-        : activeTab === "recent"
-          ? "Recently active"
-          : "Resolved-heavy"
-
-  const tabDescription =
-    activeTab === "all"
-      ? "Everything the AI has learned about your customers from chat and voice."
-      : activeTab === "attention"
-        ? "Records with escalations, so the team can prepare before replying."
-        : activeTab === "recent"
-          ? "Customers seen in the last 30 days — useful for live inbox work."
-          : "Customers whose recent history is mostly resolved."
+  const selected =
+    visible.find((memory) => memory._id === selectedId) ?? visible[0] ?? null
+  const everyone = memories.length
+  const totalConversations = memories.reduce(
+    (total, memory) => total + memory.totalConversations,
+    0
+  )
 
   return (
-    <ConsolePage>
-      <ConsoleHeader
-        actions={
-          <>
-            <ConsoleSearch
-              className="w-full sm:w-72"
-              onChange={setSearchQuery}
-              placeholder="Search customers, intents, or notes"
-              value={searchQuery}
-            />
+    <ConsolePage width="wide">
+      <div className="report">
+        <section className="pt-2 pb-8">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="console-eyebrow">Customer memory</p>
             <Button
               disabled={isExporting}
               onClick={handleDownloadCsv}
-              variant="outline"
+              size="sm"
+              variant="ghost"
             >
               <DownloadIcon data-icon="inline-start" />
               {isExporting ? "Exporting…" : "Export CSV"}
             </Button>
-          </>
-        }
-        description="Fast context on who the customer is, what they care about, and what happened the last time they got in touch."
-        eyebrow="Context"
-        icon={BrainIcon}
-        meta={
-          <>
-            <ConsoleMeta label="Records" value={filteredMemories.length} />
-            <ConsoleMeta
-              dot
-              label="Escalations"
-              tone={totalEscalations ? "critical" : "positive"}
-              value={totalEscalations}
-            />
-          </>
-        }
-        title="Customer memory"
-      />
-
-      <StatGrid>
-        <Stat
-          hint="Distinct people with a memory record"
-          icon={UsersIcon}
-          label="Customers"
-          value={filteredMemories.length}
-        />
-        <Stat
-          hint="Across every remembered customer"
-          icon={MessagesSquareIcon}
-          label="Conversations"
-          tone="info"
-          value={totalConversations}
-        />
-        <Stat
-          hint="Seen in the last 30 days"
-          icon={Clock3Icon}
-          label="Recently active"
-          tone="positive"
-          value={recentCount}
-        />
-        <Stat
-          hint="Handed to a human at least once"
-          icon={AlertTriangleIcon}
-          label="Escalations"
-          tone={totalEscalations ? "critical" : "neutral"}
-          value={totalEscalations}
-        />
-      </StatGrid>
-
-      <Tabs
-        onValueChange={(value) => setActiveTab(value as MemoryTab)}
-        value={activeTab}
-      >
-        <TabsList className={consoleTabsListClass}>
-          <TabsTrigger className={consoleTabsTriggerClass} value="all">
-            <ListFilterIcon />
-            All
-            <TabCount>{filteredMemories.length}</TabCount>
-          </TabsTrigger>
-          <TabsTrigger className={consoleTabsTriggerClass} value="attention">
-            <AlertTriangleIcon />
-            Attention
-            <TabCount tone={attentionCount ? "critical" : "neutral"}>
-              {attentionCount}
-            </TabCount>
-          </TabsTrigger>
-          <TabsTrigger className={consoleTabsTriggerClass} value="recent">
-            <Clock3Icon />
-            Recent
-            <TabCount>{recentCount}</TabCount>
-          </TabsTrigger>
-          <TabsTrigger className={consoleTabsTriggerClass} value="resolved">
-            <CheckCircle2Icon />
-            Resolved
-            <TabCount>{resolvedCount}</TabCount>
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent className="mt-1 min-w-0" value={activeTab}>
-          <div className="mb-4">
-            <h2 className="console-section-title">{tabTitle}</h2>
-            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-              {tabDescription}
-            </p>
           </div>
 
-          {tabbedMemories.length ? (
-            <div className="grid min-w-0 gap-4 xl:grid-cols-2">
-              {tabbedMemories.map((memory) => (
-                <MemoryCard key={memory._id} memory={memory} />
-              ))}
-            </div>
+          {everyone ? (
+            <>
+              <h1 className="report-headline mt-6 max-w-[24ch]">
+                Your assistant remembers{" "}
+                <span className="report-headline-figure">
+                  {everyone} {everyone === 1 ? "customer" : "customers"}
+                </span>
+                .
+              </h1>
+              <p className="report-lede mt-5 max-w-[62ch]">
+                Built from <strong>{totalConversations}</strong>{" "}
+                {totalConversations === 1 ? "conversation" : "conversations"}.{" "}
+                <strong>{counts.recent}</strong> came back this month, and{" "}
+                <strong>{counts.attention}</strong>{" "}
+                {counts.attention === 1 ? "has" : "have"} needed your team at
+                least once — read their history before you reply.
+              </p>
+            </>
           ) : (
-            <Panel>
-              <EmptyState
-                description="Try another tab or search term. Memories build automatically from chat and voice conversations."
-                icon={BrainIcon}
-                title="No customer memory found"
-              />
-            </Panel>
+            <>
+              <h1 className="report-headline mt-6 max-w-[22ch]">
+                No one to remember yet.
+              </h1>
+              <p className="report-lede mt-5 max-w-[62ch]">
+                When a customer shares their email in chat or voice, your
+                assistant starts keeping notes — who they are, what they asked,
+                and how it ended — so nobody has to repeat themselves.
+              </p>
+            </>
           )}
-        </TabsContent>
-      </Tabs>
+        </section>
+
+        {everyone ? (
+          <>
+            <div className="flex flex-col gap-4 border-b border-[var(--report-rule)] sm:flex-row sm:items-end sm:justify-between">
+              <div
+                aria-label="Filter customers"
+                className="report-filters"
+                role="group"
+              >
+                {FILTERS.map(({ id, label }) => (
+                  <ReportFilter
+                    active={filter === id}
+                    count={counts[id]}
+                    key={id}
+                    onClick={() => {
+                      setFilter(id)
+                      setOpenedInline(false)
+                    }}
+                  >
+                    {label}
+                  </ReportFilter>
+                ))}
+              </div>
+              <ConsoleSearch
+                aria-label="Search customers"
+                className="mb-3 w-full sm:w-72"
+                onChange={setSearchQuery}
+                placeholder="Search names, emails, or notes"
+                value={searchQuery}
+              />
+            </div>
+
+            <div className="grid gap-10 pt-6 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:gap-14">
+              {visible.length ? (
+                <ul className="flex flex-col">
+                  {visible.map((memory) => {
+                    const isSelected = selected?._id === memory._id
+
+                    return (
+                      <li className="memory-row py-1" key={memory._id}>
+                        <PersonRow
+                          memory={memory}
+                          onSelect={() => {
+                            setSelectedId(memory._id)
+                            setOpenedInline(!(isSelected && openedInline))
+                          }}
+                          peek={isSelected && !openedInline}
+                          selected={isSelected}
+                        />
+                        {isSelected && openedInline ? (
+                          <div className="px-3 pt-4 pb-8 lg:hidden">
+                            <Dossier
+                              memory={memory}
+                              onClose={() => setOpenedInline(false)}
+                            />
+                          </div>
+                        ) : null}
+                      </li>
+                    )
+                  })}
+                </ul>
+              ) : (
+                <p className="py-10 text-sm text-muted-foreground">
+                  No one matches this filter
+                  {searchQuery.trim() ? " and search" : ""}. Try{" "}
+                  <button
+                    className="text-foreground underline underline-offset-4"
+                    onClick={() => {
+                      setFilter("all")
+                      setSearchQuery("")
+                    }}
+                    type="button"
+                  >
+                    showing everyone
+                  </button>
+                  .
+                </p>
+              )}
+
+              {selected ? (
+                <div className="hidden min-w-0 lg:sticky lg:top-6 lg:block lg:max-h-[calc(100svh-3rem)] lg:self-start lg:overflow-y-auto lg:pr-2">
+                  <Dossier memory={selected} />
+                </div>
+              ) : null}
+            </div>
+          </>
+        ) : null}
+      </div>
     </ConsolePage>
   )
 }

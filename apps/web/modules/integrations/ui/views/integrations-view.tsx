@@ -3,7 +3,6 @@
 import { useOrganization } from "@clerk/nextjs"
 import { useAction, useMutation, useQuery } from "convex/react"
 import { api } from "@workspace/backend/_generated/api"
-import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import { Checkbox } from "@workspace/ui/components/checkbox"
 import { Input } from "@workspace/ui/components/input"
@@ -29,34 +28,31 @@ import {
 import { ScrollArea } from "@workspace/ui/components/scroll-area"
 import { Switch } from "@workspace/ui/components/switch"
 import {
-  ActivityIcon,
-  BotIcon,
+  ArrowUpRightIcon,
   CameraIcon as InstagramIcon,
-  CheckCircle2Icon,
+  CheckIcon,
   ChevronDownIcon,
+  ChevronRightIcon,
   CopyIcon,
-  ExternalLinkIcon,
+  GlobeIcon,
   KeyRoundIcon,
   Loader2Icon,
-  PlugZapIcon,
+  PlusIcon,
   RefreshCwIcon,
   SendIcon,
-  ShieldCheckIcon,
   Trash2Icon,
   WebhookIcon,
-  XCircleIcon,
   ZapIcon,
 } from "lucide-react"
 import Image from "next/image"
 import { formatDistanceToNow } from "date-fns"
-import { useSearchParams } from "next/navigation"
-import { useEffect, useMemo, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import { cn } from "@workspace/ui/lib/utils"
-import {
-  ConsoleHeader,
-  ConsoleMeta,
-} from "@/modules/dashboard/ui/components/console"
+import { ConsolePage } from "@/modules/dashboard/ui/components/console"
+import "@/modules/dashboard/ui/styles/report.css"
+import "../styles/setup.css"
 import {
   DEFAULT_WIDGET_SCRIPT_URL,
   type IntegrationId,
@@ -78,6 +74,11 @@ import {
   type ProviderStatuses,
 } from "../components/api-keys-section"
 import { ProFeatureGate } from "@/modules/billing/ui/components/pro-feature-gate"
+import { Skeleton } from "@workspace/ui/components/skeleton"
+import {
+  SetupPanelSkeleton,
+  SkeletonRows,
+} from "@/modules/dashboard/ui/components/report-skeleton"
 
 type WebhookDestination = {
   _id: string
@@ -277,94 +278,207 @@ const tokenizeSnippet = (code: string): { text: string; cls: string }[] => {
   return tokens
 }
 
-const EmptyWebhooksState = () => (
-  <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-dashed py-14 text-center">
-    <svg
-      width="64"
-      height="64"
-      viewBox="0 0 80 80"
-      fill="none"
-      className="text-muted-foreground/20"
+// ─── setup primitives ─────────────────────────────────────────────────────────
+
+type SetupTone = "live" | "attention" | "error" | "off" | "neutral" | "loading"
+type SetupState = { tone: SetupTone; label: string }
+
+const StatusLine = ({
+  state,
+  className,
+}: {
+  state: SetupState
+  className?: string
+}) =>
+  state.tone === "loading" ? (
+    <span className={cn("flex min-w-0 items-center py-0.5", className)}>
+      <span className="sr-only">{state.label}</span>
+      <Skeleton aria-hidden className="h-2.5 w-28 rounded-full" />
+    </span>
+  ) : (
+  <span
+    className={cn(
+      "flex min-w-0 items-center gap-2 text-xs text-muted-foreground",
+      className
+    )}
+  >
+    <span className="setup-dot" data-tone={state.tone} />
+    <span
+      className={cn(
+        "truncate",
+        (state.tone === "attention" || state.tone === "error") &&
+          "font-medium text-foreground"
+      )}
     >
-      <circle
-        cx="40"
-        cy="40"
-        r="28"
-        stroke="currentColor"
-        strokeWidth="2.5"
-        strokeDasharray="6 4"
-      />
-      <path
-        d="M28 40h8M44 40h8"
-        stroke="currentColor"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-      />
-      <circle cx="40" cy="40" r="4" fill="currentColor" />
-      <path
-        d="M40 16v6M40 58v6M16 40h6M58 40h6"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        opacity="0.5"
-      />
-    </svg>
-    <div>
-      <p className="text-sm font-medium text-muted-foreground">
-        No destinations yet
-      </p>
-      <p className="mt-1 text-xs text-muted-foreground/60">
-        Create your first webhook on the left.
-      </p>
+      {state.label}
+    </span>
+  </span>
+)
+
+const PanelHeader = ({
+  glyph,
+  title,
+  state,
+  description,
+  actions,
+}: {
+  glyph: React.ReactNode
+  title: string
+  state: SetupState
+  description: React.ReactNode
+  actions?: React.ReactNode
+}) => (
+  <header className="pb-8">
+    <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="flex min-w-0 items-center gap-4">
+        <span className="setup-glyph size-14" data-size="lg">
+          {glyph}
+        </span>
+        <div className="min-w-0">
+          <h2 className="setup-panel-title">{title}</h2>
+          <StatusLine className="mt-2" state={state} />
+        </div>
+      </div>
+      {actions ? (
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {actions}
+        </div>
+      ) : null}
     </div>
+    <p className="report-lede mt-5 max-w-[62ch]">{description}</p>
+  </header>
+)
+
+const Step = ({
+  index,
+  title,
+  children,
+}: {
+  index: number
+  title: React.ReactNode
+  children?: React.ReactNode
+}) => (
+  <li>
+    <span className="setup-step-index">{index}</span>
+    <div className="min-w-0">
+      <p className="setup-step-title">{title}</p>
+      {children ? <div className="mt-3">{children}</div> : null}
+    </div>
+  </li>
+)
+
+const CopyField = ({
+  label,
+  value,
+  onCopy,
+}: {
+  label: string
+  value: string
+  onCopy: () => void
+}) => (
+  <div className="setup-field flex items-center justify-between gap-4 py-3">
+    <div className="min-w-0">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <code className="mt-1 block truncate font-mono text-[0.8rem] text-foreground">
+        {value}
+      </code>
+    </div>
+    <Button
+      aria-label={`Copy ${label.toLowerCase()}`}
+      className="shrink-0"
+      onClick={onCopy}
+      size="sm"
+      type="button"
+      variant="ghost"
+    >
+      <CopyIcon data-icon="inline-start" />
+      Copy
+    </Button>
   </div>
 )
 
-const EmptyDeliveriesState = () => (
-  <div className="flex flex-col items-center justify-center gap-4 py-14 text-center">
-    <svg
-      width="64"
-      height="64"
-      viewBox="0 0 80 80"
-      fill="none"
-      className="text-muted-foreground/20"
-    >
-      <rect
-        x="16"
-        y="24"
-        width="48"
-        height="32"
-        rx="4"
-        stroke="currentColor"
-        strokeWidth="2.5"
-      />
-      <path d="M16 34h48" stroke="currentColor" strokeWidth="2" />
-      <path
-        d="M28 44h8M28 50h16"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        opacity="0.6"
-      />
-      <circle
-        cx="56"
-        cy="47"
-        r="5"
-        stroke="currentColor"
-        strokeWidth="2"
-        opacity="0.6"
-      />
-    </svg>
-    <div>
-      <p className="text-sm font-medium text-muted-foreground">
-        No deliveries recorded
-      </p>
-      <p className="mt-1 text-xs text-muted-foreground/60">
-        Deliveries appear here after your first webhook fires.
-      </p>
-    </div>
+const Callout = ({
+  tone = "attention",
+  children,
+}: {
+  tone?: "attention" | "error" | "info"
+  children: React.ReactNode
+}) => (
+  <div
+    className="setup-callout text-sm leading-relaxed text-foreground"
+    data-tone={tone}
+    role={tone === "error" ? "alert" : undefined}
+  >
+    {children}
   </div>
 )
+
+const Disclosure = ({
+  summary,
+  children,
+  defaultOpen = false,
+}: {
+  summary: string
+  children: React.ReactNode
+  defaultOpen?: boolean
+}) => (
+  <details className="setup-disclosure" open={defaultOpen}>
+    <summary>
+      <ChevronRightIcon aria-hidden className="size-4" />
+      {summary}
+    </summary>
+    <div className="pb-4">{children}</div>
+  </details>
+)
+
+const DisconnectButton = ({
+  what,
+  consequence,
+  busy,
+  onConfirm,
+}: {
+  what: string
+  consequence: string
+  busy: boolean
+  onConfirm: () => void
+}) => (
+  <AlertDialog>
+    <AlertDialogTrigger asChild>
+      <Button
+        className="text-muted-foreground hover:text-destructive"
+        disabled={busy}
+        size="sm"
+        type="button"
+        variant="ghost"
+      >
+        {busy ? (
+          <Loader2Icon className="animate-spin" data-icon="inline-start" />
+        ) : (
+          <Trash2Icon data-icon="inline-start" />
+        )}
+        Disconnect
+      </Button>
+    </AlertDialogTrigger>
+    <AlertDialogContent>
+      <AlertDialogHeader>
+        <AlertDialogTitle>Disconnect {what}?</AlertDialogTitle>
+        <AlertDialogDescription>{consequence}</AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel>Keep connected</AlertDialogCancel>
+        <AlertDialogAction onClick={onConfirm}>Disconnect</AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>
+)
+
+const INSTALL_HINT: Record<IntegrationId, string> = {
+  html5:
+    "Paste it just before the closing </body> tag — or into the custom code / footer section of your site builder.",
+  react: "Render <EchoWidget /> once, in your root component.",
+  nextjs: "Render <EchoWidgetScript /> once, in your root layout.",
+  javascript: "Run it once when your page loads.",
+}
 
 type ActiveSection =
   | "widget"
@@ -377,6 +491,9 @@ type ActiveSection =
 export const IntegrationsView = () => {
   const { organization } = useOrganization()
   const searchParams = useSearchParams()
+  const router = useRouter()
+  const panelRef = useRef<HTMLDivElement>(null)
+  const [isAddingWebhook, setIsAddingWebhook] = useState(false)
 
   const [activeSection, setActiveSection] = useState<ActiveSection>("widget")
   const [selectedIntegration, setSelectedIntegration] =
@@ -648,21 +765,22 @@ export const IntegrationsView = () => {
     }
   }
 
-  const handleCreateWebhook = async () => {
+  /** Resolves true once the destination exists, so the form knows to close. */
+  const handleCreateWebhook = async (): Promise<boolean> => {
     const normalizedUrl = webhookUrl.trim()
     const isUrlRequired =
       selectedWebhookProvider === "webhook" ||
       selectedWebhookProvider === "discord"
     if (isUrlRequired && !normalizedUrl) {
       toast.error("Destination URL is required")
-      return
+      return false
     }
     if (
       selectedWebhookProvider === "telegram" &&
       (!telegramBotToken.trim() || !telegramChatId.trim())
     ) {
       toast.error("Telegram requires bot token and chat ID")
-      return
+      return false
     }
     if (
       selectedWebhookProvider === "whatsapp" &&
@@ -673,11 +791,11 @@ export const IntegrationsView = () => {
       toast.error(
         "WhatsApp requires access token, phone number ID, and recipient"
       )
-      return
+      return false
     }
     if (selectedWebhookEvents.length === 0) {
       toast.error("Select at least one event type")
-      return
+      return false
     }
 
     setIsCreatingWebhook(true)
@@ -712,8 +830,10 @@ export const IntegrationsView = () => {
       setWhatsappPhoneNumberId("")
       setWhatsappRecipientPhone("")
       toast.success("Webhook destination created")
+      return true
     } catch {
       toast.error("Failed to create webhook destination")
+      return false
     } finally {
       setIsCreatingWebhook(false)
     }
@@ -1014,1711 +1134,1467 @@ export const IntegrationsView = () => {
     return map
   }, [deliveryLogs])
 
-  const NAV_ITEMS: {
+  const channelState = (
+    integration:
+      | null
+      | undefined
+      | { status: "connected" | "needs_webhook_url" | "error" },
+    dashboardLoaded: boolean,
+    connectedLabel: string,
+    hasMismatch = false
+  ): SetupState => {
+    if (!dashboardLoaded) return { tone: "loading", label: "Checking…" }
+    if (!integration) return { tone: "off", label: "Not connected" }
+    if (integration.status === "error")
+      return { tone: "error", label: "Connection error" }
+    if (integration.status === "needs_webhook_url")
+      return { tone: "attention", label: "Finish webhook setup" }
+    if (hasMismatch)
+      return { tone: "attention", label: "Check webhook address" }
+    return { tone: "live", label: connectedLabel }
+  }
+
+  const telegramState = channelState(
+    telegramIntegration,
+    telegramDashboard !== undefined,
+    telegramIntegration?.botUsername
+      ? `Connected as @${telegramIntegration.botUsername}`
+      : "Connected"
+  )
+  const instagramState = channelState(
+    instagramIntegration,
+    instagramDashboard !== undefined,
+    instagramIntegration?.username
+      ? `Connected as @${instagramIntegration.username}`
+      : "Connected",
+    instagramWebhookHostMismatch
+  )
+  const whatsappState = channelState(
+    whatsappIntegration,
+    whatsappDashboard !== undefined,
+    whatsappIntegration?.displayPhoneNumber
+      ? `Connected as ${whatsappIntegration.displayPhoneNumber}`
+      : "Connected"
+  )
+  const websiteState: SetupState = {
+    tone: "neutral",
+    label: "Add the code to your site once",
+  }
+  const apiKeysState: SetupState =
+    providerStatuses === undefined
+      ? { tone: "loading", label: "Checking…" }
+      : configuredApiKeyCount > 0
+        ? {
+            tone: "live",
+            label: `${configuredApiKeyCount} of 2 keys saved`,
+          }
+        : { tone: "neutral", label: "Using Osonflow's keys" }
+  const latestDelivery = deliveryLogs[0]
+  const webhooksState: SetupState =
+    webhookDashboard === undefined
+      ? { tone: "loading", label: "Checking…" }
+      : webhookDestinations.length === 0
+        ? { tone: "off", label: "None set up" }
+        : latestDelivery?.status === "failed"
+          ? { tone: "attention", label: "Last delivery failed" }
+          : {
+              tone: "live",
+              label: `${webhookDestinations.length} ${
+                webhookDestinations.length === 1 ? "destination" : "destinations"
+              }`,
+            }
+
+  const SECTIONS: {
+    group: "Channels" | "Advanced"
     id: ActiveSection
-    label: string
-    icon: React.ReactNode
-    count?: number
+    title: string
+    glyph: React.ReactNode
+    state: SetupState
   }[] = [
     {
+      group: "Channels",
       id: "widget",
-      label: "Widget Setup",
-      icon: <PlugZapIcon className="size-4" />,
+      title: "Website chat",
+      glyph: <GlobeIcon className="size-4" />,
+      state: websiteState,
     },
     {
-      id: "apiKeys",
-      label: "API Keys",
-      icon: <KeyRoundIcon className="size-4" />,
-      count: configuredApiKeyCount,
-    },
-    {
+      group: "Channels",
       id: "telegram",
-      label: "Telegram Bot",
-      icon: <SendIcon className="size-4" />,
-      count: telegramIntegration ? 1 : undefined,
+      title: "Telegram",
+      glyph: <ProviderIcon provider="telegram" size={18} />,
+      state: telegramState,
     },
     {
+      group: "Channels",
       id: "instagram",
-      label: "Instagram",
-      icon: <InstagramIcon className="size-4" />,
-      count: instagramIntegration ? 1 : undefined,
+      title: "Instagram",
+      glyph: <ChannelIcon channel="instagram" size={17} />,
+      state: instagramState,
     },
     {
+      group: "Channels",
       id: "whatsapp",
-      label: "WhatsApp",
-      icon: <ProviderIcon provider="whatsapp" size={16} />,
-      count: whatsappIntegration ? 1 : undefined,
+      title: "WhatsApp",
+      glyph: <ProviderIcon provider="whatsapp" size={18} />,
+      state: whatsappState,
     },
     {
+      group: "Advanced",
+      id: "apiKeys",
+      title: "Your AI keys",
+      glyph: <KeyRoundIcon className="size-4" />,
+      state: apiKeysState,
+    },
+    {
+      group: "Advanced",
       id: "webhooks",
-      label: "Event Webhooks",
-      icon: <WebhookIcon className="size-4" />,
-      count: webhookDestinations.length,
+      title: "Event webhooks",
+      glyph: <WebhookIcon className="size-4" />,
+      state: webhooksState,
     },
   ]
 
-  return (
-    <div className="console-page flex h-full min-h-0 flex-col overflow-x-hidden overflow-y-auto">
-      <div className="mx-auto w-full max-w-[1540px] px-4 py-5 sm:px-6 sm:py-7">
-        <div className="mb-5">
-          <ConsoleHeader
-            actions={
-              <div className="console-inset flex min-w-0 items-center gap-2 px-3 py-1.5">
-                <KeyRoundIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                <code className="min-w-0 flex-1 truncate font-mono text-xs text-foreground sm:max-w-[300px]">
-                  {organization?.id ?? "—"}
-                </code>
-                <Button
-                  className="h-7 shrink-0 gap-1.5 px-2 text-xs"
-                  onClick={handleCopyOrganizationId}
-                  size="sm"
-                  type="button"
-                  variant="ghost"
-                >
-                  <CopyIcon className="size-3.5" />
-                  Copy
-                </Button>
-              </div>
-            }
-            description="Install the widget, generate embed code, and manage where events are delivered."
-            eyebrow="Setup"
-            icon={PlugZapIcon}
-            meta={
-              <>
-                <ConsoleMeta
-                  label="Webhooks"
-                  value={webhookDestinations.length}
-                />
-                <ConsoleMeta label="Events" value={deliveryLogs.length} />
-              </>
-            }
-            title="Setup & integrations"
-          />
+  const messagingStates = [telegramState, instagramState, whatsappState]
+  const isCheckingChannels =
+    telegramDashboard === undefined ||
+    instagramDashboard === undefined ||
+    whatsappDashboard === undefined
+  const connectedApps = messagingStates.filter(
+    (state) => state.tone === "live" || state.tone === "attention"
+  ).length
+  const attentionItems = SECTIONS.filter(
+    (section) =>
+      section.state.tone === "attention" || section.state.tone === "error"
+  )
 
-          <div className="console-segment mt-5 grid gap-1 overflow-x-auto sm:inline-grid sm:grid-cols-6">
-            {NAV_ITEMS.map((item) => (
+  const selectSection = (id: ActiveSection) => {
+    setActiveSection(id)
+    router.replace(`?section=${id}`, { scroll: false })
+    // On narrow screens the panel sits below the index — bring it into view.
+    if (window.matchMedia("(max-width: 1023px)").matches) {
+      requestAnimationFrame(() =>
+        panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+      )
+    }
+  }
+
+  const copy = (value: string, what: string) =>
+    void copyText(value, `${what} copied`, `Couldn't copy ${what.toLowerCase()}`)
+
+  // ── panels ──────────────────────────────────────────────────────────────
+
+  const websitePanel = (
+    <>
+      <PanelHeader
+        description="A chat button on your website that answers visitors with your knowledge base, day and night. Add the code once — changes you make in Widget customization appear on your site automatically."
+        glyph={<GlobeIcon className="size-6 text-primary" />}
+        state={websiteState}
+        title="Website chat"
+      />
+
+      <ol className="setup-steps">
+        <Step index={1} title="Where is your website built?">
+          <div
+            aria-label="Website platform"
+            className="flex flex-wrap gap-2"
+            role="radiogroup"
+          >
+            {INTEGRATIONS.map((integration) => (
               <button
-                key={item.id}
-                onClick={() => setActiveSection(item.id)}
+                aria-checked={integration.id === selectedIntegration}
+                className="setup-choice"
+                key={integration.id}
+                onClick={() => setSelectedIntegration(integration.id)}
+                role="radio"
                 type="button"
-                className={cn(
-                  "console-segment-item flex min-w-0 items-center justify-center gap-2 border border-transparent px-3 py-2 text-[0.8rem] font-medium",
-                  activeSection === item.id
-                    ? "text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-                data-active={activeSection === item.id || undefined}
               >
-                {item.icon}
-                <span className="truncate">{item.label}</span>
-                {item.count !== undefined && item.count > 0 && (
-                  <span className="console-numeral console-tone-neutral console-tone-wash rounded-full border px-1.5 text-[0.66rem] leading-4">
-                    {item.count}
-                  </span>
-                )}
+                <span className="setup-choice-icon">
+                  <Image
+                    alt=""
+                    height={16}
+                    src={integration.icon}
+                    width={16}
+                  />
+                </span>
+                {integration.id === "html5" ? "Any website" : integration.title}
               </button>
             ))}
           </div>
+          <p className="mt-3 text-sm text-muted-foreground">
+            {selectedIntegration === "html5"
+              ? "Not sure? Choose this — it works with plain HTML and most site builders."
+              : selectedIntegrationItem?.description}
+          </p>
+        </Step>
+
+        <Step index={2} title="Copy your code">
+          <div className="setup-code">
+            <Button
+              className="absolute top-3 right-3 z-10"
+              disabled={!snippet || !scriptUrlIsValid}
+              onClick={handleCopySnippet}
+              size="sm"
+              type="button"
+              variant={snippetCopied ? "secondary" : "default"}
+            >
+              {snippetCopied ? (
+                <CheckIcon data-icon="inline-start" />
+              ) : (
+                <CopyIcon data-icon="inline-start" />
+              )}
+              {snippetCopied ? "Copied" : "Copy code"}
+            </Button>
+            <pre>
+              {snippet ? (
+                snippetTokens.map((tok, i) => (
+                  <span className={tok.cls} key={i}>
+                    {tok.text}
+                  </span>
+                ))
+              ) : (
+                <span className="text-zinc-500">
+                  {"// Choose an organization to generate your code."}
+                </span>
+              )}
+            </pre>
+          </div>
+          {!scriptUrlIsValid ? (
+            <div className="mt-3">
+              <Callout tone="error">
+                The script address under Advanced options isn&apos;t a valid
+                web address, so the code can&apos;t be copied yet.
+              </Callout>
+            </div>
+          ) : null}
+        </Step>
+
+        <Step index={3} title="Paste it on your site and publish">
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            {INSTALL_HINT[selectedIntegration]} Then open your site — the chat
+            button appears in the{" "}
+            {WIDGET_POSITIONS.find(
+              (option) => option.id === position
+            )?.label.toLowerCase() ?? "bottom right"}{" "}
+            corner.
+          </p>
+        </Step>
+      </ol>
+
+      <div className="mt-10 border-t border-[var(--report-rule)]">
+        <Disclosure summary="Advanced options">
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="widget-agent">Assistant</Label>
+              <Select
+                disabled={agentsState === undefined || agents.length === 0}
+                onValueChange={setSelectedAgentId}
+                value={selectedAgentId}
+              >
+                <SelectTrigger className="w-full" id="widget-agent">
+                  <SelectValue placeholder="Select assistant" />
+                </SelectTrigger>
+                <SelectContent>
+                  {agents.map((agent) => (
+                    <SelectItem key={agent.agentId} value={agent.agentId}>
+                      {agent.name}
+                      {agent.isDefault ? " (default)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                The code loads this assistant&apos;s published settings.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="launcher-position">Chat button position</Label>
+              <Select
+                onValueChange={(value) => setPosition(value as WidgetPosition)}
+                value={position}
+              >
+                <SelectTrigger className="w-full" id="launcher-position">
+                  <SelectValue placeholder="Select position" />
+                </SelectTrigger>
+                <SelectContent>
+                  {WIDGET_POSITIONS.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="widget-script-url">Script address</Label>
+              <Input
+                aria-invalid={!scriptUrlIsValid}
+                className="font-mono text-xs"
+                id="widget-script-url"
+                onChange={(event) => setScriptUrl(event.target.value)}
+                placeholder="https://widget.osonflow.uz/widget.js"
+                value={scriptUrl}
+              />
+              <p className="text-xs text-muted-foreground">
+                Only change this if Osonflow support asked you to.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-6">
+            <CopyField
+              label="Organization ID"
+              onCopy={() => void handleCopyOrganizationId()}
+              value={organization?.id ?? "—"}
+            />
+          </div>
+
+          <button
+            className="mt-4 text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
+            onClick={resetGenerator}
+            type="button"
+          >
+            Reset to defaults
+          </button>
+        </Disclosure>
+      </div>
+    </>
+  )
+
+  const telegramPanel = (
+    <>
+      <PanelHeader
+        actions={
+          telegramIntegration ? (
+            <DisconnectButton
+              busy={isDisconnectingTelegram}
+              consequence="Customers messaging your bot will no longer reach your inbox or your assistant. Past conversations stay in Osonflow."
+              onConfirm={() => void handleDisconnectTelegram()}
+              what="your Telegram bot"
+            />
+          ) : null
+        }
+        description="Customers who message your Telegram bot are answered by your assistant, and the conversations land in your inbox."
+        glyph={<ProviderIcon provider="telegram" size={30} />}
+        state={telegramState}
+        title="Telegram"
+      />
+
+      {!telegramIntegration ? (
+        <ol className="setup-steps">
+          <Step index={1} title="Create a bot with BotFather">
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              Open BotFather in Telegram, send <code className="font-mono text-foreground">/newbot</code>{" "}
+              and follow its questions — it takes a minute.
+            </p>
+            <Button asChild className="mt-4" size="sm" variant="outline">
+              <a href="https://t.me/BotFather" rel="noreferrer" target="_blank">
+                Open BotFather
+                <ArrowUpRightIcon data-icon="inline-end" />
+              </a>
+            </Button>
+          </Step>
+          <Step index={2} title="Paste the token BotFather sends you">
+            <div className="flex max-w-xl flex-col gap-3 sm:flex-row">
+              <Label className="sr-only" htmlFor="telegram-channel-token">
+                Bot token
+              </Label>
+              <Input
+                className="min-w-0 flex-1 font-mono text-xs"
+                id="telegram-channel-token"
+                onChange={(event) =>
+                  setTelegramChannelBotToken(event.target.value)
+                }
+                placeholder="123456789:AA..."
+                type="password"
+                value={telegramChannelBotToken}
+              />
+              <Button
+                disabled={isConnectingTelegram || !telegramChannelBotToken.trim()}
+                onClick={handleConnectTelegram}
+                type="button"
+              >
+                {isConnectingTelegram ? (
+                  <Loader2Icon className="animate-spin" data-icon="inline-start" />
+                ) : (
+                  <SendIcon data-icon="inline-start" />
+                )}
+                {isConnectingTelegram ? "Connecting…" : "Connect"}
+              </Button>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              It looks like <span className="font-mono">123456789:AAH…</span>{" "}
+              Keep it private — anyone with it controls your bot.
+            </p>
+          </Step>
+          <Step index={3} title="Say hello to your bot">
+            <p className="text-sm text-muted-foreground">
+              Open your bot, tap Start and send a message. It appears in your
+              inbox within seconds.
+            </p>
+          </Step>
+        </ol>
+      ) : (
+        <div className="flex flex-col gap-6">
+          {telegramIntegration.setupError ? (
+            <Callout tone="error">{telegramIntegration.setupError}</Callout>
+          ) : null}
+          <div>
+            <CopyField
+              label="Bot"
+              onCopy={() =>
+                copy(
+                  telegramIntegration.botUsername
+                    ? `https://t.me/${telegramIntegration.botUsername}`
+                    : "",
+                  "Bot link"
+                )
+              }
+              value={
+                telegramIntegration.botUsername
+                  ? `t.me/${telegramIntegration.botUsername}`
+                  : "Connected bot"
+              }
+            />
+            <div className="setup-field flex items-center justify-between gap-4 py-3">
+              <p className="text-xs text-muted-foreground">Last message</p>
+              <p className="text-sm text-foreground">
+                {telegramIntegration.lastWebhookAt
+                  ? formatTimeAgo(telegramIntegration.lastWebhookAt)
+                  : "None yet"}
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            {telegramIntegration.botUsername ? (
+              <Button asChild size="sm" variant="outline">
+                <a
+                  href={`https://t.me/${telegramIntegration.botUsername}`}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  Open @{telegramIntegration.botUsername}
+                  <ArrowUpRightIcon data-icon="inline-end" />
+                </a>
+              </Button>
+            ) : null}
+            <p className="text-sm text-muted-foreground">
+              Send it a text message to test. Only text messages are handled
+              for now.
+            </p>
+          </div>
         </div>
+      )}
+    </>
+  )
 
-        {/* ─── WIDGET SETUP ─── */}
-        {activeSection === "widget" && (
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,430px)_minmax(0,1fr)]">
-            <section className="console-card min-w-0 p-3">
-              <div className="px-1 py-1">
-                <p className="console-eyebrow">
-                  Widget setup
-                </p>
-                <h2 className="console-section-title mt-1.5 text-[0.95rem]">
-                  Install target
-                </h2>
-                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                  Pick your environment, then tune the generated embed snippet.
-                </p>
+  const instagramPanel = (
+    <>
+      <PanelHeader
+        actions={
+          instagramIntegration ? (
+            <>
+              <Button
+                disabled={isResyncingInstagram}
+                onClick={handleResyncInstagramWebhooks}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                {isResyncingInstagram ? (
+                  <Loader2Icon className="animate-spin" data-icon="inline-start" />
+                ) : (
+                  <RefreshCwIcon data-icon="inline-start" />
+                )}
+                Refresh connection
+              </Button>
+              <DisconnectButton
+                busy={isDisconnectingInstagram}
+                consequence="Instagram DMs will stop reaching your inbox and your assistant. Past conversations stay in Osonflow."
+                onConfirm={() => void handleDisconnectInstagram()}
+                what="Instagram"
+              />
+            </>
+          ) : null
+        }
+        description="Direct messages to your Instagram professional account are answered by your assistant and collected in your inbox."
+        glyph={<ChannelIcon channel="instagram" size={28} />}
+        state={instagramState}
+        title="Instagram"
+      />
+
+      {!instagramIntegration ? (
+        <ol className="setup-steps">
+          <Step index={1} title="Sign in with Instagram">
+            <p className="text-sm text-muted-foreground">
+              You&apos;ll be asked to allow Osonflow to:
+            </p>
+            <ul className="mt-3 max-w-md">
+              {[
+                "Read and reply to direct messages",
+                "Read and reply to comments on your posts",
+                "See your account's name and profile picture",
+              ].map((permission) => (
+                <li
+                  className="setup-check flex items-center gap-3 py-2.5 text-sm text-foreground"
+                  key={permission}
+                >
+                  <CheckIcon aria-hidden className="size-4 text-primary" />
+                  {permission}
+                </li>
+              ))}
+            </ul>
+            <Button
+              className="mt-5"
+              disabled={isStartingInstagramOAuth}
+              onClick={handleConnectInstagram}
+              type="button"
+            >
+              {isStartingInstagramOAuth ? (
+                <Loader2Icon className="animate-spin" data-icon="inline-start" />
+              ) : (
+                <InstagramIcon data-icon="inline-start" />
+              )}
+              {isStartingInstagramOAuth
+                ? "Opening Instagram…"
+                : "Continue with Instagram"}
+            </Button>
+          </Step>
+          <Step index={2} title="Come back here">
+            <p className="text-sm text-muted-foreground">
+              After you approve, Instagram sends you back and your account shows
+              as connected. Nothing to copy or paste.
+            </p>
+          </Step>
+        </ol>
+      ) : (
+        <div className="flex flex-col gap-6">
+          {instagramIntegration.status === "needs_webhook_url" ? (
+            <Callout>
+              {instagramIntegration.setupError ||
+                "Instagram is connected, but messages can't arrive until the Meta webhook setup is finished."}
+            </Callout>
+          ) : null}
+          {instagramIntegration.status === "error" &&
+          instagramIntegration.setupError ? (
+            <Callout tone="error">{instagramIntegration.setupError}</Callout>
+          ) : null}
+          {instagramWebhookHostMismatch ? (
+            <Callout>
+              Your Meta webhook may point to a different Osonflow environment.
+              Press Refresh connection, then check the callback URL in your Meta
+              app.
+            </Callout>
+          ) : null}
+
+          <div>
+            <div className="setup-field flex items-center justify-between gap-4 py-3">
+              <p className="text-xs text-muted-foreground">Account</p>
+              <p className="truncate text-sm text-foreground">
+                {instagramIntegration.username
+                  ? `@${instagramIntegration.username}`
+                  : instagramIntegration.instagramUserId}
+              </p>
+            </div>
+            <div className="setup-field flex items-center justify-between gap-4 py-3">
+              <p className="text-xs text-muted-foreground">Last message</p>
+              <p className="text-sm text-foreground">
+                {instagramIntegration.lastWebhookAt
+                  ? formatTimeAgo(instagramIntegration.lastWebhookAt)
+                  : "None yet"}
+              </p>
+            </div>
+          </div>
+
+          <div className="border-t border-[var(--report-rule)]">
+            <Disclosure summary="Meta app setup (for your developer)">
+              <p className="max-w-[62ch] text-sm leading-relaxed text-muted-foreground">
+                In Meta App Dashboard, open Instagram → Webhooks and make sure{" "}
+                <code className="font-mono text-foreground">messages</code> is
+                subscribed — it&apos;s required for DMs and only needs doing
+                once. For production, switch the Meta app to Live mode and
+                complete App Review so any professional account can connect.
+              </p>
+              <p className="mt-3 text-xs text-muted-foreground">
+                Account ID{" "}
+                <span className="font-mono">
+                  {instagramIntegration.instagramUserId}
+                </span>
+              </p>
+            </Disclosure>
+          </div>
+        </div>
+      )}
+    </>
+  )
+
+  const whatsappPanel = (
+    <>
+      <PanelHeader
+        actions={
+          whatsappIntegration ? (
+            <DisconnectButton
+              busy={isDisconnectingWhatsapp}
+              consequence="Messages to this WhatsApp number will stop reaching your inbox and your assistant. Past conversations stay in Osonflow."
+              onConfirm={() => void handleDisconnectWhatsapp()}
+              what="WhatsApp"
+            />
+          ) : null
+        }
+        description="Messages to your WhatsApp Business number are answered by your assistant and collected in your inbox."
+        glyph={<ProviderIcon provider="whatsapp" size={30} />}
+        state={whatsappState}
+        title="WhatsApp"
+      />
+
+      {!whatsappIntegration ? (
+        <ol className="setup-steps">
+          <Step index={1} title="Open WhatsApp API setup in Meta">
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              In your Meta developer app, go to WhatsApp → API setup. You need
+              the <span className="text-foreground">Phone number ID</span> and a{" "}
+              <span className="text-foreground">permanent access token</span>.
+            </p>
+            <Button asChild className="mt-4" size="sm" variant="outline">
+              <a
+                href="https://developers.facebook.com/apps"
+                rel="noreferrer"
+                target="_blank"
+              >
+                Open Meta for Developers
+                <ArrowUpRightIcon data-icon="inline-end" />
+              </a>
+            </Button>
+          </Step>
+          <Step index={2} title="Paste them here">
+            <div className="grid max-w-xl gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="whatsapp-channel-phone-number-id">
+                  Phone number ID
+                </Label>
+                <Input
+                  className="font-mono text-xs"
+                  id="whatsapp-channel-phone-number-id"
+                  onChange={(event) =>
+                    setWhatsappChannelPhoneNumberId(event.target.value)
+                  }
+                  placeholder="123456789012345"
+                  value={whatsappChannelPhoneNumberId}
+                />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="whatsapp-channel-access-token">
+                  Access token
+                </Label>
+                <Input
+                  className="font-mono text-xs"
+                  id="whatsapp-channel-access-token"
+                  onChange={(event) =>
+                    setWhatsappChannelAccessToken(event.target.value)
+                  }
+                  placeholder="EAAG..."
+                  type="password"
+                  value={whatsappChannelAccessToken}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="whatsapp-channel-business-account-id">
+                  Business account ID{" "}
+                  <span className="font-normal text-muted-foreground">
+                    (optional)
+                  </span>
+                </Label>
+                <Input
+                  className="font-mono text-xs"
+                  id="whatsapp-channel-business-account-id"
+                  onChange={(event) =>
+                    setWhatsappChannelBusinessAccountId(event.target.value)
+                  }
+                  placeholder="987654321098765"
+                  value={whatsappChannelBusinessAccountId}
+                />
+              </div>
+              <Button
+                className="w-fit"
+                disabled={
+                  isConnectingWhatsapp ||
+                  !whatsappChannelPhoneNumberId.trim() ||
+                  !whatsappChannelAccessToken.trim()
+                }
+                onClick={handleConnectWhatsapp}
+                type="button"
+              >
+                {isConnectingWhatsapp ? (
+                  <Loader2Icon className="animate-spin" data-icon="inline-start" />
+                ) : (
+                  <SendIcon data-icon="inline-start" />
+                )}
+                {isConnectingWhatsapp ? "Connecting…" : "Connect WhatsApp"}
+              </Button>
+            </div>
+          </Step>
+          <Step index={3} title="Finish the webhook in Meta">
+            <p className="text-sm text-muted-foreground">
+              Once connected, this page shows the callback URL and verify token
+              to paste into Meta&apos;s webhook settings.
+            </p>
+          </Step>
+        </ol>
+      ) : (
+        <div className="flex flex-col gap-6">
+          {whatsappIntegration.status === "needs_webhook_url" ? (
+            <Callout>
+              {whatsappIntegration.setupError ||
+                "Connected — paste the callback URL and verify token below into Meta's webhook settings so messages can arrive."}
+            </Callout>
+          ) : null}
+          {whatsappIntegration.status === "error" &&
+          whatsappIntegration.setupError ? (
+            <Callout tone="error">{whatsappIntegration.setupError}</Callout>
+          ) : null}
 
-              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-1">
-                {INTEGRATIONS.map((integration) => {
-                  const isSelected = integration.id === selectedIntegration
-                  const isPopular =
-                    integration.id === "react" || integration.id === "nextjs"
-                  return (
+          <div>
+            <div className="setup-field flex items-center justify-between gap-4 py-3">
+              <p className="text-xs text-muted-foreground">Number</p>
+              <p className="truncate text-sm text-foreground">
+                {[
+                  whatsappIntegration.verifiedName,
+                  whatsappIntegration.displayPhoneNumber,
+                ]
+                  .filter(Boolean)
+                  .join(" · ") || whatsappIntegration.phoneNumberId}
+              </p>
+            </div>
+            <div className="setup-field flex items-center justify-between gap-4 py-3">
+              <p className="text-xs text-muted-foreground">Last message</p>
+              <p className="text-sm text-foreground">
+                {whatsappIntegration.lastWebhookAt
+                  ? formatTimeAgo(whatsappIntegration.lastWebhookAt)
+                  : "None yet"}
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <p className="console-label mb-2">Meta webhook settings</p>
+            {whatsappIntegration.webhookUrl ? (
+              <CopyField
+                label="Callback URL"
+                onCopy={() =>
+                  copy(whatsappIntegration.webhookUrl || "", "Callback URL")
+                }
+                value={whatsappIntegration.webhookUrl}
+              />
+            ) : null}
+            <CopyField
+              label="Verify token"
+              onCopy={() => copy(whatsappIntegration.verifyToken, "Verify token")}
+              value={whatsappIntegration.verifyToken}
+            />
+            <p className="mt-2 text-xs text-muted-foreground">
+              Phone number ID{" "}
+              <span className="font-mono">{whatsappIntegration.phoneNumberId}</span>
+            </p>
+          </div>
+        </div>
+      )}
+    </>
+  )
+
+  const apiKeysPanel = (
+    <>
+      <PanelHeader
+        description="Osonflow's own AI keys work out of the box. Add your company's keys only if you want AI usage billed to your own OpenAI or Google account."
+        glyph={<KeyRoundIcon className="size-6 text-primary" />}
+        state={apiKeysState}
+        title="Your AI keys"
+      />
+      <ProFeatureGate fallback={<SkeletonRows count={2} trailing={1} />}>
+        <ApiKeysSection providerStatuses={providerStatuses} />
+      </ProFeatureGate>
+    </>
+  )
+
+  const showWebhookForm = isAddingWebhook || webhookDestinations.length === 0
+
+  const webhooksPanel = (
+    <>
+      <PanelHeader
+        actions={
+          webhookDestinations.length > 0 && !isAddingWebhook ? (
+            <Button
+              onClick={() => setIsAddingWebhook(true)}
+              size="sm"
+              type="button"
+            >
+              <PlusIcon data-icon="inline-start" />
+              Add destination
+            </Button>
+          ) : null
+        }
+        description="Send a notice to Discord, Telegram, WhatsApp or your own system whenever something happens — a new chat, a message, a conversation handed to your team."
+        glyph={<WebhookIcon className="size-6 text-primary" />}
+        state={webhooksState}
+        title="Event webhooks"
+      />
+
+      {latestSigningSecret ? (
+        <div className="mb-8">
+          <Callout>
+            <p className="font-medium">Save this signing secret now — it&apos;s shown only once.</p>
+            <div className="mt-3 flex max-w-xl items-center gap-2">
+              <Input
+                aria-label="Signing secret"
+                className="font-mono text-xs"
+                readOnly
+                value={latestSigningSecret}
+              />
+              <Button
+                onClick={() => copy(latestSigningSecret, "Signing secret")}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                <CopyIcon data-icon="inline-start" />
+                Copy
+              </Button>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Your developer uses it to confirm events really came from Osonflow.
+            </p>
+          </Callout>
+        </div>
+      ) : null}
+
+      {webhookDestinations.length > 0 ? (
+        <section className="pb-8">
+          <p className="console-label mb-3">Destinations</p>
+          <ul>
+            {webhookDestinations.map((webhook) => {
+              const isExpanded = expandedWebhookId === webhook._id
+              const lastDelivery = lastDeliveryByWebhookId[webhook._id]
+              const isBusy = loadingWebhookId === webhook._id
+
+              return (
+                <li className="setup-row" key={webhook._id}>
+                  <div className="flex items-center gap-3 px-2 py-3">
                     <button
-                      key={integration.id}
-                      className={cn(
-                        "group relative w-full min-w-0 rounded-xl border px-3 py-3 text-left",
-                        "transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0",
-                        isSelected
-                          ? "border-[var(--console-hairline)] bg-muted/70"
-                          : "border-transparent bg-muted/35 hover:border-[var(--console-hairline-soft)] hover:bg-muted/55"
-                      )}
-                      onClick={() => setSelectedIntegration(integration.id)}
+                      aria-expanded={isExpanded}
+                      className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                      onClick={() =>
+                        setExpandedWebhookId(isExpanded ? null : webhook._id)
+                      }
                       type="button"
                     >
-                      {isSelected && (
-                        <span className="absolute top-2.5 right-2.5 size-2 rounded-full bg-primary" />
-                      )}
-                      {isPopular && !isSelected && (
-                        <span className="absolute top-2 right-2 rounded-full bg-card px-1.5 py-0.5 text-[9px] font-semibold tracking-wide text-muted-foreground uppercase">
-                          Popular
-                        </span>
-                      )}
-                      <div className="mb-2 flex items-center gap-3">
-                        <div className="flex size-9 items-center justify-center rounded-lg bg-background/88 transition-transform duration-200 group-hover:scale-105">
-                          <Image
-                            alt={integration.title}
-                            height={24}
-                            src={integration.icon}
-                            width={24}
-                          />
-                        </div>
-                        <span className="text-sm font-semibold text-foreground">
-                          {integration.title}
-                        </span>
-                      </div>
-                      <p className="text-xs leading-relaxed text-muted-foreground">
-                        {integration.description}
-                      </p>
-                    </button>
-                  )
-                })}
-              </div>
-
-              <div className="mt-3 space-y-4 rounded-2xl border border-[var(--console-hairline-soft)] bg-muted/35 p-3">
-                <div>
-                  <p className="text-xs font-semibold text-foreground">
-                    Configuration
-                  </p>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">
-                    Embed source and launcher placement.
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="widget-script-url"
-                    className="text-xs text-muted-foreground"
-                  >
-                    Script URL
-                  </Label>
-                  <Input
-                    id="widget-script-url"
-                    onChange={(e) => setScriptUrl(e.target.value)}
-                    placeholder="https://widget.osonflow.uz/widget.js"
-                    value={scriptUrl}
-                    className={cn(
-                      "h-10 min-w-0 bg-muted/55 font-mono text-xs",
-                      scriptUrlIsValid &&
-                        "border-green-500/50 focus-visible:ring-green-500/20"
-                    )}
-                  />
-                  <p
-                    className={cn(
-                      "text-xs",
-                      scriptUrlIsValid
-                        ? "text-green-600 dark:text-green-400"
-                        : "text-muted-foreground"
-                    )}
-                  >
-                    {scriptUrlIsValid
-                      ? "Valid URL — will be used in generated snippets."
-                      : "Use an absolute http(s) URL for the widget script."}
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="launcher-position"
-                    className="text-xs text-muted-foreground"
-                  >
-                    Launcher Position
-                  </Label>
-                  <Select
-                    onValueChange={(v) => setPosition(v as WidgetPosition)}
-                    value={position}
-                  >
-                    <SelectTrigger
-                      className="h-10 w-full min-w-0 bg-muted/55"
-                      id="launcher-position"
-                    >
-                      <SelectValue placeholder="Select position" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {WIDGET_POSITIONS.map((opt) => (
-                        <SelectItem key={opt.id} value={opt.id}>
-                          {opt.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="widget-agent"
-                    className="text-xs text-muted-foreground"
-                  >
-                    Agent
-                  </Label>
-                  <Select
-                    onValueChange={setSelectedAgentId}
-                    value={selectedAgentId}
-                    disabled={agentsState === undefined || agents.length === 0}
-                  >
-                    <SelectTrigger
-                      className="h-10 w-full min-w-0 bg-muted/55"
-                      id="widget-agent"
-                    >
-                      <SelectValue placeholder="Select agent" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {agents.map((agent) => (
-                        <SelectItem key={agent.agentId} value={agent.agentId}>
-                          {agent.name}
-                          {agent.isDefault ? " (default)" : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Embeds load this agent&apos;s published settings.
-                  </p>
-                </div>
-
-                <button
-                  className="text-xs font-medium text-foreground underline-offset-4 transition-colors hover:underline"
-                  onClick={resetGenerator}
-                  type="button"
-                >
-                  Reset to defaults
-                </button>
-              </div>
-            </section>
-
-            <section className="console-card min-w-0 overflow-hidden">
-              <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[var(--console-hairline-soft)] px-4 py-4 sm:px-5">
-                <div className="min-w-0">
-                  <p className="console-eyebrow">
-                    Generated snippet
-                  </p>
-                  <h2 className="console-section-title mt-1.5 text-[0.95rem]">
-                    {selectedIntegrationItem?.title ?? "Framework"} install code
-                  </h2>
-                  <p className="text-sm text-muted-foreground">
-                    Includes your organization ID, agent, and launcher position.
-                  </p>
-                </div>
-                <Button
-                  className={cn(
-                    "gap-2 transition-all duration-200",
-                    snippetCopied && "text-green-600"
-                  )}
-                  disabled={!snippet || !scriptUrlIsValid}
-                  onClick={handleCopySnippet}
-                  size="sm"
-                  type="button"
-                  variant={snippetCopied ? "outline" : "default"}
-                >
-                  {snippetCopied ? (
-                    <>
-                      <CheckCircle2Icon className="size-3.5" />
-                      Copied!
-                    </>
-                  ) : (
-                    <>
-                      <CopyIcon className="size-3.5" />
-                      Copy snippet
-                    </>
-                  )}
-                </Button>
-              </div>
-
-              <div className="min-w-0 overflow-hidden">
-                <div className="flex items-center justify-between bg-zinc-900 px-4 py-2.5">
-                  <div className="flex items-center gap-1.5">
-                    <span className="size-3 rounded-full bg-red-500/70" />
-                    <span className="size-3 rounded-full bg-yellow-500/70" />
-                    <span className="size-3 rounded-full bg-green-500/70" />
-                  </div>
-                  <span className="font-mono text-xs text-zinc-400">
-                    {selectedIntegrationItem?.title ?? "snippet"}
-                  </span>
-                  <div className="w-16" aria-hidden="true" />
-                </div>
-                <div className="min-h-[320px] w-full min-w-0 overflow-auto bg-zinc-950 p-4 sm:min-h-[380px] sm:p-5">
-                  <pre className="font-mono text-xs leading-relaxed whitespace-pre">
-                    {snippet ? (
-                      snippetTokens.map((tok, i) => (
-                        <span key={i} className={tok.cls}>
-                          {tok.text}
-                        </span>
-                      ))
-                    ) : (
-                      <span className="text-zinc-600">
-                        // Select an organization to generate your snippet.
+                      <span className="setup-glyph size-9">
+                        <ProviderIcon provider={webhook.provider} size={18} />
                       </span>
-                    )}
-                  </pre>
-                </div>
-              </div>
-
-              <div className="border-t border-[var(--console-hairline-soft)] bg-card p-4 sm:p-5">
-                <ol className="list-none space-y-2 text-sm text-muted-foreground">
-                  {[
-                    "Copy the snippet above.",
-                    "Paste it into your app, layout, root component, or HTML page.",
-                    "Publish and test on your live page.",
-                  ].map((step, i) => (
-                    <li key={i} className="flex items-start gap-3">
-                      <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                        {i + 1}
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[0.95rem] font-medium text-foreground">
+                          {webhook.description ||
+                            formatWebhookProviderLabel(webhook.provider)}
+                        </span>
+                        <StatusLine
+                          className="mt-0.5"
+                          state={
+                            !webhook.isEnabled
+                              ? { tone: "off", label: "Paused" }
+                              : lastDelivery?.status === "failed"
+                                ? {
+                                    tone: "attention",
+                                    label: `Last delivery failed ${formatTimeAgo(lastDelivery._creationTime)}`,
+                                  }
+                                : lastDelivery
+                                  ? {
+                                      tone: "live",
+                                      label: `Delivered ${formatTimeAgo(lastDelivery._creationTime)}`,
+                                    }
+                                  : { tone: "live", label: "On · no events yet" }
+                          }
+                        />
                       </span>
-                      {step}
-                    </li>
-                  ))}
-                </ol>
-              </div>
-            </section>
-          </div>
-        )}
-
-        {/* ─── API KEYS ─── */}
-        {activeSection === "apiKeys" && (
-          <ProFeatureGate>
-            <ApiKeysSection providerStatuses={providerStatuses} />
-          </ProFeatureGate>
-        )}
-
-        {/* ─── TELEGRAM BOT ─── */}
-        {activeSection === "telegram" && (
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,430px)_minmax(0,1fr)]">
-            <section className="console-card min-w-0 p-3">
-              <div className="px-1 py-1">
-                <p className="console-eyebrow">
-                  Channel
-                </p>
-                <h2 className="console-section-title mt-1.5 text-[0.95rem]">
-                  Connect Telegram
-                </h2>
-                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                  Add your BotFather token and route Telegram chats into the
-                  Osonflow inbox.
-                </p>
-              </div>
-
-              <div className="mt-3 space-y-4 rounded-2xl border border-[var(--console-hairline-soft)] bg-muted/35 p-3">
-                <div className="flex items-center gap-3 console-inset p-3">
-                  <ProviderIcon provider="telegram" size={30} />
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-foreground">
-                      Telegram bot channel
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Customer messages become support conversations.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="telegram-channel-token"
-                    className="text-xs text-muted-foreground"
-                  >
-                    Bot Token
-                  </Label>
-                  <Input
-                    className="bg-muted/55 font-mono text-xs"
-                    id="telegram-channel-token"
-                    onChange={(e) => setTelegramChannelBotToken(e.target.value)}
-                    placeholder="123456789:AA..."
-                    type="password"
-                    value={telegramChannelBotToken}
-                  />
-                </div>
-
-                <Button
-                  className="w-full gap-2"
-                  disabled={isConnectingTelegram}
-                  onClick={handleConnectTelegram}
-                  type="button"
-                >
-                  {isConnectingTelegram ? (
-                    <>
-                      <Loader2Icon className="size-4 animate-spin" />
-                      Connecting...
-                    </>
-                  ) : (
-                    <>
-                      <SendIcon className="size-4" />
-                      Connect Telegram Bot
-                    </>
-                  )}
-                </Button>
-              </div>
-            </section>
-
-            <section className="console-card min-w-0 overflow-hidden">
-              <div className="flex items-center justify-between border-b border-[var(--console-hairline-soft)] px-4 py-4 sm:px-5">
-                <div className="flex min-w-0 items-start gap-3">
-                  <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-[var(--console-hairline-soft)] bg-background shadow-sm">
-                    <BotIcon className="size-4 text-muted-foreground" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="console-eyebrow">
-                      Telegram
-                    </p>
-                    <h2 className="console-section-title mt-1.5 text-[0.95rem]">
-                      Channel status
-                    </h2>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      One bot per organization for now.
-                    </p>
-                  </div>
-                </div>
-                <Badge
-                  variant={telegramIntegration ? "default" : "outline"}
-                  className="shrink-0 text-xs"
-                >
-                  {telegramIntegration ? "Connected" : "Not connected"}
-                </Badge>
-              </div>
-
-              <div className="p-4 sm:p-5">
-                {!telegramIntegration ? (
-                  <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-dashed py-14 text-center">
-                    <ProviderIcon provider="telegram" size={46} />
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">
-                        No Telegram bot connected
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground/60">
-                        Connect a bot to receive Telegram chats in Osonflow.
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-4">
-                      <div className="flex min-w-0 items-center gap-3">
-                        <ProviderIcon provider="telegram" size={34} />
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold">
-                            {telegramIntegration.botUsername
-                              ? `@${telegramIntegration.botUsername}`
-                              : "Connected"}
-                          </p>
-                          <p className="text-xs capitalize text-muted-foreground">
-                            {telegramIntegration.status.replaceAll("_", " ")}
-                          </p>
-                        </div>
-                      </div>
-                      <Button
-                        aria-label="Disconnect Telegram"
-                        className="size-9 p-0"
-                        disabled={isDisconnectingTelegram}
-                        onClick={handleDisconnectTelegram}
-                        title="Disconnect Telegram"
-                        type="button"
-                        variant="destructive"
-                      >
-                        {isDisconnectingTelegram ? (
-                          <Loader2Icon className="size-4 animate-spin" />
-                        ) : (
-                          <Trash2Icon className="size-4" />
+                      <ChevronDownIcon
+                        aria-hidden
+                        className={cn(
+                          "size-4 shrink-0 text-muted-foreground transition-transform duration-200",
+                          isExpanded && "rotate-180"
                         )}
-                      </Button>
-                    </div>
-
-                    {telegramIntegration.setupError ? (
-                      <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
-                        {telegramIntegration.setupError}
-                      </div>
-                    ) : null}
-
-                    <p className="text-xs text-muted-foreground">
-                      After connecting, open your bot in Telegram, tap Start,
-                      then send a normal message. Only text messages are handled
-                      right now.
-                    </p>
+                      />
+                    </button>
+                    <Switch
+                      aria-label={
+                        webhook.isEnabled
+                          ? "Pause destination"
+                          : "Turn destination on"
+                      }
+                      checked={webhook.isEnabled}
+                      disabled={isBusy}
+                      onCheckedChange={() => handleToggleWebhookEnabled(webhook)}
+                    />
                   </div>
-                )}
-              </div>
-            </section>
-          </div>
-        )}
 
-        {/* ─── INSTAGRAM ─── */}
-        {activeSection === "instagram" && (
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,430px)_minmax(0,1fr)]">
-            <section className="console-card min-w-0 p-3">
-              <div className="px-1 py-1">
-                <p className="console-eyebrow">
-                  Channel
-                </p>
-                <h2 className="console-section-title mt-1.5 text-[0.95rem]">
-                  Connect Instagram
-                </h2>
-                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                  Sign in with Instagram to route DMs and comments into the
-                  Osonflow inbox.
-                </p>
-              </div>
-
-              <div className="mt-3 space-y-4 rounded-2xl border border-[var(--console-hairline-soft)] bg-muted/35 p-3">
-                <div className="flex items-center gap-3 console-inset p-3">
-                  <ChannelIcon channel="instagram" size={30} />
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-foreground">
-                      Instagram DM channel
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Customer DMs become support conversations.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="console-inset p-3">
-                  <div className="flex items-start gap-2">
-                    <ShieldCheckIcon className="mt-0.5 size-4 shrink-0 text-blue-500" />
-                    <div className="space-y-2">
-                      <p className="text-xs font-medium text-foreground">
-                        Osonflow will request permission to:
+                  {isExpanded ? (
+                    <div className="setup-panel grid gap-4 pr-2 pb-5 pl-14">
+                      <p className="text-sm text-muted-foreground">
+                        {formatWebhookProviderLabel(webhook.provider)}
+                        {webhook.provider === "telegram"
+                          ? ` · chat ${webhook.providerConfigPreview?.telegramChatId || "—"}`
+                          : null}
+                        {webhook.provider === "whatsapp"
+                          ? ` · to ${webhook.providerConfigPreview?.whatsappRecipientPhone || "—"}`
+                          : null}
                       </p>
-                      <ul className="space-y-1 text-xs text-muted-foreground">
-                        <li>Read and reply to DM messages</li>
-                        <li>Read and reply to post comments</li>
-                        <li>Access account profile information</li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-
-                <Button
-                  className="w-full gap-2"
-                  disabled={isStartingInstagramOAuth || Boolean(instagramIntegration)}
-                  onClick={handleConnectInstagram}
-                  type="button"
-                >
-                  {isStartingInstagramOAuth ? (
-                    <>
-                      <Loader2Icon className="size-4 animate-spin" />
-                      Redirecting to Instagram...
-                    </>
-                  ) : (
-                    <>
-                      <InstagramIcon className="size-4" />
-                      Continue with Instagram
-                      <ExternalLinkIcon className="size-4 opacity-70" />
-                    </>
-                  )}
-                </Button>
-
-                <p className="text-center text-[11px] leading-relaxed text-muted-foreground">
-                  You will be redirected to Instagram to authorize access. You do
-                  not need to add accounts manually in Meta&apos;s &quot;Generate
-                  access tokens&quot; section.
-                </p>
-              </div>
-            </section>
-
-            <section className="console-card min-w-0 overflow-hidden">
-              <div className="flex items-center justify-between border-b border-[var(--console-hairline-soft)] px-4 py-4 sm:px-5">
-                <div className="flex min-w-0 items-start gap-3">
-                  <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-[var(--console-hairline-soft)] bg-background shadow-sm">
-                    <InstagramIcon className="size-4 text-muted-foreground" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="console-eyebrow">
-                      Instagram
-                    </p>
-                    <h2 className="console-section-title mt-1.5 text-[0.95rem]">
-                      Channel status
-                    </h2>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      One Instagram account per organization for now.
-                    </p>
-                  </div>
-                </div>
-                <Badge
-                  variant={
-                    instagramIntegration?.status === "connected"
-                      ? "default"
-                      : "outline"
-                  }
-                  className="shrink-0 text-xs"
-                >
-                  {!instagramIntegration
-                    ? "Not connected"
-                    : instagramIntegration.status === "connected"
-                      ? "Connected"
-                      : "Needs setup"}
-                </Badge>
-              </div>
-
-              <div className="p-4 sm:p-5">
-                {!instagramIntegration ? (
-                  <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-dashed py-14 text-center">
-                    <ChannelIcon channel="instagram" size={46} />
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">
-                        No Instagram account connected
+                      {webhook.url ? (
+                        <code className="font-mono text-xs break-all text-muted-foreground">
+                          {webhook.url}
+                        </code>
+                      ) : null}
+                      <p className="text-sm text-muted-foreground">
+                        Sends:{" "}
+                        <span className="text-foreground">
+                          {webhook.eventTypes.map(formatEventTypeLabel).join(", ")}
+                        </span>
                       </p>
-                      <p className="mt-1 text-xs text-muted-foreground/60">
-                        Connect an account to receive Instagram DMs in Osonflow.
+                      <p className="font-mono text-[0.7rem] text-muted-foreground">
+                        Signing secret {webhook.signingSecretPreview}
                       </p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-4">
-                      <div className="flex min-w-0 items-center gap-3">
-                        <ChannelIcon channel="instagram" size={34} />
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold">
-                            {instagramIntegration.username
-                              ? `@${instagramIntegration.username}`
-                              : "Connected"}
-                          </p>
-                          <p className="truncate text-xs text-muted-foreground">
-                            {instagramIntegration.instagramUserId}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <Button
-                          disabled={isResyncingInstagram}
-                          onClick={handleResyncInstagramWebhooks}
+                          disabled={isBusy}
+                          onClick={() => handleRotateSigningSecret(webhook)}
                           size="sm"
                           type="button"
                           variant="outline"
                         >
-                          {isResyncingInstagram ? (
-                            <Loader2Icon className="size-4 animate-spin" />
-                          ) : (
-                            "Refresh webhooks"
-                          )}
+                          <RefreshCwIcon data-icon="inline-start" />
+                          New signing secret
                         </Button>
-                        <Button
-                          aria-label="Disconnect Instagram"
-                          className="size-9 p-0"
-                          disabled={isDisconnectingInstagram}
-                          onClick={handleDisconnectInstagram}
-                          title="Disconnect Instagram"
-                          type="button"
-                          variant="destructive"
-                        >
-                          {isDisconnectingInstagram ? (
-                            <Loader2Icon className="size-4 animate-spin" />
-                          ) : (
-                            <Trash2Icon className="size-4" />
-                          )}
-                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              className="text-muted-foreground hover:text-destructive"
+                              disabled={isBusy}
+                              size="sm"
+                              type="button"
+                              variant="ghost"
+                            >
+                              <Trash2Icon data-icon="inline-start" />
+                              Remove
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>
+                                Remove this destination?
+                              </AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This permanently deletes the{" "}
+                                {formatWebhookProviderLabel(webhook.provider)}{" "}
+                                destination
+                                {webhook.description
+                                  ? ` “${webhook.description}”`
+                                  : ""}{" "}
+                                and its delivery history.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDeleteWebhook(webhook)}
+                              >
+                                Remove
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
                     </div>
+                  ) : null}
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      ) : null}
 
-                    <p className="text-xs text-muted-foreground">
-                      Instagram DMs are routed into your Osonflow inbox after
-                      Meta webhooks are configured. OAuth automatically subscribes
-                      the authorized account to message webhooks.
-                    </p>
-
-                    {instagramIntegration.status === "needs_webhook_url" && (
-                      <p className="text-xs text-amber-600 dark:text-amber-400">
-                        {instagramIntegration.setupError
-                          ? instagramIntegration.setupError
-                          : "Finish Meta webhook setup to start receiving Instagram DMs."}
-                      </p>
-                    )}
-
-                    {instagramWebhookHostMismatch && (
-                      <p className="text-xs text-amber-600 dark:text-amber-400">
-                        Webhook configuration may point to a different Convex
-                        deployment than your app. Click Refresh webhooks and
-                        update Meta App Dashboard if needed.
-                      </p>
-                    )}
-
-                    <p className="text-xs text-muted-foreground">
-                      In Meta App Dashboard, open Instagram → Webhooks and ensure{" "}
-                      <code className="font-mono">messages</code> is subscribed
-                      (required for DMs). This is a one-time app-level setup. For
-                      production, switch your Meta app to Live mode and complete
-                      App Review so any Instagram professional account can connect
-                      through OAuth.
-                    </p>
-
-                    {instagramIntegration.lastWebhookAt && (
-                      <p className="text-xs text-muted-foreground">
-                        Last webhook{" "}
-                        {formatTimeAgo(instagramIntegration.lastWebhookAt)}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-            </section>
+      {showWebhookForm ? (
+        <section className="setup-panel border-t border-[var(--report-rule)] py-8">
+          <div className="mb-6 flex items-center justify-between gap-3">
+            <p className="setup-step-title pt-0">
+              {webhookDestinations.length ? "Add a destination" : "Add your first destination"}
+            </p>
+            {webhookDestinations.length ? (
+              <Button
+                onClick={() => setIsAddingWebhook(false)}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                Cancel
+              </Button>
+            ) : null}
           </div>
-        )}
 
-        {/* ─── WHATSAPP ─── */}
-        {activeSection === "whatsapp" && (
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,430px)_minmax(0,1fr)]">
-            <section className="console-card min-w-0 p-3">
-              <div className="px-1 py-1">
-                <p className="console-eyebrow">
-                  Channel
-                </p>
-                <h2 className="console-section-title mt-1.5 text-[0.95rem]">
-                  Connect WhatsApp
-                </h2>
-                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                  Add your WhatsApp Cloud API number and route customer messages
-                  into the Osonflow inbox.
-                </p>
+          <ol className="setup-steps">
+            <Step index={1} title="Where should notices go?">
+              <div
+                aria-label="Destination"
+                className="flex flex-wrap gap-2"
+                role="radiogroup"
+              >
+                {WEBHOOK_PROVIDERS.map((provider) => (
+                  <button
+                    aria-checked={selectedWebhookProvider === provider.id}
+                    className="setup-choice"
+                    key={provider.id}
+                    onClick={() =>
+                      handleWebhookProviderChange(provider.id as WebhookProvider)
+                    }
+                    role="radio"
+                    type="button"
+                  >
+                    <span className="setup-choice-icon">
+                      <ProviderIcon
+                        provider={provider.id as WebhookProvider}
+                        size={16}
+                      />
+                    </span>
+                    {provider.label}
+                  </button>
+                ))}
               </div>
+              <p className="mt-3 text-sm text-muted-foreground">
+                {selectedWebhookProviderItem.description}
+              </p>
+            </Step>
 
-              <div className="mt-3 space-y-4 rounded-2xl border border-[var(--console-hairline-soft)] bg-muted/35 p-3">
-                <div className="flex items-center gap-3 console-inset p-3">
-                  <ChannelIcon channel="whatsapp" size={30} />
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-foreground">
-                      WhatsApp channel
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Customer messages become support conversations.
-                    </p>
-                  </div>
-                </div>
+            <Step index={2} title="Connection details">
+              <div className="grid max-w-xl gap-4">
+                {selectedWebhookProvider === "telegram" ? (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="telegram-bot-token">Bot token</Label>
+                      <Input
+                        className="font-mono text-xs"
+                        id="telegram-bot-token"
+                        onChange={(event) => setTelegramBotToken(event.target.value)}
+                        placeholder="123456789:AA..."
+                        type="password"
+                        value={telegramBotToken}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="telegram-chat-id">Chat ID</Label>
+                      <Input
+                        className="font-mono text-xs"
+                        id="telegram-chat-id"
+                        onChange={(event) => setTelegramChatId(event.target.value)}
+                        placeholder="-1001234567890"
+                        value={telegramChatId}
+                      />
+                    </div>
+                  </>
+                ) : null}
+
+                {selectedWebhookProvider === "whatsapp" ? (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="whatsapp-access-token">Access token</Label>
+                      <Input
+                        className="font-mono text-xs"
+                        id="whatsapp-access-token"
+                        onChange={(event) =>
+                          setWhatsappAccessToken(event.target.value)
+                        }
+                        placeholder="EAAG..."
+                        type="password"
+                        value={whatsappAccessToken}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="whatsapp-phone-number-id">
+                        Phone number ID
+                      </Label>
+                      <Input
+                        className="font-mono text-xs"
+                        id="whatsapp-phone-number-id"
+                        onChange={(event) =>
+                          setWhatsappPhoneNumberId(event.target.value)
+                        }
+                        placeholder="123456789012345"
+                        value={whatsappPhoneNumberId}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="whatsapp-recipient-phone">
+                        Send to phone number
+                      </Label>
+                      <Input
+                        className="font-mono text-xs"
+                        id="whatsapp-recipient-phone"
+                        onChange={(event) =>
+                          setWhatsappRecipientPhone(event.target.value)
+                        }
+                        placeholder="15551234567"
+                        value={whatsappRecipientPhone}
+                      />
+                    </div>
+                  </>
+                ) : null}
 
                 <div className="space-y-2">
-                  <Label
-                    htmlFor="whatsapp-channel-phone-number-id"
-                    className="text-xs text-muted-foreground"
-                  >
-                    Phone Number ID
+                  <Label htmlFor="webhook-url">
+                    {selectedWebhookProvider === "telegram" ||
+                    selectedWebhookProvider === "whatsapp"
+                      ? "Endpoint URL (optional)"
+                      : "Webhook URL"}
                   </Label>
                   <Input
-                    className="bg-muted/55 font-mono text-xs"
-                    id="whatsapp-channel-phone-number-id"
-                    onChange={(e) =>
-                      setWhatsappChannelPhoneNumberId(e.target.value)
-                    }
-                    placeholder="123456789012345"
-                    value={whatsappChannelPhoneNumberId}
+                    className="font-mono text-xs"
+                    id="webhook-url"
+                    onChange={(event) => setWebhookUrl(event.target.value)}
+                    placeholder={selectedWebhookProviderItem.defaultUrl}
+                    value={webhookUrl}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    {selectedWebhookProvider === "telegram" ||
+                    selectedWebhookProvider === "whatsapp"
+                      ? "Leave as it is unless you use a custom relay."
+                      : selectedWebhookProvider === "discord"
+                        ? "In Discord: channel settings → Integrations → Webhooks → Copy webhook URL."
+                        : "The address your system gave you for receiving events."}
+                  </p>
                 </div>
 
                 <div className="space-y-2">
-                  <Label
-                    htmlFor="whatsapp-channel-access-token"
-                    className="text-xs text-muted-foreground"
-                  >
-                    Access Token
-                  </Label>
-                  <Input
-                    className="bg-muted/55 font-mono text-xs"
-                    id="whatsapp-channel-access-token"
-                    onChange={(e) =>
-                      setWhatsappChannelAccessToken(e.target.value)
-                    }
-                    placeholder="EAAG..."
-                    type="password"
-                    value={whatsappChannelAccessToken}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="whatsapp-channel-business-account-id"
-                    className="text-xs text-muted-foreground"
-                  >
-                    Business Account ID{" "}
-                    <span className="text-muted-foreground/60">
+                  <Label htmlFor="webhook-description">
+                    Name{" "}
+                    <span className="font-normal text-muted-foreground">
                       (optional)
                     </span>
                   </Label>
                   <Input
-                    className="bg-muted/55 font-mono text-xs"
-                    id="whatsapp-channel-business-account-id"
-                    onChange={(e) =>
-                      setWhatsappChannelBusinessAccountId(e.target.value)
-                    }
-                    placeholder="987654321098765"
-                    value={whatsappChannelBusinessAccountId}
+                    id="webhook-description"
+                    onChange={(event) => setWebhookDescription(event.target.value)}
+                    placeholder="e.g. Reception alerts"
+                    value={webhookDescription}
                   />
                 </div>
-
-                <Button
-                  className="w-full gap-2"
-                  disabled={isConnectingWhatsapp}
-                  onClick={handleConnectWhatsapp}
-                  type="button"
-                >
-                  {isConnectingWhatsapp ? (
-                    <>
-                      <Loader2Icon className="size-4 animate-spin" />
-                      Connecting...
-                    </>
-                  ) : (
-                    <>
-                      <SendIcon className="size-4" />
-                      Connect WhatsApp
-                    </>
-                  )}
-                </Button>
               </div>
-            </section>
+            </Step>
 
-            <section className="console-card min-w-0 overflow-hidden">
-              <div className="flex items-center justify-between border-b border-[var(--console-hairline-soft)] px-4 py-4 sm:px-5">
-                <div className="flex min-w-0 items-start gap-3">
-                  <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-[var(--console-hairline-soft)] bg-background shadow-sm">
-                    <ProviderIcon provider="whatsapp" size={20} />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="console-eyebrow">
-                      WhatsApp
-                    </p>
-                    <h2 className="console-section-title mt-1.5 text-[0.95rem]">
-                      Channel status
-                    </h2>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      One WhatsApp number per organization for now.
-                    </p>
-                  </div>
-                </div>
-                <Badge
-                  variant={whatsappIntegration ? "default" : "outline"}
-                  className="shrink-0 text-xs"
-                >
-                  {whatsappIntegration ? "Connected" : "Not connected"}
-                </Badge>
-              </div>
+            <Step index={3} title="What should it be told about?">
+              <ul className="max-w-xl">
+                {WEBHOOK_EVENT_TYPES.map((eventType) => {
+                  const checked = selectedWebhookEvents.includes(eventType.id)
+                  const inputId = `webhook-event-${eventType.id}`
 
-              <div className="p-4 sm:p-5">
-                {!whatsappIntegration ? (
-                  <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-dashed py-14 text-center">
-                    <ChannelIcon channel="whatsapp" size={46} />
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">
-                        No WhatsApp number connected
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground/60">
-                        Connect a number to receive WhatsApp messages in
-                        Osonflow.
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-4">
-                      <div className="flex min-w-0 items-center gap-3">
-                        <ChannelIcon channel="whatsapp" size={34} />
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold">
-                            {whatsappIntegration.verifiedName ||
-                              whatsappIntegration.displayPhoneNumber ||
-                              "Connected"}
-                          </p>
-                          <p className="truncate text-xs text-muted-foreground">
-                            {whatsappIntegration.phoneNumberId}
-                          </p>
-                        </div>
-                      </div>
-                      <Button
-                        aria-label="Disconnect WhatsApp"
-                        className="size-9 p-0"
-                        disabled={isDisconnectingWhatsapp}
-                        onClick={handleDisconnectWhatsapp}
-                        title="Disconnect WhatsApp"
-                        type="button"
-                        variant="destructive"
+                  return (
+                    <li className="setup-check" key={eventType.id}>
+                      <label
+                        className="flex cursor-pointer items-start gap-3 py-3"
+                        htmlFor={inputId}
                       >
-                        {isDisconnectingWhatsapp ? (
-                          <Loader2Icon className="size-4 animate-spin" />
-                        ) : (
-                          <Trash2Icon className="size-4" />
-                        )}
-                      </Button>
-                    </div>
-
-                    {whatsappIntegration.webhookUrl && (
-                      <div className="rounded-lg border bg-card p-4">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="text-xs font-semibold text-muted-foreground">
-                              Meta callback URL
-                            </p>
-                            <code className="mt-1 block truncate font-mono text-xs">
-                              {whatsappIntegration.webhookUrl}
-                            </code>
-                          </div>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="shrink-0 gap-1.5"
-                            onClick={() =>
-                              copyText(
-                                whatsappIntegration.webhookUrl || "",
-                                "Callback URL copied",
-                                "Failed to copy callback URL"
-                              )
-                            }
-                            type="button"
-                          >
-                            <CopyIcon className="size-3.5" />
-                            Copy
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="rounded-lg border bg-card p-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-xs font-semibold text-muted-foreground">
-                            Meta verify token
-                          </p>
-                          <code className="mt-1 block truncate font-mono text-xs">
-                            {whatsappIntegration.verifyToken}
-                          </code>
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="shrink-0 gap-1.5"
-                          onClick={() =>
-                            copyText(
-                              whatsappIntegration.verifyToken,
-                              "Verify token copied",
-                              "Failed to copy verify token"
-                            )
+                        <Checkbox
+                          checked={checked}
+                          className="mt-0.5"
+                          id={inputId}
+                          onCheckedChange={() =>
+                            handleToggleWebhookEvent(eventType.id)
                           }
+                        />
+                        <span className="min-w-0">
+                          <span className="block text-sm font-medium text-foreground">
+                            {eventType.label}
+                          </span>
+                          <span className="block text-xs text-muted-foreground">
+                            {eventType.description}
+                          </span>
+                        </span>
+                      </label>
+                    </li>
+                  )
+                })}
+              </ul>
+
+              <Button
+                className="mt-6"
+                disabled={isCreatingWebhook}
+                onClick={async () => {
+                  if (await handleCreateWebhook()) setIsAddingWebhook(false)
+                }}
+                type="button"
+              >
+                {isCreatingWebhook ? (
+                  <Loader2Icon className="animate-spin" data-icon="inline-start" />
+                ) : (
+                  <ZapIcon data-icon="inline-start" />
+                )}
+                {isCreatingWebhook ? "Creating…" : "Create destination"}
+              </Button>
+            </Step>
+          </ol>
+        </section>
+      ) : null}
+
+      {webhookDestinations.length > 0 || deliveryLogs.length > 0 ? (
+        <section className={cn(showWebhookForm ? "pt-2" : "pt-4")}>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+              <p className="console-label">Recent deliveries</p>
+              {deliveryLogs.length ? (
+                <p className="text-xs text-muted-foreground">
+                  <span className="console-numeral text-foreground">
+                    {successCount}
+                  </span>{" "}
+                  delivered ·{" "}
+                  <span className="console-numeral text-foreground">
+                    {failedCount}
+                  </span>{" "}
+                  failed
+                </p>
+              ) : null}
+            </div>
+            {deliveryLogs.length ? (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    disabled={isClearingDeliveryHistory}
+                    size="sm"
+                    type="button"
+                    variant="ghost"
+                  >
+                    <Trash2Icon data-icon="inline-start" />
+                    {isClearingDeliveryHistory ? "Clearing…" : "Clear history"}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Clear delivery history?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This permanently deletes all {deliveryLogs.length} delivery
+                      {deliveryLogs.length === 1 ? " record" : " records"}.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleClearDeliveryHistory}>
+                      Clear history
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            ) : null}
+          </div>
+
+          {deliveryLogs.length === 0 ? (
+            <p className="py-4 text-sm text-muted-foreground">
+              Nothing sent yet. Deliveries appear here the first time an event
+              fires.
+            </p>
+          ) : (
+            <ScrollArea
+              className={cn(hasOverflowingDeliveryHistory && "h-[30rem]")}
+            >
+              <ul>
+                {deliveryLogs.map((delivery) => (
+                  <li
+                    className="setup-row grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1 px-2 py-3"
+                    key={delivery._id}
+                  >
+                    <StatusLine
+                      className="text-sm"
+                      state={{
+                        tone: delivery.status === "success" ? "live" : "error",
+                        label: `${formatEventTypeLabel(delivery.eventType)} — ${
+                          delivery.status === "success" ? "delivered" : "failed"
+                        }`,
+                      }}
+                    />
+                    <span className="text-xs whitespace-nowrap text-muted-foreground">
+                      {formatTimeAgo(delivery._creationTime)}
+                    </span>
+                    <p className="col-span-2 truncate pl-4 text-xs text-muted-foreground">
+                      <span className="font-mono">{delivery.webhookUrl}</span>
+                      {delivery.responseStatus
+                        ? ` · HTTP ${delivery.responseStatus}`
+                        : ""}
+                      {delivery.durationMs ? ` · ${delivery.durationMs}ms` : ""}
+                      {delivery.attempt > 1 ? ` · attempt ${delivery.attempt}` : ""}
+                    </p>
+                    {delivery.error ? (
+                      <p className="col-span-2 pl-4 text-xs break-words text-foreground">
+                        {delivery.error}
+                      </p>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </ScrollArea>
+          )}
+        </section>
+      ) : null}
+    </>
+  )
+
+  // A panel whose data hasn't arrived would otherwise flash its
+  // "not connected" steps for a moment before showing the real state.
+  const panelLoading: Record<ActiveSection, boolean> = {
+    widget: false,
+    telegram: telegramDashboard === undefined,
+    instagram: instagramDashboard === undefined,
+    whatsapp: whatsappDashboard === undefined,
+    apiKeys: false,
+    webhooks: webhookDashboard === undefined,
+  }
+
+  const panels: Record<ActiveSection, React.ReactNode> = {
+    widget: websitePanel,
+    telegram: telegramPanel,
+    instagram: instagramPanel,
+    whatsapp: whatsappPanel,
+    apiKeys: apiKeysPanel,
+    webhooks: webhooksPanel,
+  }
+
+  // ── render ──────────────────────────────────────────────────────────────
+  return (
+    <ConsolePage width="wide">
+      <div className="report setup">
+        <section className="pt-2 pb-10">
+          <p className="console-eyebrow">Setup &amp; integrations</p>
+
+          {isCheckingChannels ? (
+            <div aria-busy="true" role="status">
+              <span className="sr-only">Checking your connections</span>
+              <div aria-hidden className="mt-7 space-y-3">
+                <Skeleton className="h-11 w-full max-w-[30rem] rounded-2xl" />
+                <Skeleton className="h-11 w-3/5 max-w-[20rem] rounded-2xl" />
+              </div>
+              <div aria-hidden className="mt-6 space-y-2.5">
+                <Skeleton className="h-4 w-full max-w-[36rem] rounded-full" />
+                <Skeleton className="h-4 w-4/5 max-w-[26rem] rounded-full" />
+              </div>
+            </div>
+          ) : attentionItems.length ? (
+            <>
+              <h1 className="report-headline mt-6 max-w-[24ch]">
+                <span className="report-headline-figure">
+                  {attentionItems.length}{" "}
+                  {attentionItems.length === 1 ? "connection" : "connections"}
+                </span>{" "}
+                {attentionItems.length === 1 ? "needs" : "need"} your attention.
+              </h1>
+              <p className="report-lede mt-5 max-w-[62ch]">
+                {attentionItems.map((item, index) => (
+                  <span key={item.id}>
+                    {index > 0 ? " " : null}
+                    <button
+                      className="font-semibold text-foreground underline decoration-[var(--outcome-open)] decoration-2 underline-offset-4"
+                      onClick={() => selectSection(item.id)}
+                      type="button"
+                    >
+                      {item.title}
+                    </button>
+                    : {item.state.label.toLowerCase()}.
+                  </span>
+                ))}
+              </p>
+            </>
+          ) : connectedApps ? (
+            <>
+              <h1 className="report-headline mt-6 max-w-[24ch]">
+                Your assistant answers on{" "}
+                <span className="report-headline-figure">
+                  {connectedApps} of 3
+                </span>{" "}
+                messaging apps.
+              </h1>
+              <p className="report-lede mt-5 max-w-[62ch]">
+                {SECTIONS.filter(
+                  (section) =>
+                    section.group === "Channels" && section.state.tone === "live"
+                )
+                  .map((section) => section.title)
+                  .join(" and ")}{" "}
+                {connectedApps === 1 ? "is" : "are"} connected, plus your
+                website once the chat code is on it.
+              </p>
+            </>
+          ) : (
+            <>
+              <h1 className="report-headline mt-6 max-w-[22ch]">
+                Put your assistant where customers already talk to you.
+              </h1>
+              <p className="report-lede mt-5 max-w-[62ch]">
+                Start with your website — it takes one copy and paste. Then
+                connect Telegram, Instagram or WhatsApp so every message is
+                answered in one place.
+              </p>
+            </>
+          )}
+        </section>
+
+        <div className="grid gap-10 border-t border-[var(--report-rule)] pt-8 lg:grid-cols-[18rem_minmax(0,1fr)] lg:gap-14">
+          <nav
+            aria-label="Setup sections"
+            className="lg:sticky lg:top-6 lg:self-start"
+          >
+            {(["Channels", "Advanced"] as const).map((group) => (
+              <div className="mb-6 last:mb-0" key={group}>
+                <p className="console-label mb-2 px-3">
+                  {group === "Channels" ? "Where customers reach you" : "Advanced"}
+                </p>
+                <ul className="flex flex-col gap-0.5">
+                  {SECTIONS.filter((section) => section.group === group).map(
+                    (section) => (
+                      <li key={section.id}>
+                        <button
+                          aria-current={activeSection === section.id}
+                          className="setup-nav-row grid w-full grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-3 px-3 py-2.5 text-left focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none"
+                          onClick={() => selectSection(section.id)}
                           type="button"
                         >
-                          <CopyIcon className="size-3.5" />
-                          Copy
-                        </Button>
-                      </div>
-                    </div>
-
-                    {whatsappIntegration.lastWebhookAt && (
-                      <p className="text-xs text-muted-foreground">
-                        Last webhook{" "}
-                        {formatTimeAgo(whatsappIntegration.lastWebhookAt)}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-            </section>
-          </div>
-        )}
-
-        {/* ─── EVENT WEBHOOKS ─── */}
-        {activeSection === "webhooks" && (
-          <div className="space-y-4">
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,430px)_minmax(0,1fr)]">
-              <section className="console-card min-w-0 p-3">
-                <div className="px-1 py-1">
-                  <p className="console-eyebrow">
-                    Event destination
-                  </p>
-                  <h2 className="console-section-title mt-1.5 text-[0.95rem]">
-                    New destination
-                  </h2>
-                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                    Connect a platform or custom endpoint to receive live
-                    events.
-                  </p>
-                </div>
-
-                <div className="mt-3 space-y-5 rounded-2xl border border-[var(--console-hairline-soft)] bg-muted/35 p-3">
-                  {/* Provider picker */}
-                  <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">
-                      Destination Type
-                    </Label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {WEBHOOK_PROVIDERS.map((provider) => {
-                        const isActive = selectedWebhookProvider === provider.id
-                        return (
-                          <button
-                            key={provider.id}
-                            type="button"
-                            onClick={() =>
-                              handleWebhookProviderChange(
-                                provider.id as WebhookProvider
-                              )
-                            }
-                            className={cn(
-                              "flex min-w-0 flex-col items-center gap-1.5 rounded-xl border p-2.5",
-                              "transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0",
-                              isActive
-                                ? "border-[var(--console-hairline)] bg-muted/70"
-                                : "border-transparent bg-muted/35 hover:border-[var(--console-hairline-soft)] hover:bg-muted/55"
-                            )}
-                          >
-                            <div className="flex size-9 items-center justify-center">
-                              <ProviderIcon
-                                provider={provider.id as WebhookProvider}
-                                size={28}
-                              />
-                            </div>
-                            <span
-                              className={cn(
-                                "w-full truncate text-center text-[10px] leading-none font-medium",
-                                isActive
-                                  ? "text-foreground"
-                                  : "text-muted-foreground"
-                              )}
-                            >
-                              {provider.label}
+                          <span className="setup-glyph size-9">
+                            {section.glyph}
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm font-medium text-foreground">
+                              {section.title}
                             </span>
-                          </button>
-                        )
-                      })}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {selectedWebhookProviderItem.description}
-                    </p>
-                  </div>
-
-                  <div className="console-rule" />
-
-                  {/* URL */}
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="webhook-url"
-                      className="text-xs text-muted-foreground"
-                    >
-                      {selectedWebhookProvider === "telegram" ||
-                      selectedWebhookProvider === "whatsapp"
-                        ? "Endpoint URL (optional override)"
-                        : "Destination URL"}
-                    </Label>
-                    <Input
-                      id="webhook-url"
-                      onChange={(e) => setWebhookUrl(e.target.value)}
-                      placeholder={selectedWebhookProviderItem.defaultUrl}
-                      value={webhookUrl}
-                      className="h-10 min-w-0 bg-muted/55 font-mono text-xs"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      {selectedWebhookProvider === "telegram" ||
-                      selectedWebhookProvider === "whatsapp"
-                        ? "Leave as default unless using a custom relay endpoint."
-                        : "Use the webhook URL from your destination app."}
-                    </p>
-                  </div>
-
-                  {/* Telegram fields */}
-                  {selectedWebhookProvider === "telegram" && (
-                    <div className="space-y-3 console-inset p-3">
-                      <div className="mb-1 flex items-center gap-2">
-                        <ProviderIcon provider="telegram" size={14} />
-                        <span className="text-xs font-medium text-muted-foreground">
-                          Telegram Config
-                        </span>
-                      </div>
-                      <div className="space-y-2">
-                        <Label
-                          htmlFor="telegram-bot-token"
-                          className="text-xs text-muted-foreground"
-                        >
-                          Bot Token
-                        </Label>
-                        <Input
-                          className="bg-card"
-                          id="telegram-bot-token"
-                          onChange={(e) => setTelegramBotToken(e.target.value)}
-                          placeholder="123456789:AA..."
-                          type="password"
-                          value={telegramBotToken}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label
-                          htmlFor="telegram-chat-id"
-                          className="text-xs text-muted-foreground"
-                        >
-                          Chat ID
-                        </Label>
-                        <Input
-                          className="bg-card"
-                          id="telegram-chat-id"
-                          onChange={(e) => setTelegramChatId(e.target.value)}
-                          placeholder="-1001234567890"
-                          value={telegramChatId}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* WhatsApp fields */}
-                  {selectedWebhookProvider === "whatsapp" && (
-                    <div className="space-y-3 console-inset p-3">
-                      <div className="mb-1 flex items-center gap-2">
-                        <ProviderIcon provider="whatsapp" size={14} />
-                        <span className="text-xs font-medium text-muted-foreground">
-                          WhatsApp Config
-                        </span>
-                      </div>
-                      <div className="space-y-2">
-                        <Label
-                          htmlFor="whatsapp-access-token"
-                          className="text-xs text-muted-foreground"
-                        >
-                          Access Token
-                        </Label>
-                        <Input
-                          className="bg-card"
-                          id="whatsapp-access-token"
-                          onChange={(e) =>
-                            setWhatsappAccessToken(e.target.value)
-                          }
-                          placeholder="EAAG..."
-                          type="password"
-                          value={whatsappAccessToken}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label
-                          htmlFor="whatsapp-phone-number-id"
-                          className="text-xs text-muted-foreground"
-                        >
-                          Phone Number ID
-                        </Label>
-                        <Input
-                          className="bg-card"
-                          id="whatsapp-phone-number-id"
-                          onChange={(e) =>
-                            setWhatsappPhoneNumberId(e.target.value)
-                          }
-                          placeholder="123456789012345"
-                          value={whatsappPhoneNumberId}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label
-                          htmlFor="whatsapp-recipient-phone"
-                          className="text-xs text-muted-foreground"
-                        >
-                          Recipient Phone
-                        </Label>
-                        <Input
-                          className="bg-card"
-                          id="whatsapp-recipient-phone"
-                          onChange={(e) =>
-                            setWhatsappRecipientPhone(e.target.value)
-                          }
-                          placeholder="15551234567"
-                          value={whatsappRecipientPhone}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Label */}
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="webhook-description"
-                      className="text-xs text-muted-foreground"
-                    >
-                      Label{" "}
-                      <span className="text-muted-foreground/60">
-                        (optional)
-                      </span>
-                    </Label>
-                    <Input
-                      className="bg-muted/55"
-                      id="webhook-description"
-                      onChange={(e) => setWebhookDescription(e.target.value)}
-                      placeholder="e.g. Production alerts"
-                      value={webhookDescription}
-                    />
-                  </div>
-
-                  {/* Trigger events */}
-                  <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">
-                      Trigger Events
-                    </Label>
-                    <div className="space-y-1.5">
-                      {WEBHOOK_EVENT_TYPES.map((eventType) => {
-                        const checked = selectedWebhookEvents.includes(
-                          eventType.id
-                        )
-                        return (
-                          <label
-                            key={eventType.id}
-                            className={cn(
-                              "flex cursor-pointer items-start gap-3 rounded-xl border px-3 py-2.5 transition-colors",
-                              checked
-                                ? "border-[var(--console-hairline)] bg-muted/65"
-                                : "border-[var(--console-hairline-soft)] bg-muted/35 hover:bg-muted/50"
-                            )}
-                          >
-                            <Checkbox
-                              checked={checked}
-                              onCheckedChange={() =>
-                                handleToggleWebhookEvent(eventType.id)
-                              }
+                            <StatusLine
                               className="mt-0.5"
+                              state={section.state}
                             />
-                            <span className="space-y-0.5">
-                              <span className="block text-sm font-medium text-foreground">
-                                {eventType.label}
-                              </span>
-                              <span className="block text-xs text-muted-foreground">
-                                {eventType.description}
-                              </span>
-                            </span>
-                          </label>
-                        )
-                      })}
-                    </div>
-                  </div>
-
-                  <Button
-                    className="w-full gap-2"
-                    disabled={isCreatingWebhook}
-                    onClick={handleCreateWebhook}
-                    type="button"
-                  >
-                    {isCreatingWebhook ? (
-                      <>
-                        <Loader2Icon className="size-4 animate-spin" />
-                        Creating...
-                      </>
-                    ) : (
-                      <>
-                        <ZapIcon className="size-4" />
-                        Create Webhook Destination
-                      </>
-                    )}
-                  </Button>
-                </div>
-
-                {/* Signing secret reveal */}
-                {latestSigningSecret && (
-                  <div className="mt-3 space-y-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
-                    <div className="flex items-center gap-2">
-                      <KeyRoundIcon className="size-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                      <span className="text-sm font-semibold text-amber-700 dark:text-amber-400">
-                        Signing Secret — save this now
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        className="bg-background font-mono text-xs"
-                        readOnly
-                        value={latestSigningSecret}
-                      />
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="shrink-0"
-                        onClick={() =>
-                          copyText(
-                            latestSigningSecret,
-                            "Signing secret copied",
-                            "Failed to copy signing secret"
-                          )
-                        }
-                        type="button"
-                      >
-                        <CopyIcon className="size-3.5" />
-                      </Button>
-                    </div>
-                    <p className="text-xs text-amber-700/80 dark:text-amber-400/80">
-                      Shown once only. Use it to verify webhook payload
-                      signatures.
-                    </p>
-                  </div>
-                )}
-              </section>
-
-              <section className="console-card min-w-0 overflow-hidden">
-                <div className="flex items-center justify-between border-b border-[var(--console-hairline-soft)] px-4 py-4 sm:px-5">
-                  <div>
-                    <p className="console-eyebrow">
-                      Integrations
-                    </p>
-                    <h2 className="console-section-title mt-1.5 text-[0.95rem]">
-                      Active destinations
-                    </h2>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      Manage and toggle your connected endpoints.
-                    </p>
-                  </div>
-                  <Badge variant="outline" className="shrink-0 text-xs">
-                    {webhookDestinations.length} connected
-                  </Badge>
-                </div>
-
-                <div className="p-4 sm:p-5">
-                  {webhookDestinations.length === 0 ? (
-                    <EmptyWebhooksState />
-                  ) : (
-                    <div className="space-y-2">
-                      {webhookDestinations.map((webhook) => {
-                        const isExpanded = expandedWebhookId === webhook._id
-                        const lastDelivery =
-                          lastDeliveryByWebhookId[webhook._id]
-                        return (
-                          <div
-                            key={webhook._id}
-                            className={cn(
-                              "overflow-hidden rounded-lg border transition-all duration-200",
-                              !webhook.isEnabled && "opacity-60"
-                            )}
-                          >
-                            {/* Collapsed header — always visible */}
-                            <div
-                              role="button"
-                              tabIndex={0}
-                              aria-expanded={isExpanded}
-                              className="flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/35"
-                              onClick={() =>
-                                setExpandedWebhookId(
-                                  isExpanded ? null : webhook._id
-                                )
-                              }
-                              onKeyDown={(event) => {
-                                if (
-                                  event.key === "Enter" ||
-                                  event.key === " "
-                                ) {
-                                  event.preventDefault()
-                                  setExpandedWebhookId(
-                                    isExpanded ? null : webhook._id
-                                  )
-                                }
-                              }}
-                            >
-                              <div className="flex size-8 shrink-0 items-center justify-center rounded-md border bg-muted">
-                                <ProviderIcon
-                                  provider={webhook.provider}
-                                  size={18}
-                                />
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-sm font-semibold">
-                                    {formatWebhookProviderLabel(
-                                      webhook.provider
-                                    )}
-                                  </span>
-                                  {webhook.isEnabled ? (
-                                    <span className="flex items-center gap-1 text-xs font-medium text-green-600 dark:text-green-400">
-                                      <span className="size-1.5 animate-pulse rounded-full bg-green-500" />
-                                      Live
-                                    </span>
-                                  ) : (
-                                    <span className="text-xs text-muted-foreground">
-                                      Paused
-                                    </span>
-                                  )}
-                                </div>
-                                {webhook.description && (
-                                  <p className="truncate text-xs text-muted-foreground">
-                                    {webhook.description}
-                                  </p>
-                                )}
-                                {lastDelivery && (
-                                  <p
-                                    className={cn(
-                                      "mt-0.5 text-[10px]",
-                                      lastDelivery.status === "success"
-                                        ? "text-green-600 dark:text-green-400"
-                                        : "text-red-500"
-                                    )}
-                                  >
-                                    Last: {lastDelivery.status}{" "}
-                                    {formatTimeAgo(lastDelivery._creationTime)}
-                                  </p>
-                                )}
-                              </div>
-                              <div className="flex shrink-0 items-center gap-2">
-                                <Switch
-                                  checked={webhook.isEnabled}
-                                  disabled={loadingWebhookId === webhook._id}
-                                  onCheckedChange={() =>
-                                    handleToggleWebhookEnabled(webhook)
-                                  }
-                                  onClick={(e) => e.stopPropagation()}
-                                />
-                                <ChevronDownIcon
-                                  className={cn(
-                                    "size-4 text-muted-foreground transition-transform duration-200",
-                                    isExpanded && "rotate-180"
-                                  )}
-                                />
-                              </div>
-                            </div>
-
-                            {/* Expanded details */}
-                            <div
-                              className={cn(
-                                "overflow-hidden border-t transition-all duration-200",
-                                isExpanded
-                                  ? "max-h-96 opacity-100"
-                                  : "max-h-0 border-t-0 opacity-0"
-                              )}
-                            >
-                              <div className="space-y-3 bg-muted/10 px-4 py-3">
-                                {/* URL */}
-                                {webhook.url && (
-                                  <p className="font-mono text-xs break-all text-muted-foreground">
-                                    {webhook.url}
-                                  </p>
-                                )}
-                                {webhook.provider === "telegram" && (
-                                  <p className="text-xs text-muted-foreground">
-                                    Chat ID:{" "}
-                                    {webhook.providerConfigPreview
-                                      ?.telegramChatId || "—"}
-                                  </p>
-                                )}
-                                {webhook.provider === "whatsapp" && (
-                                  <p className="text-xs text-muted-foreground">
-                                    Recipient:{" "}
-                                    {webhook.providerConfigPreview
-                                      ?.whatsappRecipientPhone || "—"}
-                                  </p>
-                                )}
-                                <p className="font-mono text-[10px] text-muted-foreground/50">
-                                  sig: {webhook.signingSecretPreview}
-                                </p>
-
-                                {/* Event badges */}
-                                <div className="flex flex-wrap gap-1.5">
-                                  {webhook.eventTypes.map((et) => (
-                                    <Badge
-                                      key={`${webhook._id}-${et}`}
-                                      variant="secondary"
-                                      className="px-2 py-0.5 text-xs"
-                                    >
-                                      {formatEventTypeLabel(et)}
-                                    </Badge>
-                                  ))}
-                                </div>
-
-                                {/* Action buttons */}
-                                <div className="flex items-center gap-2 pt-1">
-                                  <Button
-                                    className="h-8 gap-1.5 text-xs"
-                                    disabled={loadingWebhookId === webhook._id}
-                                    onClick={() =>
-                                      handleRotateSigningSecret(webhook)
-                                    }
-                                    size="sm"
-                                    type="button"
-                                    variant="outline"
-                                  >
-                                    <RefreshCwIcon className="size-3" />
-                                    Rotate Secret
-                                  </Button>
-                                  <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                      <Button
-                                        className="h-8 gap-1.5 text-xs"
-                                        disabled={
-                                          loadingWebhookId === webhook._id
-                                        }
-                                        size="sm"
-                                        type="button"
-                                        variant="destructive"
-                                      >
-                                        <Trash2Icon className="size-3" />
-                                        Remove
-                                      </Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                      <AlertDialogHeader>
-                                        <AlertDialogTitle>
-                                          Remove webhook destination?
-                                        </AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                          This will permanently delete the{" "}
-                                          {formatWebhookProviderLabel(
-                                            webhook.provider
-                                          )}{" "}
-                                          destination
-                                          {webhook.description
-                                            ? ` "${webhook.description}"`
-                                            : ""}{" "}
-                                          and all its delivery history. This
-                                          action cannot be undone.
-                                        </AlertDialogDescription>
-                                      </AlertDialogHeader>
-                                      <AlertDialogFooter>
-                                        <AlertDialogCancel>
-                                          Cancel
-                                        </AlertDialogCancel>
-                                        <AlertDialogAction
-                                          onClick={() =>
-                                            handleDeleteWebhook(webhook)
-                                          }
-                                        >
-                                          Remove
-                                        </AlertDialogAction>
-                                      </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                  </AlertDialog>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
+                          </span>
+                          <ChevronRightIcon
+                            aria-hidden
+                            className="setup-nav-chevron size-4 text-muted-foreground"
+                          />
+                        </button>
+                      </li>
+                    )
                   )}
-                </div>
-              </section>
-            </div>
-
-            {/* ── Delivery History ── */}
-            <section className="console-card overflow-hidden">
-              <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[var(--console-hairline-soft)] px-4 py-4 sm:px-5">
-                <div className="flex items-start gap-3">
-                  <div className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-[var(--console-hairline-soft)] bg-background shadow-sm">
-                    <ActivityIcon className="size-4 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <p className="console-eyebrow">
-                      Event log
-                    </p>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="text-base font-semibold">
-                        Delivery history
-                      </h2>
-                      {successCount > 0 && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-green-500/10 px-2 py-0.5 text-xs font-medium text-green-600 dark:text-green-400">
-                          <CheckCircle2Icon className="size-3" />
-                          {successCount} ok
-                        </span>
-                      )}
-                      {failedCount > 0 && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-2 py-0.5 text-xs font-medium text-red-600 dark:text-red-400">
-                          <XCircleIcon className="size-3" />
-                          {failedCount} failed
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      Recent webhook dispatch attempts and their outcomes.
-                    </p>
-                  </div>
-                </div>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      className="h-8 shrink-0 gap-1.5 text-xs"
-                      disabled={
-                        isClearingDeliveryHistory || deliveryLogs.length === 0
-                      }
-                      size="sm"
-                      type="button"
-                      variant="outline"
-                    >
-                      <Trash2Icon className="size-3" />
-                      {isClearingDeliveryHistory
-                        ? "Clearing..."
-                        : "Clear history"}
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>
-                        Clear delivery history?
-                      </AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This will permanently delete all {deliveryLogs.length}{" "}
-                        delivery log{deliveryLogs.length !== 1 ? "s" : ""}. This
-                        action cannot be undone.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={handleClearDeliveryHistory}>
-                        Clear history
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                </ul>
               </div>
+            ))}
+          </nav>
 
-              {/* Timeline feed */}
-              {deliveryLogs.length === 0 ? (
-                <EmptyDeliveriesState />
-              ) : (
-                <ScrollArea
-                  className={cn(hasOverflowingDeliveryHistory && "h-[35rem]")}
-                >
-                  <div className="divide-y">
-                    {deliveryLogs.map((delivery) => (
-                      <div
-                        key={delivery._id}
-                        className="flex items-start gap-3 px-5 py-3.5 transition-colors hover:bg-muted/35"
-                      >
-                        <div
-                          className={cn(
-                            "mt-1.5 size-2 shrink-0 rounded-full",
-                            delivery.status === "success"
-                              ? "bg-green-500"
-                              : "bg-red-500"
-                          )}
-                        />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-sm font-medium">
-                              {formatEventTypeLabel(delivery.eventType)}
-                            </span>
-                            <span className="shrink-0 text-xs text-muted-foreground">
-                              {formatTimeAgo(delivery._creationTime)}
-                            </span>
-                          </div>
-                          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
-                            <span
-                              className={cn(
-                                "font-medium",
-                                delivery.status === "success"
-                                  ? "text-green-600 dark:text-green-400"
-                                  : "text-red-500"
-                              )}
-                            >
-                              {delivery.status}
-                            </span>
-                            <span className="max-w-[240px] truncate font-mono opacity-70">
-                              {delivery.webhookUrl}
-                            </span>
-                            {delivery.responseStatus && (
-                              <span>· HTTP {delivery.responseStatus}</span>
-                            )}
-                            {delivery.durationMs && (
-                              <span>· {delivery.durationMs}ms</span>
-                            )}
-                            {delivery.attempt > 1 && (
-                              <span>· Attempt #{delivery.attempt}</span>
-                            )}
-                            {delivery.error && (
-                              <span className="max-w-[200px] truncate text-red-500">
-                                · {delivery.error}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              )}
-            </section>
+          <div
+            className="setup-panel min-w-0 scroll-mt-6 pb-10"
+            key={activeSection}
+            ref={panelRef}
+          >
+            {panelLoading[activeSection] ? (
+              <SetupPanelSkeleton />
+            ) : (
+              panels[activeSection]
+            )}
           </div>
-        )}
+        </div>
       </div>
-    </div>
+    </ConsolePage>
   )
 }

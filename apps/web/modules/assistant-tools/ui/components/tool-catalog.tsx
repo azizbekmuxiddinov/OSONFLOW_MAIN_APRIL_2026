@@ -1,25 +1,12 @@
 "use client"
 
 import { Button } from "@workspace/ui/components/button"
-import { cn } from "@workspace/ui/lib/utils"
-import {
-  ArrowUpRightIcon,
-  CheckIcon,
-  KeyRoundIcon,
-  LockIcon,
-  PlusIcon,
-  SlidersHorizontalIcon,
-  SparklesIcon,
-  UnlockIcon,
-} from "lucide-react"
+import { PlusIcon, SlidersHorizontalIcon } from "lucide-react"
 import { useState } from "react"
+import type * as React from "react"
 
-import {
-  ConsoleSearch,
-  EmptyState,
-  Pill,
-  toneClass,
-} from "@/modules/dashboard/ui/components/console"
+import { ConsoleSearch } from "@/modules/dashboard/ui/components/console"
+import { ReportFilter } from "@/modules/dashboard/ui/components/report"
 import {
   CATALOG_CATEGORIES,
   EFFECT_LABELS,
@@ -28,17 +15,17 @@ import {
   type CatalogCategoryId,
   type ToolBlueprint,
 } from "../../catalog"
-import { AUTH_KIND_LABELS } from "../../lib/tool-auth"
 import { BlueprintDetailSheet } from "./blueprint-detail-sheet"
+import { BlueprintTag, credentialNeed } from "./blueprint-tag"
 import { BrandMark, brandStyle } from "./brand-mark"
 
 /**
- * The offerings surface: what this assistant could be doing, ordered so an
- * operator can find a vendor by name, by job, or by browsing.
+ * The library: everything the assistant could be doing, findable by vendor
+ * name, by job, or by browsing a category.
  *
- * A card never installs blindly — it opens the vendor's detail sheet, which is
- * where the credential requirement and the outgoing request are stated before
- * anything is added to the workspace.
+ * A card never installs blindly from its body — clicking it opens the vendor's
+ * detail sheet, where the key it needs and the request it makes are stated.
+ * The card's own button is the shortcut for someone who already knows.
  */
 
 type CategoryFilter = CatalogCategoryId | "all"
@@ -71,17 +58,11 @@ const matchesQuery = (blueprint: ToolBlueprint, query: string) => {
   return haystack.includes(query)
 }
 
-const effectTone = (blueprint: ToolBlueprint) =>
-  blueprint.effect === "read"
-    ? "info"
-    : blueprint.effect === "write"
-      ? "warning"
-      : "accent"
+/* ── card ───────────────────────────────────────────────────────────────── */
 
-/* ── cards ──────────────────────────────────────────────────────────────── */
-
-const BlueprintCard = ({
+const OfferCard = ({
   blueprint,
+  index,
   installedCount,
   isGoogleConnected,
   onOpen,
@@ -90,6 +71,7 @@ const BlueprintCard = ({
   onConnectGoogle,
 }: {
   blueprint: ToolBlueprint
+  index: number
   installedCount: number
   isGoogleConnected: boolean
   onOpen: (blueprint: ToolBlueprint) => void
@@ -101,109 +83,65 @@ const BlueprintCard = ({
   const isPlanned = blueprint.status === "planned"
   const isIncluded = blueprint.status === "included"
   const needsGoogle = Boolean(blueprint.requiresGoogle) && !isGoogleConnected
-  const needsCredential =
-    blueprint.auth && blueprint.auth.kind !== "none" ? blueprint.auth : null
 
   return (
     <article
-      className={cn(
-        "brand-edge group relative flex min-w-0 cursor-pointer flex-col p-4 text-left",
-        isPlanned
-          ? "console-card-quiet"
-          : "console-card console-interactive hover:-translate-y-0.5"
-      )}
-      onClick={() => onOpen(blueprint)}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault()
-          onOpen(blueprint)
-        }
-      }}
-      role="button"
-      style={brandStyle(blueprint.brand)}
-      tabIndex={0}
+      className="tools-offer"
+      data-planned={isPlanned || undefined}
+      style={
+        { ...brandStyle(blueprint.brand), "--i": index } as React.CSSProperties
+      }
     >
+      <button
+        aria-label={`${blueprint.title} by ${blueprint.vendor} — see details`}
+        className="tools-offer-hit"
+        onClick={() => onOpen(blueprint)}
+        type="button"
+      />
+
       <div className="flex items-start gap-3">
         <BrandMark brand={blueprint.brand} icon={Icon} muted={isPlanned} />
-
         <div className="min-w-0 flex-1">
-          <p className="console-eyebrow truncate">{blueprint.vendor}</p>
-          <h3 className="console-section-title mt-1.5 truncate">
+          <p className="truncate text-xs text-muted-foreground">
+            {blueprint.vendor}
+          </p>
+          <h3 className="mt-0.5 truncate text-[0.95rem] font-medium tracking-[-0.01em] text-foreground">
             {blueprint.title}
           </h3>
         </div>
-
-        {isIncluded ? (
-          <Pill icon={CheckIcon} tone="positive">
-            Included
-          </Pill>
-        ) : isPlanned ? (
-          <Pill icon={LockIcon} tone="neutral">
-            Roadmap
-          </Pill>
-        ) : installedCount > 0 ? (
-          <Pill tone="positive">{installedCount} active</Pill>
-        ) : null}
+        <BlueprintTag blueprint={blueprint} installedCount={installedCount} />
       </div>
 
-      <p
-        className={cn(
-          "mt-3 line-clamp-2 text-xs leading-relaxed",
-          isPlanned ? "text-muted-foreground/80" : "text-muted-foreground"
-        )}
-      >
+      <p className="mt-3 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
         {blueprint.summary}
       </p>
 
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <span
-          className={cn(
-            "inline-flex items-center gap-1.5 text-[0.68rem] font-medium",
-            toneClass[effectTone(blueprint)]
-          )}
-        >
-          <span className="console-dot" aria-hidden />
+      <div className="mt-auto flex items-end justify-between gap-3 pt-4">
+        <p className="min-w-0 text-xs leading-relaxed text-muted-foreground">
           {EFFECT_LABELS[blueprint.effect]}
-        </span>
-        {needsCredential ? (
-          <span className="inline-flex items-center gap-1 text-[0.68rem] text-muted-foreground">
-            <KeyRoundIcon className="size-3" />
-            {AUTH_KIND_LABELS[needsCredential.kind]}
-          </span>
-        ) : isPlanned ? null : (
-          <span className="inline-flex items-center gap-1 text-[0.68rem] text-muted-foreground">
-            <UnlockIcon className="size-3" />
-            No credential
-          </span>
-        )}
-      </div>
-
-      <div className="mt-auto flex items-center justify-between gap-2 pt-4">
-        <span className="text-[0.72rem] text-muted-foreground transition-colors group-hover:text-foreground">
-          View details
-        </span>
+          {isPlanned ? null : (
+            <>
+              <span aria-hidden> · </span>
+              {credentialNeed(blueprint)}
+            </>
+          )}
+        </p>
 
         {isPlanned ? null : isIncluded ? (
           <Button
-            className="shrink-0"
-            onClick={(event) => {
-              event.stopPropagation()
-              onConfigureBuiltin(blueprint)
-            }}
+            className="tools-offer-action shrink-0"
+            onClick={() => onConfigureBuiltin(blueprint)}
             size="sm"
             type="button"
             variant="outline"
           >
-            <SlidersHorizontalIcon />
-            Configure
+            <SlidersHorizontalIcon data-icon="inline-start" />
+            Set up
           </Button>
         ) : needsGoogle ? (
           <Button
-            className="shrink-0"
-            onClick={(event) => {
-              event.stopPropagation()
-              onConnectGoogle()
-            }}
+            className="tools-offer-action shrink-0"
+            onClick={onConnectGoogle}
             size="sm"
             type="button"
             variant="outline"
@@ -212,16 +150,14 @@ const BlueprintCard = ({
           </Button>
         ) : (
           <Button
-            className="shrink-0"
-            onClick={(event) => {
-              event.stopPropagation()
-              onInstall(blueprint)
-            }}
+            aria-label={`Add ${blueprint.title}`}
+            className="tools-offer-action shrink-0"
+            onClick={() => onInstall(blueprint)}
             size="sm"
             type="button"
             variant="outline"
           >
-            <PlusIcon />
+            <PlusIcon data-icon="inline-start" />
             Add
           </Button>
         )}
@@ -230,39 +166,29 @@ const BlueprintCard = ({
   )
 }
 
-const SpotlightCard = ({
-  blueprint,
-  onOpen,
-}: {
-  blueprint: ToolBlueprint
-  onOpen: (blueprint: ToolBlueprint) => void
-}) => {
-  const Icon = blueprint.icon
-
-  return (
-    <button
-      className="brand-edge console-card console-interactive flex min-w-0 items-start gap-3 p-3.5 text-left"
-      onClick={() => onOpen(blueprint)}
-      style={brandStyle(blueprint.brand)}
-      type="button"
-    >
-      <BrandMark brand={blueprint.brand} icon={Icon} size="sm" />
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-2">
-          <span className="console-section-title truncate text-[0.82rem]">
-            {blueprint.title}
-          </span>
-          <ArrowUpRightIcon className="size-3.5 shrink-0 text-muted-foreground" />
-        </span>
-        <span className="mt-1 line-clamp-2 block text-[0.72rem] leading-snug text-muted-foreground">
-          {blueprint.summary}
-        </span>
-      </span>
-    </button>
-  )
-}
-
 /* ── surface ────────────────────────────────────────────────────────────── */
+
+const SectionHeading = ({
+  title,
+  description,
+  count,
+}: {
+  title: string
+  description?: string
+  count: number
+}) => (
+  <div className="mb-4 flex flex-wrap items-end justify-between gap-x-6 gap-y-1">
+    <div className="min-w-0">
+      <h3 className="report-section-title">{title}</h3>
+      {description ? (
+        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+      ) : null}
+    </div>
+    <span className="text-xs text-muted-foreground tabular-nums">
+      {count} {count === 1 ? "tool" : "tools"}
+    </span>
+  </div>
+)
 
 export const ToolCatalog = ({
   query,
@@ -288,36 +214,19 @@ export const ToolCatalog = ({
 
   const ready = visible.filter((blueprint) => blueprint.status !== "planned")
   const planned = visible.filter((blueprint) => blueprint.status === "planned")
-  const showSpotlight = category === "all" && !normalizedQuery
+  const isBrowsingEverything = category === "all" && !normalizedQuery
 
   const categoryCount = (id: CategoryFilter) =>
     TOOL_BLUEPRINTS.filter(
       (blueprint) =>
+        blueprint.status !== "planned" &&
         (id === "all" || blueprint.category === id) &&
         matchesQuery(blueprint, normalizedQuery)
     ).length
 
-  const filters: Array<{
-    id: CategoryFilter
-    label: string
-    description: string
-    icon: ToolBlueprint["icon"]
-  }> = [
-    {
-      id: "all",
-      label: "Everything",
-      description: "Every offering, shippable and planned.",
-      icon: SparklesIcon,
-    },
-    ...CATALOG_CATEGORIES.map((entry) => ({
-      id: entry.id as CategoryFilter,
-      label: entry.label,
-      description: entry.description,
-      icon: entry.icon,
-    })),
-  ]
-
-  const activeCategory = filters.find((filter) => filter.id === category)
+  const activeCategory = CATALOG_CATEGORIES.find(
+    (entry) => entry.id === category
+  )
 
   const openDetail = (blueprint: ToolBlueprint) => setDetailBlueprint(blueprint)
 
@@ -336,159 +245,145 @@ export const ToolCatalog = ({
     onConnectGoogle()
   }
 
+  const renderGrid = (blueprints: ToolBlueprint[]) => (
+    <div className="tools-offer-grid">
+      {blueprints.map((blueprint, index) => (
+        <OfferCard
+          blueprint={blueprint}
+          index={index}
+          installedCount={installedCounts[blueprint.id] ?? 0}
+          isGoogleConnected={isGoogleConnected}
+          key={blueprint.id}
+          onConfigureBuiltin={handleConfigureBuiltin}
+          onConnectGoogle={handleConnectGoogle}
+          onInstall={handleInstall}
+          onOpen={openDetail}
+        />
+      ))}
+    </div>
+  )
+
   return (
-    <div className="flex flex-col gap-5">
-      {showSpotlight && FEATURED_BLUEPRINTS.length > 0 ? (
-        <section className="space-y-2.5">
-          <div className="flex items-center gap-3">
-            <p className="console-label">Start here</p>
-            <div className="console-rule flex-1" />
-            <span className="console-numeral text-[0.66rem] text-muted-foreground">
-              Common first integrations
-            </span>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {FEATURED_BLUEPRINTS.slice(0, 6).map((blueprint) => (
-              <SpotlightCard
-                blueprint={blueprint}
-                key={blueprint.id}
-                onOpen={openDetail}
-              />
+    <div className="flex flex-col gap-12 pb-10">
+      <div className="flex flex-col gap-6">
+        <ConsoleSearch
+          aria-label="Search the tool library"
+          className="tools-search w-full max-w-2xl"
+          onChange={onQueryChange}
+          placeholder="Search by app or job — “HubSpot”, “book a meeting”, “order status”"
+          value={query}
+        />
+
+        <div className="border-b border-[var(--report-rule)]">
+          <div
+            aria-label="Filter the library by category"
+            className="report-filters"
+            role="group"
+          >
+            <ReportFilter
+              active={category === "all"}
+              count={categoryCount("all")}
+              onClick={() => onCategoryChange("all")}
+            >
+              Everything
+            </ReportFilter>
+            {CATALOG_CATEGORIES.map((entry) => (
+              <ReportFilter
+                active={category === entry.id}
+                count={categoryCount(entry.id)}
+                key={entry.id}
+                onClick={() => onCategoryChange(entry.id)}
+              >
+                {entry.label}
+              </ReportFilter>
             ))}
           </div>
+        </div>
+      </div>
+
+      {ready.length === 0 && planned.length === 0 ? (
+        <div className="py-6">
+          <p className="report-section-title">
+            Nothing in the library matches that.
+          </p>
+          <p className="mt-2 max-w-[60ch] text-sm leading-relaxed text-muted-foreground">
+            If the app you use has an API, a developer can still connect it with
+            the custom API request tool.
+          </p>
+          <Button
+            className="mt-5"
+            onClick={() => {
+              onQueryChange("")
+              onCategoryChange("all")
+            }}
+            type="button"
+            variant="outline"
+          >
+            Show everything
+          </Button>
+        </div>
+      ) : null}
+
+      {isBrowsingEverything ? (
+        <>
+          {FEATURED_BLUEPRINTS.length > 0 ? (
+            <section>
+              <SectionHeading
+                count={Math.min(FEATURED_BLUEPRINTS.length, 6)}
+                description="Where most businesses start — each takes a few minutes to set up."
+                title="Popular first tools"
+              />
+              {renderGrid(FEATURED_BLUEPRINTS.slice(0, 6))}
+            </section>
+          ) : null}
+
+          {CATALOG_CATEGORIES.map((entry) => {
+            const items = ready.filter(
+              (blueprint) => blueprint.category === entry.id
+            )
+            if (items.length === 0) return null
+
+            return (
+              <section key={entry.id}>
+                <SectionHeading
+                  count={items.length}
+                  description={entry.description}
+                  title={entry.label}
+                />
+                {renderGrid(items)}
+              </section>
+            )
+          })}
+        </>
+      ) : ready.length > 0 ? (
+        <section>
+          <SectionHeading
+            count={ready.length}
+            description={
+              normalizedQuery
+                ? `Matching “${query.trim()}”${activeCategory ? ` in ${activeCategory.label.toLowerCase()}` : ""}.`
+                : activeCategory?.description
+            }
+            title={
+              normalizedQuery
+                ? "Results"
+                : (activeCategory?.label ?? "Everything")
+            }
+          />
+          {renderGrid(ready)}
         </section>
       ) : null}
 
-      <div className="flex flex-col gap-5 lg:flex-row">
-        <aside className="shrink-0 lg:w-[15.5rem]">
-          <div className="console-card overflow-hidden">
-            <p className="console-label border-b border-[var(--console-hairline-soft)] px-3.5 py-3">
-              Browse
-            </p>
-            <div className="p-2">
-              {filters.map((filter) => {
-                const FilterIcon = filter.icon
-                const isActive = category === filter.id
-
-                return (
-                  <button
-                    className={cn(
-                      "console-row flex w-full items-center gap-2.5 rounded-[10px] border px-2.5 py-2 text-left",
-                      isActive
-                        ? "border-[var(--console-hairline)] bg-muted/70"
-                        : "border-transparent"
-                    )}
-                    key={filter.id}
-                    onClick={() => onCategoryChange(filter.id)}
-                    type="button"
-                  >
-                    <FilterIcon
-                      className={cn(
-                        "size-4 shrink-0",
-                        isActive ? "text-foreground" : "text-muted-foreground"
-                      )}
-                    />
-                    <span
-                      className={cn(
-                        "min-w-0 flex-1 truncate text-[0.8rem] font-medium",
-                        isActive ? "text-foreground" : "text-muted-foreground"
-                      )}
-                    >
-                      {filter.label}
-                    </span>
-                    <span className="console-numeral text-[0.66rem] text-muted-foreground">
-                      {categoryCount(filter.id)}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        </aside>
-
-        <div className="flex min-w-0 flex-1 flex-col gap-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <h2 className="console-section-title truncate">
-                {activeCategory?.label ?? "Everything"}
-              </h2>
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                {activeCategory?.description}
-              </p>
-            </div>
-            <ConsoleSearch
-              aria-label="Search the tool catalog"
-              className="sm:w-72"
-              onChange={onQueryChange}
-              placeholder="Search vendors and actions…"
-              value={query}
-            />
-          </div>
-
-          {ready.length === 0 && planned.length === 0 ? (
-            <div className="console-card">
-              <EmptyState
-                action={
-                  <Button
-                    onClick={() => {
-                      onQueryChange("")
-                      onCategoryChange("all")
-                    }}
-                    size="sm"
-                    type="button"
-                    variant="outline"
-                  >
-                    Clear filters
-                  </Button>
-                }
-                description="Nothing in the catalog matches that. Anything with an HTTP endpoint can still be added as a REST tool."
-                icon={SparklesIcon}
-                title="No match"
-              />
-            </div>
-          ) : null}
-
-          {ready.length > 0 ? (
-            <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
-              {ready.map((blueprint) => (
-                <BlueprintCard
-                  blueprint={blueprint}
-                  installedCount={installedCounts[blueprint.id] ?? 0}
-                  isGoogleConnected={isGoogleConnected}
-                  key={blueprint.id}
-                  onConfigureBuiltin={handleConfigureBuiltin}
-                  onConnectGoogle={handleConnectGoogle}
-                  onInstall={handleInstall}
-                  onOpen={openDetail}
-                />
-              ))}
-            </div>
-          ) : null}
-
-          {planned.length > 0 ? (
-            <section className="flex flex-col gap-3 pt-1">
-              <div className="flex items-center gap-3">
-                <p className="console-label">On the roadmap</p>
-                <div className="console-rule flex-1" />
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
-                {planned.map((blueprint) => (
-                  <BlueprintCard
-                    blueprint={blueprint}
-                    installedCount={0}
-                    isGoogleConnected={isGoogleConnected}
-                    key={blueprint.id}
-                    onConfigureBuiltin={handleConfigureBuiltin}
-                    onConnectGoogle={handleConnectGoogle}
-                    onInstall={handleInstall}
-                    onOpen={openDetail}
-                  />
-                ))}
-              </div>
-            </section>
-          ) : null}
-        </div>
-      </div>
+      {planned.length > 0 ? (
+        <section>
+          <SectionHeading
+            count={planned.length}
+            description="On our roadmap. Listed so you know they're coming — they can't be added yet."
+            title="Coming soon"
+          />
+          {renderGrid(planned)}
+        </section>
+      ) : null}
 
       <BlueprintDetailSheet
         blueprint={detailBlueprint}

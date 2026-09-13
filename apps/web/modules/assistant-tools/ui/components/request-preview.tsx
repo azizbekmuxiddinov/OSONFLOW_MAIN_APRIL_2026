@@ -1,11 +1,8 @@
 "use client"
 
-import { Button } from "@workspace/ui/components/button"
-import { cn } from "@workspace/ui/lib/utils"
-import { CheckIcon, CopyIcon, TerminalIcon } from "lucide-react"
+import { CheckIcon, CopyIcon } from "lucide-react"
 import { useState } from "react"
 
-import { Pill } from "@/modules/dashboard/ui/components/console"
 import type { AssistantTool } from "../../constants"
 
 /**
@@ -139,55 +136,50 @@ export const RequestPreview = ({
 
   if (!url) {
     return (
-      <p className="console-inset px-3.5 py-3 text-xs text-muted-foreground">
-        Add the endpoint above and the exact request appears here.
+      <p className="py-2 text-sm text-muted-foreground">
+        Add the web address above and the exact request appears here.
       </p>
     )
   }
 
   return (
     <div className="space-y-2.5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <Pill tone={method === "GET" ? "info" : "accent"}>{method}</Pill>
-          <span className="console-numeral truncate text-xs text-muted-foreground">
-            {parameters.length} argument{parameters.length === 1 ? "" : "s"}
+      <div className="tools-code">
+        <div className="tools-code-bar">
+          <span className="tabular-nums">
+            {parameters.length} value{parameters.length === 1 ? "" : "s"} from
+            the assistant · sample data
           </span>
+          <button
+            aria-live="polite"
+            className="tools-code-action"
+            onClick={handleCopy}
+            type="button"
+          >
+            {copied ? (
+              <CheckIcon aria-hidden className="size-3.5" />
+            ) : (
+              <CopyIcon aria-hidden className="size-3.5" />
+            )}
+            {copied ? "Copied" : "Copy as cURL"}
+          </button>
         </div>
-        <Button onClick={handleCopy} size="sm" type="button" variant="outline">
-          {copied ? <CheckIcon /> : <CopyIcon />}
-          {copied ? "Copied" : "Copy as cURL"}
-        </Button>
+        <pre>
+          <span className="tools-code-method">{method}</span> {requestUrl}
+          {"\n"}
+          {Object.entries(allHeaders).map(([key, value]) => (
+            <span className="tools-code-muted" key={key}>
+              {key}: {isSensitive(key) ? maskValue(value) : value}
+              {"\n"}
+            </span>
+          ))}
+          {body ? `\n${body}` : null}
+        </pre>
       </div>
 
-      <div className="console-code p-3">
-        <code className="console-code-line text-foreground">
-          {method} {requestUrl}
-        </code>
-        {Object.entries(allHeaders).map(([key, value]) => (
-          <code className="console-code-line text-muted-foreground" key={key}>
-            {key}: {isSensitive(key) ? maskValue(value) : value}
-          </code>
-        ))}
-        {body ? (
-          <>
-            <span className="console-code-line"> </span>
-            {body.split("\n").map((line, index) => (
-              <code
-                className={cn("console-code-line", "text-foreground/80")}
-                key={index}
-              >
-                {line}
-              </code>
-            ))}
-          </>
-        ) : null}
-      </div>
-
-      <p className="flex items-start gap-1.5 text-[0.7rem] leading-relaxed text-muted-foreground">
-        <TerminalIcon className="mt-0.5 size-3 shrink-0" />
-        Credentials are masked here. The copied command carries the real values,
-        so it reproduces the call exactly.
+      <p className="text-xs leading-relaxed text-muted-foreground">
+        Keys are hidden here. The copied command carries the real values, so a
+        developer can reproduce the call exactly.
       </p>
     </div>
   )

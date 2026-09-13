@@ -7,13 +7,18 @@ import { PremiumFeatureOverlay } from "./premium-feature-overlay"
 
 type ProFeatureGateProps = {
   children: React.ReactNode
+  /** Shown while the subscription loads, instead of an empty page. */
+  fallback?: React.ReactNode
 }
 
-export const ProFeatureGate = ({ children }: ProFeatureGateProps) => {
+export const ProFeatureGate = ({
+  children,
+  fallback = null,
+}: ProFeatureGateProps) => {
   const subscription = useQuery(api.private.subscriptions.getCurrent)
 
   if (subscription === undefined) {
-    return null
+    return <>{fallback}</>
   }
 
   if (!subscription.isActive) {

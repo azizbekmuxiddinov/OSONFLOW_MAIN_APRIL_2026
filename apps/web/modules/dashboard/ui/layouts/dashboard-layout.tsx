@@ -11,6 +11,7 @@ import { DashboardSwipeMenu } from "../components/dashboard-swipe-menu"
 import { DashboardThemeToggle } from "../components/dashboard-theme-toggle"
 import { OnboardingGate } from "@/modules/onboarding/ui/components/onboarding-gate"
 import { Provider } from "jotai"
+import "../styles/liquid-glass.css"
 
 export const DashboardLayout = async ({
   children,
@@ -25,23 +26,24 @@ export const DashboardLayout = async ({
       <OrganizationGuard>
         <Provider>
           <SidebarProvider defaultOpen={defaultOpen}>
+            {/* The colour field every glass pane refracts. */}
+            <div aria-hidden className="glass-field" />
             <DashboardNotificationSound />
             <OnboardingGate />
             <DashboardSidebar />
             <DashboardSwipeMenu />
             {/* main must be flex-col + h-svh so resizable panels inside get a real height */}
             <main
-              className="relative flex h-svh flex-1 flex-col overflow-hidden bg-transparent transition-colors"
+              className="relative flex h-svh flex-1 flex-col overflow-hidden bg-transparent"
+              data-glass-shell
               id="main"
             >
-              <div className="pointer-events-none absolute inset-0 overflow-hidden">
-                <div className="animate-ambient absolute top-0 right-[-6rem] h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
-                <div className="animate-float absolute bottom-[-8rem] left-[-6rem] h-80 w-80 rounded-full bg-sky-400/10 blur-3xl" />
-              </div>
-              <header className="surface-frosted sticky top-0 z-20 mx-2 mt-2 flex h-[3.25rem] shrink-0 items-center gap-2 rounded-2xl px-3 text-sidebar-foreground transition-colors md:hidden">
-                <SidebarTrigger className="shrink-0" />
-                <div className="h-4 w-px bg-sidebar-border/70" />
-                <span className="truncate text-sm font-medium">Dashboard</span>
+              <header className="glass sticky top-0 z-20 mx-3 mt-3 flex h-12 shrink-0 items-center gap-2 rounded-full pr-1.5 pl-2 text-sidebar-foreground md:hidden">
+                <SidebarTrigger className="shrink-0 rounded-full" />
+                <div className="h-4 w-px bg-foreground/10" />
+                <span className="truncate text-sm font-semibold tracking-tight">
+                  Osonflow
+                </span>
                 <div className="ml-auto">
                   <DashboardThemeToggle />
                 </div>

@@ -1,13 +1,7 @@
 "use client"
 
-import { cn } from "@workspace/ui/lib/utils"
-import { GlobeLockIcon, KeyRoundIcon } from "lucide-react"
+import { KeyRoundIcon } from "lucide-react"
 
-import {
-  EmptyState,
-  Pill,
-  toneClass,
-} from "@/modules/dashboard/ui/components/console"
 import { resolveToolPresentation } from "../../catalog"
 import type { AssistantTool } from "../../constants"
 import {
@@ -16,6 +10,7 @@ import {
   credentialState,
 } from "../../lib/tool-auth"
 import { BrandMark } from "./brand-mark"
+import { StatusLine } from "./tools-primitives"
 
 /**
  * Every outside system this workspace's assistants can reach, in one list.
@@ -67,14 +62,15 @@ const buildEntries = (tools: AssistantTool[]): HostEntry[] => {
     const presentation = resolveToolPresentation(tool)
     const auth = presentation.blueprint?.auth
     const state = credentialState(tool.config ?? {}, auth)
+    const needsAttention = state === "missing" || state === "placeholder"
     const existing = entries.get(host)
 
     if (existing) {
       existing.tools.push(tool)
-      existing.needsAttention =
-        existing.needsAttention ||
-        state === "missing" ||
-        state === "placeholder"
+      if (needsAttention && !existing.needsAttention) {
+        existing.needsAttention = true
+        existing.detail = CREDENTIAL_STATE_COPY[state]
+      }
       continue
     }
 
@@ -85,10 +81,10 @@ const buildEntries = (tools: AssistantTool[]): HostEntry[] => {
       icon: presentation.icon,
       tools: [tool],
       authLabel: auth ? AUTH_KIND_LABELS[auth.kind] : "Custom headers",
-      needsAttention: state === "missing" || state === "placeholder",
+      needsAttention,
       detail:
         state === "not_required"
-          ? "No credential required"
+          ? "No key needed"
           : CREDENTIAL_STATE_COPY[state],
     })
   }
@@ -96,58 +92,85 @@ const buildEntries = (tools: AssistantTool[]): HostEntry[] => {
   return [...entries.values()].sort((a, b) => a.host.localeCompare(b.host))
 }
 
-export const ConnectionsInventory = ({ tools }: { tools: AssistantTool[] }) => {
+export const ConnectionsInventory = ({
+  tools,
+  onOpenTool,
+}: {
+  tools: AssistantTool[]
+  onOpenTool?: (tool: AssistantTool) => void
+}) => {
   const entries = buildEntries(tools)
 
   if (entries.length === 0) {
     return (
-      <EmptyState
-        description="Once a tool points at an endpoint it shows up here, with the credential it uses and whether that credential has actually been filled in."
-        icon={GlobeLockIcon}
-        title="No outbound endpoints yet"
-      />
+      <p className="border-y border-[var(--report-rule)] py-6 text-sm text-muted-foreground">
+        None yet. Once a tool points at a web address it shows up here, with the
+        key it uses and whether that key has been filled in.
+      </p>
     )
   }
 
   return (
-    <div className="divide-y divide-[var(--console-hairline-soft)]">
-      {entries.map((entry) => (
-        <div
-          className="flex flex-wrap items-center gap-3 px-4 py-3 sm:px-5"
-          key={entry.host}
-        >
-          <BrandMark brand={entry.brand} icon={entry.icon} size="sm" />
+    <ul>
+      {entries.map((entry) => {
+        const isLive = entry.tools.some((tool) => tool.isEnabled)
 
-          <div className="min-w-0 flex-1">
-            <p className="truncate font-mono text-xs font-medium text-foreground">
-              {entry.host}
-            </p>
-            <p className="mt-0.5 truncate text-xs text-muted-foreground">
-              {entry.vendor} · {entry.tools.length} tool
-              {entry.tools.length === 1 ? "" : "s"}
-            </p>
-          </div>
+        return (
+          <li
+            className="setup-row grid grid-cols-[2.25rem_minmax(0,1fr)] items-center gap-x-4 gap-y-2 px-2 py-4 md:grid-cols-[2.25rem_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,0.9fr)]"
+            key={entry.host}
+          >
+            <BrandMark
+              brand={entry.brand}
+              icon={entry.icon}
+              muted={!isLive}
+              size="sm"
+            />
 
-          <span className="flex items-center gap-1.5 text-[0.7rem] text-muted-foreground">
-            <KeyRoundIcon className="size-3" />
-            {entry.authLabel}
-          </span>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium text-foreground">
+                {entry.vendor}
+              </p>
+              <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">
+                {entry.host}
+              </p>
+            </div>
 
-          <Pill tone={entry.needsAttention ? "warning" : "positive"}>
-            {entry.detail}
-          </Pill>
+            <div className="col-start-2 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 md:col-start-auto">
+              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <KeyRoundIcon aria-hidden className="size-3.5" />
+                {entry.authLabel}
+              </span>
+              <StatusLine
+                label={entry.detail}
+                tone={entry.needsAttention ? "attention" : "live"}
+              />
+            </div>
 
-          <span
-            aria-hidden
-            className={cn(
-              "console-dot",
-              entry.tools.some((tool) => tool.isEnabled)
-                ? toneClass.positive
-                : toneClass.neutral
-            )}
-          />
-        </div>
-      ))}
-    </div>
+            <div className="col-start-2 min-w-0 text-xs text-muted-foreground md:col-start-auto">
+              {onOpenTool ? (
+                <span className="flex flex-wrap gap-x-3 gap-y-1">
+                  {entry.tools.map((tool) => (
+                    <button
+                      className="truncate font-mono text-foreground underline decoration-[var(--report-rule-strong)] underline-offset-4 transition-colors hover:decoration-current"
+                      key={tool._id}
+                      onClick={() => onOpenTool(tool)}
+                      type="button"
+                    >
+                      {tool.name}
+                    </button>
+                  ))}
+                </span>
+              ) : (
+                `${entry.tools.length} tool${entry.tools.length === 1 ? "" : "s"}`
+              )}
+              {!isLive ? (
+                <span className="mt-1 block">All switched off</span>
+              ) : null}
+            </div>
+          </li>
+        )
+      })}
+    </ul>
   )
 }

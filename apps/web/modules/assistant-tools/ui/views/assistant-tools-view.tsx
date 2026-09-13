@@ -14,9 +14,16 @@ import {
   AlertDialogTitle,
 } from "@workspace/ui/components/alert-dialog"
 import { Button } from "@workspace/ui/components/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@workspace/ui/components/dropdown-menu"
 import { Input } from "@workspace/ui/components/input"
+import { Kbd } from "@workspace/ui/components/kbd"
 import { Label } from "@workspace/ui/components/label"
-import { ScrollArea } from "@workspace/ui/components/scroll-area"
 import {
   Select,
   SelectContent,
@@ -24,50 +31,42 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@workspace/ui/components/select"
+import { Skeleton } from "@workspace/ui/components/skeleton"
 import { Switch } from "@workspace/ui/components/switch"
 import { Textarea } from "@workspace/ui/components/textarea"
-import { cn } from "@workspace/ui/lib/utils"
 import {
-  AudioLinesIcon,
-  BracesIcon,
-  CalendarClockIcon,
-  ChevronDownIcon,
+  ArrowRightIcon,
+  CheckIcon,
   CopyIcon,
+  EllipsisIcon,
   ExternalLinkIcon,
-  FlaskConicalIcon,
+  EyeOffIcon,
+  GaugeIcon,
   GlobeLockIcon,
-  LayoutGridIcon,
   Loader2Icon,
-  MessageSquareIcon,
-  PlugZapIcon,
   PlusIcon,
-  SaveIcon,
-  ServerCogIcon,
   ShieldCheckIcon,
   SlidersHorizontalIcon,
-  SquareTerminalIcon,
-  Table2Icon,
   Trash2Icon,
-  WrenchIcon,
 } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 
+import { ConsolePage } from "@/modules/dashboard/ui/components/console"
 import {
-  ConsoleHeader,
-  ConsoleMeta,
-  ConsoleSearch,
-  ConsoleSkeleton,
-  Panel,
-  PanelBody,
-  PanelHeader,
-  Pill,
-  toneClass,
-} from "@/modules/dashboard/ui/components/console"
+  ReportFilter,
+  ReportSection,
+} from "@/modules/dashboard/ui/components/report"
+import {
+  SetupPanelSkeleton,
+  SkeletonFigures,
+  SkeletonFilters,
+  SkeletonHero,
+  SkeletonRows,
+} from "@/modules/dashboard/ui/components/report-skeleton"
 import {
   AVAILABLE_BLUEPRINTS,
   BLUEPRINTS_BY_ID,
-  CATALOG_VENDOR_COUNT,
   FEATURED_BLUEPRINTS,
   resolveToolPresentation,
   type CatalogCategoryId,
@@ -77,7 +76,6 @@ import {
 import {
   CHAT_MODEL_OPTIONS,
   createEmptyParameter,
-  GOOGLE_CALENDAR_OPERATION_LABELS,
   GOOGLE_SHEETS_MATCH_MODE_OPTIONS,
   GOOGLE_SHEETS_OPERATION_LABELS,
   GOOGLE_SHEETS_QUERY_STRATEGY_OPTIONS,
@@ -90,17 +88,36 @@ import {
   CREDENTIAL_STATE_COPY,
   credentialState,
 } from "../../lib/tool-auth"
-import { BrandMark, brandStyle } from "../components/brand-mark"
+import {
+  toolDisplayName,
+  toolStatus,
+  type ToolConnections,
+  type ToolStatus,
+} from "../../lib/tool-status"
+import { BrandMark } from "../components/brand-mark"
 import { ConnectionsInventory } from "../components/connections-inventory"
 import { GoogleCalendarConnectionCard } from "../components/google-calendar-connection-card"
 import { GoogleConnectionCard } from "../components/google-connection-card"
 import { RequestHeadersEditor } from "../components/request-headers-editor"
+import { RequestPreview } from "../components/request-preview"
 import { SheetColumnPicker } from "../components/sheet-column-picker"
 import { ToolCatalog } from "../components/tool-catalog"
+import { ToolIndex, type ToolIndexFilter } from "../components/tool-index"
 import { ToolParametersEditor } from "../components/tool-parameters-editor"
-import { RequestPreview } from "../components/request-preview"
 import { ToolReadiness, type ReadinessStep } from "../components/tool-readiness"
 import { ToolTestConsole } from "../components/tool-test-console"
+import {
+  Callout,
+  Disclosure,
+  FieldRow,
+  Step,
+  Steps,
+  StatusLine,
+} from "../components/tools-primitives"
+import "@/modules/dashboard/ui/styles/report.css"
+// The index and step classes are shared with Setup & integrations.
+import "@/modules/integrations/ui/styles/setup.css"
+import "../styles/tools.css"
 
 type ToolEditorState = {
   name: string
@@ -113,14 +130,7 @@ type ToolEditorState = {
 }
 
 type WorkspaceSection = "tools" | "catalog" | "connections"
-type LibraryFilter = "all" | "chat" | "voice" | "off"
 type EditorTab = "overview" | "setup" | "test"
-
-const EDITOR_TABS: Array<{ id: EditorTab; label: string }> = [
-  { id: "overview", label: "Overview" },
-  { id: "setup", label: "Configuration" },
-  { id: "test", label: "Test" },
-]
 
 const VOICE_UNSUPPORTED_TOOL_TYPES = new Set<AssistantTool["type"]>([
   "handoff",
@@ -156,22 +166,82 @@ const previewToolName = (raw: string) =>
     .replace(/_+/g, "_")
     .replace(/^_+|_+$/g, "")
 
-const LIBRARY_FILTERS: Array<{ id: LibraryFilter; label: string }> = [
-  { id: "all", label: "All" },
-  { id: "chat", label: "Chat" },
-  { id: "voice", label: "Voice" },
-  { id: "off", label: "Off" },
+/** What the library can actually add — built-in tools are already there. */
+const ADDABLE_BLUEPRINTS = AVAILABLE_BLUEPRINTS.filter(
+  (blueprint) => blueprint.status === "available"
+)
+const ADDABLE_VENDOR_COUNT = new Set(
+  ADDABLE_BLUEPRINTS.map((blueprint) => blueprint.vendor)
+).size
+
+const SECTIONS: Array<{ id: WorkspaceSection; label: string }> = [
+  { id: "tools", label: "Your tools" },
+  { id: "catalog", label: "Tool library" },
+  { id: "connections", label: "Accounts & security" },
 ]
 
-const SECTIONS: Array<{
-  id: WorkspaceSection
-  label: string
-  icon: typeof WrenchIcon
-}> = [
-  { id: "tools", label: "Installed tools", icon: WrenchIcon },
-  { id: "catalog", label: "Catalog", icon: LayoutGridIcon },
-  { id: "connections", label: "Connections", icon: PlugZapIcon },
+/** How a tool call is fenced — facts about the runtime, stated plainly. */
+const SAFEGUARDS = [
+  {
+    icon: ShieldCheckIcon,
+    title: "Only your workspace can use them",
+    body: "A tool is visible only to assistants in the business that added it, and only on the channels it's switched on for.",
+  },
+  {
+    icon: GlobeLockIcon,
+    title: "Calls only go to the public internet",
+    body: "Requests must use http or https. Private, local and internal network addresses are refused, and every redirect is checked again.",
+  },
+  {
+    icon: GaugeIcon,
+    title: "Answers are kept short",
+    body: "At most 4,000 characters of a reply reach your assistant, so a huge response can't flood the conversation.",
+  },
+  {
+    icon: EyeOffIcon,
+    title: "Keys stay out of the conversation",
+    body: "Keys are sent to the app you connected and nowhere else. Your assistant only ever sees the answer, never the key.",
+  },
 ]
+
+const Figure = ({
+  label,
+  value,
+  note,
+}: {
+  label: string
+  value: React.ReactNode
+  note: string
+}) => (
+  <div className="report-figure flex flex-col gap-3 px-1 py-5 sm:px-5 md:first:pl-0">
+    <p className="console-label">{label}</p>
+    <p className="report-figure-value">{value}</p>
+    <p className="text-xs leading-snug text-muted-foreground">{note}</p>
+  </div>
+)
+
+/** Drawn in the loaded page's grid so nothing jumps when tools arrive. */
+const ToolsSkeleton = () => (
+  <ConsolePage width="wide">
+    <div aria-busy="true" className="report" role="status">
+      <span className="sr-only">Loading assistant tools</span>
+      <SkeletonHero />
+      <SkeletonFigures />
+      <div className="mt-10">
+        <SkeletonFilters count={3} />
+      </div>
+      <div className="grid gap-10 pt-8 lg:grid-cols-[19rem_minmax(0,1fr)] lg:gap-14">
+        <div className="space-y-3">
+          <Skeleton className="h-9 w-full rounded-full" />
+          <SkeletonRows avatar className="border-t-0" count={6} trailing={0} />
+        </div>
+        <div className="hidden lg:block">
+          <SetupPanelSkeleton />
+        </div>
+      </div>
+    </div>
+  </ConsolePage>
+)
 
 export const AssistantToolsView = () => {
   const tools = useQuery(api.private.assistantTools.list)
@@ -225,13 +295,12 @@ export const AssistantToolsView = () => {
   )
   const [editor, setEditor] = useState<ToolEditorState>(defaultEditorState())
   const [libraryQuery, setLibraryQuery] = useState("")
-  const [libraryFilter, setLibraryFilter] = useState<LibraryFilter>("all")
+  const [libraryFilter, setLibraryFilter] = useState<ToolIndexFilter>("all")
   const [catalogQuery, setCatalogQuery] = useState("")
   const [catalogCategory, setCatalogCategory] = useState<
     CatalogCategoryId | "all"
   >("all")
   const [spreadsheetFilter, setSpreadsheetFilter] = useState("")
-  const [showAdvancedSheets, setShowAdvancedSheets] = useState(false)
   const [editorTab, setEditorTab] = useState<EditorTab>("overview")
   const [isDirty, setIsDirty] = useState(false)
   const [googleApiKey, setGoogleApiKey] = useState("")
@@ -262,6 +331,8 @@ export const AssistantToolsView = () => {
   >(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const hasBootstrappedRef = useRef(false)
+  const sectionsRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (hasBootstrappedRef.current) {
@@ -296,28 +367,6 @@ export const AssistantToolsView = () => {
     () => (tools ?? []).filter((tool) => !tool.isBuiltin),
     [tools]
   )
-
-  const matchesLibrary = (tool: AssistantTool) => {
-    const query = libraryQuery.trim().toLowerCase()
-
-    if (
-      query &&
-      !`${tool.name} ${tool.description} ${tool.type}`
-        .toLowerCase()
-        .includes(query)
-    ) {
-      return false
-    }
-
-    if (libraryFilter === "chat") return tool.isEnabled && tool.enabledForChat
-    if (libraryFilter === "voice") return tool.isEnabled && tool.enabledForVoice
-    if (libraryFilter === "off") return !tool.isEnabled
-
-    return true
-  }
-
-  const filteredBuiltinTools = builtinTools.filter(matchesLibrary)
-  const filteredIntegrationTools = integrationTools.filter(matchesLibrary)
 
   const installedCounts = useMemo(() => {
     const counts: Record<string, number> = {}
@@ -378,7 +427,7 @@ export const AssistantToolsView = () => {
           typeLabel: activeBlueprint.title,
         }
       : {
-          icon: WrenchIcon,
+          icon: PlusIcon,
           tone: "neutral" as const,
           brand: "#64748b",
           vendor: "Custom",
@@ -635,7 +684,6 @@ export const AssistantToolsView = () => {
       setActiveBlueprintId(resolveToolPresentation(tool).blueprint?.id ?? null)
       setEditor(toolToEditorState(tool))
       setIsDirty(false)
-      setShowAdvancedSheets(false)
       setEditorTab("overview")
     })
 
@@ -661,12 +709,40 @@ export const AssistantToolsView = () => {
         config: draft.config,
       })
       setIsDirty(true)
-      setShowAdvancedSheets(draft.type === "google_sheets")
       setUseManualSpreadsheetId(false)
       // A freshly installed blueprint arrives with its identity already
       // written — what is missing is the endpoint and the credential.
       setEditorTab("setup")
+      window.requestAnimationFrame(() =>
+        sectionsRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        })
+      )
     })
+  }
+
+  /** Opens a tool from elsewhere on the page and scrolls its panel into view. */
+  const openToolAndReveal = (tool: AssistantTool) =>
+    guardUnsaved(() => {
+      setSection("tools")
+      setSelectedToolId(tool._id)
+      setNewToolType(null)
+      setActiveBlueprintId(resolveToolPresentation(tool).blueprint?.id ?? null)
+      setEditor(toolToEditorState(tool))
+      setIsDirty(false)
+      setEditorTab("overview")
+      window.requestAnimationFrame(() =>
+        panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+      )
+    })
+
+  const cancelNewTool = () => {
+    setSelectedToolId(null)
+    setNewToolType(null)
+    setActiveBlueprintId(null)
+    setEditor(defaultEditorState())
+    setIsDirty(false)
   }
 
   const configureBuiltin = (blueprint: ToolBlueprint) => {
@@ -1022,12 +1098,19 @@ export const AssistantToolsView = () => {
     )?.trim() ?? ""
 
   const readinessSteps: ReadinessStep[] = (() => {
+    const toSetup = {
+      label: "Go to setup",
+      onClick: () => setEditorTab("setup"),
+    }
+    const namedParameters = editor.parameters.every((parameter) =>
+      parameter.name.trim()
+    )
     const steps: ReadinessStep[] = [
       {
         id: "identity",
-        label: "Named and described",
+        label: "Describe when to use it",
         description:
-          "The description is the only thing telling the model when to reach for this tool.",
+          "Your assistant only uses a tool when a conversation matches its description. Write it below.",
         done: Boolean(editor.name.trim() && editor.description.trim()),
       },
     ]
@@ -1036,88 +1119,114 @@ export const AssistantToolsView = () => {
       steps.push(
         {
           id: "google",
-          label: "Google account connected",
-          description: "Connect once — every Sheets tool reuses the grant.",
+          label: "Connect your Google account",
+          description:
+            "Connect once — every spreadsheet tool uses the same account.",
           done: isGoogleConnected,
+          action: toSetup,
         },
         {
           id: "sheet",
-          label: "Spreadsheet and tab chosen",
-          description: "Column headers load from the first row of that tab.",
+          label: "Choose the spreadsheet and tab",
+          description: "Column names are read from the first row of that tab.",
           done: Boolean(
             editor.config.spreadsheetId?.trim() && editor.config.range?.trim()
           ),
+          action: toSetup,
         },
         {
           id: "columns",
-          label: "Columns selected",
+          label: "Choose the columns",
           description:
-            "The columns you pick become the arguments the assistant may send.",
+            "The columns you pick decide what your assistant asks the customer for.",
           done:
             (editor.config.searchColumns?.length ?? 0) > 0 ||
             (editor.config.valueColumns?.length ?? 0) > 0,
+          action: toSetup,
         }
       )
     } else if (isGoogleCalendarEditor) {
       steps.push(
         {
           id: "google-calendar",
-          label: "Google Calendar connected",
-          description: "Connect once — every Calendar tool reuses the grant.",
+          label: "Connect Google Calendar",
+          description:
+            "Connect once — every calendar tool uses the same account.",
           done: isGoogleCalendarConnected,
+          action: toSetup,
         },
         {
           id: "calendar",
-          label: "Calendar chosen",
-          description: "Which calendar this tool reads and writes.",
+          label: "Choose the calendar",
+          description: "The calendar this tool checks and books on.",
           done: Boolean(editor.config.calendarId?.trim()),
+          action: toSetup,
         },
         {
           id: "arguments",
-          label: "Arguments named",
-          description: "Every parameter needs a name the model can fill.",
-          done: editor.parameters.every((parameter) => parameter.name.trim()),
+          label: "Name every value your assistant fills in",
+          description: "A value without a name can't be sent.",
+          done: namedParameters,
+          action: toSetup,
         }
       )
     } else if (!selectedTool?.isBuiltin) {
       steps.push({
         id: "endpoint",
-        label: "Endpoint set",
-        description: "Where the request goes when the model calls this tool.",
+        label: "Add the web address",
+        description:
+          "Where the request goes when your assistant uses this tool.",
         done: Boolean(endpointValue),
+        action: toSetup,
       })
 
       if (credential !== "not_required") {
         steps.push({
           id: "credential",
-          label: blueprintAuth?.label ?? "Credential added",
+          label: blueprintAuth?.label ?? "Add your key",
           description:
             credential === "placeholder"
-              ? "The template's example value is still in place."
-              : "The provider will refuse the call without it.",
+              ? "The example key from the template is still there — replace it with your real one."
+              : `${presentation.vendor} refuses the request without it.`,
           done: credential === "set",
+          action: toSetup,
         })
       }
 
       steps.push({
         id: "arguments",
-        label: "Arguments named",
-        description: "Every parameter needs a name the model can fill.",
-        done: editor.parameters.every((parameter) => parameter.name.trim()),
+        label: "Name every value your assistant fills in",
+        description: "A value without a name can't be sent.",
+        done: namedParameters,
+        action: toSetup,
       })
     }
 
+    const isSaved = !isDirty && selectedToolId !== "new"
+
     steps.push({
       id: "live",
-      label: "Saved and switched on",
-      description: isDirty
-        ? "Unsaved changes are not live yet."
-        : "Turn the tool on for at least one channel.",
+      label: "Save it and switch it on",
+      description: !isSaved
+        ? "Changes only reach customers once they're saved."
+        : !editor.isEnabled
+          ? "It's switched off, so your assistant won't use it."
+          : "Turn it on for chat, voice calls, or both.",
       done:
-        !isDirty &&
-        selectedToolId !== "new" &&
+        isSaved &&
         editor.isEnabled &&
         (editor.enabledForChat || editor.enabledForVoice),
+      action: !isSaved
+        ? {
+            label: selectedToolId === "new" ? "Add tool" : "Save now",
+            onClick: () => void handleSave(),
+          }
+        : !editor.isEnabled
+          ? {
+              label: "Switch on",
+              onClick: () => patchEditor({ isEnabled: true }),
+            }
+          : undefined,
     })
 
     return steps
@@ -1127,1580 +1236,1513 @@ export const AssistantToolsView = () => {
   const isToolReady = readyCount === readinessSteps.length
 
   if (tools === undefined) {
-    return <ConsoleSkeleton rows={3} stats={0} />
+    return <ToolsSkeleton />
   }
 
-  const activeCount = tools.filter((tool) => tool.isEnabled).length
+  /* ── page facts ────────────────────────────────────────────────────── */
+
+  const connections: ToolConnections = {
+    isGoogleSheetsConnected: isGoogleConnected,
+    isGoogleCalendarConnected,
+  }
+  const statuses = new Map<string, ToolStatus>(
+    tools.map((tool) => [tool._id, toolStatus(tool, connections)])
+  )
+  const liveTools = tools.filter(
+    (tool) => statuses.get(tool._id)?.tone === "live"
+  )
+  const attentionTools = tools.filter(
+    (tool) => statuses.get(tool._id)?.tone === "attention"
+  )
   const chatCount = tools.filter(
     (tool) => tool.isEnabled && tool.enabledForChat
   ).length
   const voiceCount = tools.filter(
     (tool) => tool.isEnabled && tool.enabledForVoice
   ).length
+  const liveVendors = [
+    ...new Set(
+      liveTools
+        .filter((tool) => !tool.isBuiltin)
+        .map((tool) => resolveToolPresentation(tool).vendor)
+    ),
+  ]
 
-  /* ── library rail ──────────────────────────────────────────────────── */
+  const goToLibrary = () => guardUnsaved(() => setSection("catalog"))
+  const lowerFirst = (text: string) =>
+    text.charAt(0).toLowerCase() + text.slice(1)
 
-  const renderToolRow = (tool: AssistantTool) => {
-    const rowPresentation = resolveToolPresentation(tool)
-    const RowIcon = rowPresentation.icon
-    const isSelected = selectedToolId === tool._id
-
-    return (
-      <button
-        className={cn(
-          "console-row flex w-full items-start gap-3 rounded-[10px] border px-2.5 py-2.5 text-left",
-          isSelected
-            ? "border-[var(--console-hairline)] bg-muted/70"
-            : "border-transparent hover:border-[var(--console-hairline-soft)]"
-        )}
-        key={tool._id}
-        onClick={() => openTool(tool)}
-        type="button"
-      >
-        <BrandMark
-          brand={rowPresentation.brand}
-          icon={RowIcon}
-          muted={!tool.isEnabled}
-          size="sm"
-        />
-
-        <span className="min-w-0 flex-1">
-          <span className="flex items-center gap-2">
-            <span className="truncate font-mono text-[0.78rem] font-medium text-foreground">
-              {tool.name}
-            </span>
-            {!tool.isEnabled ? (
-              <span className="shrink-0 rounded-full border border-[var(--console-hairline-soft)] px-1.5 text-[0.62rem] leading-4 text-muted-foreground">
-                Off
-              </span>
-            ) : null}
-          </span>
-          <span className="mt-0.5 line-clamp-2 block text-xs leading-snug text-muted-foreground">
-            {tool.description}
-          </span>
-          <span className="mt-1.5 flex items-center gap-2 text-[0.66rem] text-muted-foreground">
-            <span className="truncate">{rowPresentation.vendor}</span>
-            {tool.isEnabled && tool.enabledForChat ? (
-              <span className="console-tone-info inline-flex items-center gap-1">
-                <MessageSquareIcon className="size-3" />
-                Chat
-              </span>
-            ) : null}
-            {tool.isEnabled && tool.enabledForVoice ? (
-              <span className="console-tone-accent inline-flex items-center gap-1">
-                <AudioLinesIcon className="size-3" />
-                Voice
-              </span>
-            ) : null}
-          </span>
-        </span>
-      </button>
-    )
-  }
-
-  /** Installed integrations, gathered under the vendor they belong to. */
-  const integrationGroups = (() => {
-    const groups = new Map<string, AssistantTool[]>()
-
-    for (const tool of filteredIntegrationTools) {
-      const vendor = resolveToolPresentation(tool).vendor
-      const bucket = groups.get(vendor)
-
-      if (bucket) {
-        bucket.push(tool)
-        continue
-      }
-
-      groups.set(vendor, [tool])
-    }
-
-    return [...groups.entries()].sort(([left], [right]) =>
-      left.localeCompare(right)
-    )
-  })()
-
-  const EditorIcon = presentation.icon
-  const operation = editor.config.operation ?? "lookup"
+  const EDITOR_TABS: Array<{ id: EditorTab; label: string }> = [
+    { id: "overview", label: "Overview" },
+    ...(selectedTool?.isBuiltin
+      ? []
+      : [{ id: "setup" as const, label: "Setup" }]),
+    { id: "test", label: "Try it" },
+  ]
   const activeEditorTab: EditorTab =
     selectedTool?.isBuiltin && editorTab === "setup" ? "overview" : editorTab
+  const operation = editor.config.operation ?? "lookup"
+  const isNewTool = selectedToolId === "new"
+  const panelTitle = selectedTool
+    ? toolDisplayName(selectedTool)
+    : (activeBlueprint?.title ?? "New tool")
+  const panelStatus: ToolStatus = isNewTool
+    ? { tone: "attention", label: "Not added yet — save to finish" }
+    : isDirty
+      ? { tone: "attention", label: "Unsaved changes" }
+      : selectedTool
+        ? (statuses.get(selectedTool._id) ?? { tone: "off", label: "" })
+        : { tone: "off", label: "" }
+  const credentialDone = credential === "set" || credential === "not_required"
+  const parametersNamed = editor.parameters.every((parameter) =>
+    parameter.name.trim()
+  )
 
-  return (
-    <div className="console-page flex h-full min-h-0 flex-col overflow-hidden">
-      <div className="shrink-0 px-4 pt-5 sm:px-6">
-        <div className="mx-auto w-full max-w-[1540px]">
-          <ConsoleHeader
-            actions={
-              <Button
-                onClick={() => guardUnsaved(() => setSection("catalog"))}
-                type="button"
-              >
-                <PlusIcon />
-                Add a tool
-              </Button>
-            }
-            description="Everything your chat and voice assistants are allowed to call — what each tool does, which channel it runs on, and exactly how the call is shaped."
-            eyebrow="Capabilities"
-            icon={WrenchIcon}
-            meta={
-              <>
-                <ConsoleMeta
-                  dot
-                  label="Active"
-                  tone="positive"
-                  value={activeCount}
-                />
-                <ConsoleMeta label="Chat" value={chatCount} />
-                <ConsoleMeta label="Voice" value={voiceCount} />
-                <ConsoleMeta
-                  label="Integrations"
-                  value={integrationTools.length}
-                />
-                <ConsoleMeta
-                  dot
-                  label="Sheets"
-                  tone={isGoogleConnected ? "positive" : "neutral"}
-                  value={isGoogleConnected ? "Connected" : "Not connected"}
-                />
-                <ConsoleMeta
-                  dot
-                  label="Calendar"
-                  tone={isGoogleCalendarConnected ? "positive" : "neutral"}
-                  value={
-                    isGoogleCalendarConnected ? "Connected" : "Not connected"
-                  }
-                />
-                <ConsoleMeta
-                  label="Catalog"
-                  value={`${AVAILABLE_BLUEPRINTS.length} offerings · ${CATALOG_VENDOR_COUNT} vendors`}
-                />
-              </>
-            }
-            title="Assistant tools"
-          />
+  /* ── hero ──────────────────────────────────────────────────────────── */
 
-          <div className="console-segment mt-4 mb-4 flex w-full flex-wrap gap-1 sm:inline-flex sm:w-auto">
-            {SECTIONS.map((entry) => {
-              const SectionIcon = entry.icon
-              return (
-                <button
-                  className={cn(
-                    "console-segment-item flex items-center gap-2 border border-transparent px-3 py-1.5 text-[0.8rem] font-medium",
-                    section === entry.id
-                      ? "text-foreground"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                  data-active={section === entry.id || undefined}
-                  key={entry.id}
-                  onClick={() => guardUnsaved(() => setSection(entry.id))}
-                  type="button"
-                >
-                  <SectionIcon className="size-4" />
-                  {entry.label}
-                  {entry.id === "tools" ? (
-                    <span className="console-numeral text-[0.66rem] text-muted-foreground">
-                      {tools.length}
-                    </span>
-                  ) : null}
-                </button>
-              )
-            })}
-          </div>
-        </div>
+  const hero = (
+    <section className="pt-2 pb-10">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="console-eyebrow">Assistant tools</p>
+        {section === "catalog" ? null : (
+          <Button onClick={goToLibrary} size="sm" type="button">
+            <PlusIcon data-icon="inline-start" />
+            Add a tool
+          </Button>
+        )}
       </div>
 
-      {section === "tools" ? (
-        <div className="mx-auto flex min-h-0 w-full max-w-[1540px] flex-1 flex-col gap-4 overflow-hidden px-4 pb-4 sm:px-6 sm:pb-6 lg:flex-row">
-          <aside className="console-card flex max-h-[min(360px,40vh)] w-full shrink-0 flex-col overflow-hidden lg:h-full lg:max-h-none lg:w-[320px] lg:max-w-[320px]">
-            <div className="shrink-0 space-y-3 border-b border-[var(--console-hairline-soft)] px-4 py-3.5">
-              <div className="flex items-center justify-between gap-2">
-                <h2 className="console-section-title">Installed</h2>
-                <span className="console-numeral text-xs text-muted-foreground">
-                  {filteredBuiltinTools.length +
-                    filteredIntegrationTools.length}
-                  {" / "}
-                  {tools.length}
-                </span>
-              </div>
-              <ConsoleSearch
-                onChange={setLibraryQuery}
-                placeholder="Search installed tools…"
-                value={libraryQuery}
+      {attentionTools.length ? (
+        <>
+          <h1 className="report-headline mt-6 max-w-[22ch]">
+            <span className="report-headline-figure">
+              {attentionTools.length}{" "}
+              {attentionTools.length === 1 ? "tool" : "tools"}
+            </span>{" "}
+            {attentionTools.length === 1 ? "needs" : "need"} a minute of your
+            time.
+          </h1>
+          <p className="report-lede mt-5 max-w-[64ch]">
+            {attentionTools.slice(0, 3).map((tool, index) => (
+              <span key={tool._id}>
+                {index > 0 ? " " : null}
+                <button
+                  className="font-semibold text-foreground underline decoration-[var(--outcome-open)] decoration-2 underline-offset-4"
+                  onClick={() => openToolAndReveal(tool)}
+                  type="button"
+                >
+                  {toolDisplayName(tool)}
+                </button>
+                : {lowerFirst(statuses.get(tool._id)?.label ?? "")}.
+              </span>
+            ))}
+            {attentionTools.length > 3
+              ? ` And ${attentionTools.length - 3} more.`
+              : null}{" "}
+            Until then your assistant can&apos;t use{" "}
+            {attentionTools.length === 1 ? "it" : "them"}
+            {liveTools.length ? (
+              <>
+                {" "}
+                — the other <strong>{liveTools.length}</strong>{" "}
+                {liveTools.length === 1 ? "is" : "are"} working normally.
+              </>
+            ) : (
+              "."
+            )}
+          </p>
+        </>
+      ) : integrationTools.length && liveTools.length ? (
+        <>
+          <h1 className="report-headline mt-6 max-w-[22ch]">
+            Your assistant can{" "}
+            <span className="report-headline-figure">
+              do {liveTools.length}{" "}
+              {liveTools.length === 1 ? "thing" : "things"}
+            </span>{" "}
+            for your customers.
+          </h1>
+          <p className="report-lede mt-5 max-w-[64ch]">
+            {liveVendors.length ? (
+              <>
+                It looks things up and takes action in{" "}
+                {liveVendors.slice(0, 3).map((vendor, index, list) => (
+                  <span key={vendor}>
+                    {index > 0
+                      ? index === list.length - 1
+                        ? " and "
+                        : ", "
+                      : null}
+                    <strong>{vendor}</strong>
+                  </span>
+                ))}
+                {liveVendors.length > 3
+                  ? ` and ${liveVendors.length - 3} more`
+                  : null}
+                , while the customer is still talking to it.{" "}
+              </>
+            ) : null}
+            <strong>{chatCount}</strong>{" "}
+            {chatCount === 1 ? "tool works" : "tools work"} in chat and{" "}
+            <strong>{voiceCount}</strong> on voice calls.
+          </p>
+        </>
+      ) : integrationTools.length ? (
+        <>
+          <h1 className="report-headline mt-6 max-w-[22ch]">
+            Your connected apps are all switched off.
+          </h1>
+          <p className="report-lede mt-5 max-w-[64ch]">
+            Your assistant still searches your knowledge base and passes chats
+            to your team, but it won&apos;t use any of the{" "}
+            <strong>{integrationTools.length}</strong> apps you connected until
+            you turn one back on.
+          </p>
+        </>
+      ) : (
+        <>
+          <h1 className="report-headline mt-6 max-w-[20ch]">
+            Let your assistant{" "}
+            <span className="report-headline-figure">get things done</span>, not
+            just answer.
+          </h1>
+          <p className="report-lede mt-5 max-w-[64ch]">
+            Right now it can search your knowledge base, pass a chat to your
+            team and close finished conversations. Connect the apps you already
+            use and it can check an order, book a meeting or add a lead to your
+            CRM — while the customer is still chatting.
+          </p>
+          {section === "catalog" ? null : (
+            <Button
+              className="mt-7"
+              onClick={goToLibrary}
+              type="button"
+              variant="outline"
+            >
+              Browse {ADDABLE_BLUEPRINTS.length} ready-made tools
+              <ArrowRightIcon data-icon="inline-end" />
+            </Button>
+          )}
+        </>
+      )}
+    </section>
+  )
+
+  const figures = (
+    <div className="report-figures grid grid-cols-2 md:grid-cols-4">
+      <Figure
+        label="Working now"
+        note={`Out of ${tools.length} ${tools.length === 1 ? "tool" : "tools"}`}
+        value={liveTools.length}
+      />
+      <Figure
+        label="In chat"
+        note="Website widget and messaging apps"
+        value={chatCount}
+      />
+      <Figure
+        label="On voice calls"
+        note="Your voice assistant"
+        value={voiceCount}
+      />
+      <Figure
+        label="Ready to add"
+        note={`From ${ADDABLE_VENDOR_COUNT} apps`}
+        value={ADDABLE_BLUEPRINTS.length}
+      />
+    </div>
+  )
+
+  /* ── editor: overview ──────────────────────────────────────────────── */
+
+  const overviewTab = (
+    <div className="space-y-12">
+      <section>
+        <h3 className="report-section-title">
+          {isToolReady ? "Ready to use" : "Finish setting up"}
+        </h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {isToolReady
+            ? "Nothing is missing."
+            : `${readyCount} of ${readinessSteps.length} steps done. A tool that isn't finished fails quietly in the middle of a conversation.`}
+        </p>
+        <div className="mt-6">
+          <ToolReadiness steps={readinessSteps} />
+        </div>
+      </section>
+
+      <section>
+        <label
+          className="report-section-title block"
+          htmlFor="tool-description"
+        >
+          When should your assistant use it?
+        </label>
+        <p className="mt-1 max-w-[64ch] text-sm leading-relaxed text-muted-foreground">
+          Your assistant reads this to decide when the tool fits. Describe the
+          situation a customer is in — not the technology.
+        </p>
+        <Textarea
+          className="mt-4 text-[0.95rem] leading-relaxed"
+          id="tool-description"
+          maxLength={1000}
+          onChange={(event) => patchEditor({ description: event.target.value })}
+          placeholder="Use when a customer asks where their order is and gives an order number or the email they ordered with."
+          rows={4}
+          value={editor.description}
+        />
+        <div className="mt-2 flex items-start justify-between gap-4 text-xs text-muted-foreground">
+          <p>
+            Good descriptions say <em>when</em> and{" "}
+            <em>what the customer gives you</em>.
+          </p>
+          <p className="shrink-0 tabular-nums">
+            {editor.description.length} / 1000
+          </p>
+        </div>
+      </section>
+
+      <section>
+        <h3 className="report-section-title">Where it works</h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Choose where customers can reach this tool through your assistant.
+        </p>
+        <div className="mt-4">
+          <FieldRow
+            control={
+              <Switch
+                checked={editor.enabledForChat}
+                id="tool-channel-chat"
+                onCheckedChange={(checked) =>
+                  patchEditor({ enabledForChat: checked })
+                }
               />
-              <div className="console-segment flex gap-1">
-                {LIBRARY_FILTERS.map((filter) => (
-                  <button
-                    className={cn(
-                      "console-segment-item flex-1 border border-transparent px-2 py-1 text-[0.72rem] font-medium",
-                      libraryFilter === filter.id
-                        ? "text-foreground"
-                        : "text-muted-foreground hover:text-foreground"
+            }
+            hint="Your website widget, Telegram, WhatsApp and Instagram"
+            htmlFor="tool-channel-chat"
+            label="Chat"
+          />
+          <FieldRow
+            control={
+              <Switch
+                checked={
+                  isVoiceUnsupportedTool ? false : editor.enabledForVoice
+                }
+                disabled={isVoiceUnsupportedTool}
+                id="tool-channel-voice"
+                onCheckedChange={(checked) =>
+                  patchEditor({ enabledForVoice: checked })
+                }
+              />
+            }
+            hint={
+              isVoiceUnsupportedTool
+                ? "Voice calls can't hand over or close a conversation"
+                : "Your voice assistant, on OpenAI Realtime and Gemini Live"
+            }
+            htmlFor="tool-channel-voice"
+            label="Voice calls"
+          />
+        </div>
+        {!editor.isEnabled ? (
+          <Callout className="mt-5">
+            This tool is switched off, so neither channel uses it.{" "}
+            <button
+              className="font-medium underline underline-offset-4"
+              onClick={() => patchEditor({ isEnabled: true })}
+              type="button"
+            >
+              Turn it on
+            </button>
+          </Callout>
+        ) : null}
+      </section>
+
+      {selectedTool?.type === "query" ? (
+        <section>
+          <h3 className="report-section-title">How it reads your documents</h3>
+          <p className="mt-1 max-w-[64ch] text-sm text-muted-foreground">
+            The AI model that reads what the search finds before your assistant
+            answers. Faster models cost less; stronger ones handle long,
+            detailed documents better.
+          </p>
+          <div className="mt-4 max-w-sm">
+            <Select
+              onValueChange={(value) =>
+                patchConfig({ knowledgeBaseModel: value })
+              }
+              value={editor.config.knowledgeBaseModel ?? "gpt-4o-mini"}
+            >
+              <SelectTrigger
+                aria-label="Knowledge base model"
+                className="w-full"
+              >
+                <SelectValue placeholder="Select model" />
+              </SelectTrigger>
+              <SelectContent>
+                {CHAT_MODEL_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </section>
+      ) : null}
+
+      {selectedTool?.isBuiltin ? (
+        <Callout tone="info">
+          Built-in tools run inside Osonflow — there&apos;s nothing to connect
+          and no key to store.
+        </Callout>
+      ) : (
+        <section>
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h3 className="report-section-title">Connection</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                How this tool reaches {presentation.vendor}.
+              </p>
+            </div>
+            <Button
+              onClick={() => setEditorTab("setup")}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              <SlidersHorizontalIcon data-icon="inline-start" />
+              Change setup
+            </Button>
+          </div>
+          <dl className="mt-4">
+            <div className="tools-field flex items-center justify-between gap-6 py-3.5">
+              <dt className="text-sm text-muted-foreground">App</dt>
+              <dd className="truncate text-sm font-medium text-foreground">
+                {presentation.vendor}
+              </dd>
+            </div>
+            {isGoogleSheetsEditor || isGoogleCalendarEditor ? (
+              <div className="tools-field flex items-center justify-between gap-6 py-3.5">
+                <dt className="text-sm text-muted-foreground">
+                  Google account
+                </dt>
+                <dd className="min-w-0">
+                  <StatusLine
+                    label={
+                      (
+                        isGoogleSheetsEditor
+                          ? isGoogleConnected
+                          : isGoogleCalendarConnected
+                      )
+                        ? ((isGoogleSheetsEditor
+                            ? googleSheetsStatus?.email
+                            : googleCalendarStatus?.email) ?? "Connected")
+                        : "Not connected"
+                    }
+                    tone={
+                      (
+                        isGoogleSheetsEditor
+                          ? isGoogleConnected
+                          : isGoogleCalendarConnected
+                      )
+                        ? "live"
+                        : "attention"
+                    }
+                  />
+                </dd>
+              </div>
+            ) : (
+              <>
+                <div className="tools-field flex items-center justify-between gap-6 py-3.5">
+                  <dt className="shrink-0 text-sm text-muted-foreground">
+                    Sends to
+                  </dt>
+                  <dd className="min-w-0 truncate font-mono text-xs text-foreground">
+                    {endpointValue || (
+                      <span className="font-sans text-sm text-muted-foreground">
+                        Not set yet
+                      </span>
                     )}
-                    data-active={libraryFilter === filter.id || undefined}
-                    key={filter.id}
-                    onClick={() => setLibraryFilter(filter.id)}
+                  </dd>
+                </div>
+                <div className="tools-field flex items-center justify-between gap-6 py-3.5">
+                  <dt className="shrink-0 text-sm text-muted-foreground">
+                    Key
+                  </dt>
+                  <dd className="min-w-0">
+                    <StatusLine
+                      label={
+                        credential === "not_required"
+                          ? blueprintAuth
+                            ? AUTH_KIND_LABELS[blueprintAuth.kind]
+                            : "No key needed"
+                          : CREDENTIAL_STATE_COPY[credential]
+                      }
+                      tone={credentialDone ? "live" : "attention"}
+                    />
+                  </dd>
+                </div>
+              </>
+            )}
+          </dl>
+        </section>
+      )}
+
+      <div className="border-t border-[var(--report-rule)]">
+        <Disclosure summary="Advanced: the name your assistant calls it by">
+          <div className="max-w-md space-y-2">
+            <Input
+              aria-describedby="tool-name-hint"
+              aria-label="Tool name"
+              className="font-mono text-xs"
+              disabled={selectedTool?.isBuiltin}
+              id="tool-name"
+              onChange={(event) => patchEditor({ name: event.target.value })}
+              placeholder="lookup_order"
+              value={editor.name}
+            />
+            <p
+              className="text-xs leading-relaxed text-muted-foreground"
+              id="tool-name-hint"
+            >
+              {selectedTool?.isBuiltin ? (
+                "Built-in tools keep a fixed name."
+              ) : editor.name &&
+                previewToolName(editor.name) !== editor.name ? (
+                <>
+                  Will be saved as{" "}
+                  <code className="font-mono text-foreground">
+                    {previewToolName(editor.name) || "—"}
+                  </code>
+                </>
+              ) : (
+                "Only the AI sees this. Lowercase letters, numbers and underscores."
+              )}
+            </p>
+          </div>
+        </Disclosure>
+      </div>
+    </div>
+  )
+
+  /* ── editor: setup ─────────────────────────────────────────────────── */
+
+  const setupHint = activeBlueprint?.setupHint ? (
+    <Callout className="mb-10" tone="info">
+      {activeBlueprint.setupHint}
+      {activeBlueprint.docsUrl ? (
+        <>
+          {" "}
+          <a
+            className="inline-flex items-center gap-1 font-medium underline underline-offset-4"
+            href={activeBlueprint.docsUrl}
+            rel="noreferrer"
+            target="_blank"
+          >
+            {presentation.vendor} docs
+            <ExternalLinkIcon aria-hidden className="size-3" />
+          </a>
+        </>
+      ) : null}
+    </Callout>
+  ) : null
+
+  const methodSelect = (field: "method" | "webhookMethod") => (
+    <Select
+      onValueChange={(value: "GET" | "POST") => patchConfig({ [field]: value })}
+      value={editor.config[field] ?? "POST"}
+    >
+      <SelectTrigger aria-label="Request method" className="w-full">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="POST">POST — send data</SelectItem>
+        <SelectItem value="GET">GET — fetch data</SelectItem>
+      </SelectContent>
+    </Select>
+  )
+
+  const sheetsSetup = (
+    <Steps>
+      <Step
+        description="Connect once — every spreadsheet tool uses the same account."
+        done={isGoogleConnected}
+        index={1}
+        title="Connect your Google account"
+      >
+        <GoogleConnectionCard
+          apiKey={googleApiKey}
+          isConnecting={isConnectingGoogle}
+          isDisconnecting={isDisconnectingGoogle}
+          isRefreshing={isLoadingSpreadsheets}
+          isSavingApiKey={isSavingGoogleKey}
+          loadError={spreadsheetLoadError}
+          onApiKeyChange={setGoogleApiKey}
+          onConnect={handleConnectGoogle}
+          onDisconnect={handleDisconnectGoogle}
+          onManage={() => guardUnsaved(() => setSection("connections"))}
+          onRefresh={() => void loadSpreadsheetOptions()}
+          onSaveApiKey={handleSaveGoogleKey}
+          onToggleApiKeyFallback={() =>
+            setShowApiKeyFallback((current) => !current)
+          }
+          showApiKeyFallback={showApiKeyFallback}
+          spreadsheetCount={spreadsheetOptions.length}
+          status={googleSheetsStatus}
+          variant="compact"
+        />
+      </Step>
+
+      <Step
+        description="Pick the file and the tab. The first row of the tab should hold your column names."
+        done={Boolean(
+          editor.config.spreadsheetId?.trim() && editor.config.range?.trim()
+        )}
+        index={2}
+        title="Choose the spreadsheet"
+      >
+        {operation !== "lookup" &&
+        googleSheetsStatus?.authMethod === "api_key" ? (
+          <Callout className="mb-4">
+            An API key can only look rows up. Connect a Google account to add,
+            change or delete rows.
+          </Callout>
+        ) : null}
+
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,16rem)]">
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground" id="sheet-file-label">
+              Spreadsheet
+            </p>
+            {googleSheetsStatus?.authMethod === "oauth" &&
+            !useManualSpreadsheetId ? (
+              <>
+                {spreadsheetOptions.length > 8 ? (
+                  <Input
+                    aria-label="Filter spreadsheets"
+                    onChange={(event) =>
+                      setSpreadsheetFilter(event.target.value)
+                    }
+                    placeholder="Filter spreadsheets…"
+                    value={spreadsheetFilter}
+                  />
+                ) : null}
+                <Select
+                  disabled={isLoadingSpreadsheets}
+                  onValueChange={(value) =>
+                    patchConfig({ spreadsheetId: value })
+                  }
+                  value={editor.config.spreadsheetId || undefined}
+                >
+                  <SelectTrigger
+                    aria-labelledby="sheet-file-label"
+                    className="w-full"
+                  >
+                    <SelectValue
+                      placeholder={
+                        isLoadingSpreadsheets
+                          ? "Loading your spreadsheets…"
+                          : "Choose a spreadsheet"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filteredSpreadsheetOptions.map((option) => (
+                      <SelectItem key={option.id} value={option.id}>
+                        {option.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {spreadsheetOptions.length === 0 &&
+                !isLoadingSpreadsheets &&
+                !spreadsheetLoadError ? (
+                  <p className="text-xs text-muted-foreground">
+                    No spreadsheets found in this Google account.
+                  </p>
+                ) : null}
+                <button
+                  className="text-xs font-medium text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                  onClick={() => setUseManualSpreadsheetId(true)}
+                  type="button"
+                >
+                  Paste a spreadsheet ID instead
+                </button>
+              </>
+            ) : (
+              <>
+                <Input
+                  aria-labelledby="sheet-file-label"
+                  className="font-mono text-xs"
+                  onChange={(event) =>
+                    patchConfig({ spreadsheetId: event.target.value })
+                  }
+                  placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"
+                  value={editor.config.spreadsheetId ?? ""}
+                />
+                {googleSheetsStatus?.authMethod === "oauth" ? (
+                  <button
+                    className="text-xs font-medium text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                    onClick={() => setUseManualSpreadsheetId(false)}
                     type="button"
                   >
-                    {filter.label}
+                    Choose from my Google Drive
                   </button>
-                ))}
-              </div>
-            </div>
-
-            <ScrollArea className="min-h-0 flex-1">
-              <div className="space-y-5 p-3">
-                <section>
-                  <p className="console-label mb-1.5 px-1">Assistant actions</p>
-                  <div className="space-y-1">
-                    {filteredBuiltinTools.length === 0 ? (
-                      <p className="rounded-[10px] border border-dashed border-[var(--console-hairline-soft)] px-3 py-3 text-center text-xs text-muted-foreground">
-                        {builtinTools.length === 0
-                          ? "Default tools are being prepared…"
-                          : "Nothing matches this filter."}
-                      </p>
-                    ) : (
-                      filteredBuiltinTools.map(renderToolRow)
-                    )}
-                  </div>
-                </section>
-
-                {filteredIntegrationTools.length === 0 ? (
-                  <section>
-                    <p className="console-label mb-1.5 px-1">Integrations</p>
-                    <div className="rounded-[10px] border border-dashed border-[var(--console-hairline-soft)] px-3 py-4 text-center">
-                      <p className="text-xs text-muted-foreground">
-                        {integrationTools.length === 0
-                          ? "No integrations yet."
-                          : "Nothing matches this filter."}
-                      </p>
-                      {integrationTools.length === 0 ? (
-                        <Button
-                          className="mt-2"
-                          onClick={() =>
-                            guardUnsaved(() => setSection("catalog"))
-                          }
-                          size="sm"
-                          type="button"
-                          variant="outline"
-                        >
-                          Browse the catalog
-                        </Button>
-                      ) : null}
-                    </div>
-                  </section>
                 ) : (
-                  integrationGroups.map(([vendor, vendorTools]) => (
-                    <section key={vendor}>
-                      <div className="mb-1.5 flex items-center justify-between gap-2 px-1">
-                        <p className="console-label truncate">{vendor}</p>
-                        <span className="console-numeral text-[0.66rem] text-muted-foreground">
-                          {vendorTools.length}
-                        </span>
-                      </div>
-                      <div className="space-y-1">
-                        {vendorTools.map(renderToolRow)}
-                      </div>
-                    </section>
-                  ))
+                  <p className="text-xs text-muted-foreground">
+                    It&apos;s the long code in the spreadsheet&apos;s web
+                    address, between /d/ and /edit.
+                  </p>
                 )}
-              </div>
-            </ScrollArea>
+              </>
+            )}
+          </div>
 
-            <div className="shrink-0 border-t border-[var(--console-hairline-soft)] p-3">
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground" id="sheet-tab-label">
+              Tab
+            </p>
+            {googleSheetsStatus?.isConfigured && sheetTabOptions.length > 0 ? (
+              <Select
+                disabled={isLoadingSheetTabs}
+                onValueChange={(value) => patchConfig({ range: value })}
+                value={editor.config.range || undefined}
+              >
+                <SelectTrigger
+                  aria-labelledby="sheet-tab-label"
+                  className="w-full"
+                >
+                  <SelectValue
+                    placeholder={
+                      isLoadingSheetTabs ? "Loading tabs…" : "Choose a tab"
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {sheetTabOptions.map((tab) => (
+                    <SelectItem key={tab} value={tab}>
+                      {tab}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Input
+                aria-labelledby="sheet-tab-label"
+                disabled={!editor.config.spreadsheetId?.trim()}
+                onChange={(event) => patchConfig({ range: event.target.value })}
+                placeholder="Sheet1"
+                value={editor.config.range ?? ""}
+              />
+            )}
+          </div>
+        </div>
+      </Step>
+
+      <Step
+        description={`This tool will ${GOOGLE_SHEETS_OPERATION_LABELS[operation].toLowerCase()}. Pick which columns it may use.`}
+        done={
+          (editor.config.searchColumns?.length ?? 0) > 0 ||
+          (editor.config.valueColumns?.length ?? 0) > 0
+        }
+        index={3}
+        title="Choose the columns"
+      >
+        <div className="space-y-8">
+          {operation === "lookup" ||
+          operation === "update" ||
+          operation === "delete" ? (
+            <SheetColumnPicker
+              columns={sheetColumnOptions}
+              description="Used to find the right row. The assistant asks the customer for these and matches them against what's already in the sheet."
+              isLoading={isLoadingSheetColumns}
+              label="Find the row by"
+              onChange={(columns) =>
+                handleSheetColumnsChange("searchColumns", columns)
+              }
+              selected={editor.config.searchColumns ?? []}
+            />
+          ) : null}
+
+          {operation === "append" ? (
+            <SheetColumnPicker
+              columns={sheetColumnOptions}
+              description="The columns your assistant fills in when it adds a new row."
+              isLoading={isLoadingSheetColumns}
+              label="Fill in"
+              onChange={(columns) =>
+                handleSheetColumnsChange("valueColumns", columns)
+              }
+              selected={editor.config.valueColumns ?? []}
+            />
+          ) : null}
+
+          {operation === "update" ? (
+            <SheetColumnPicker
+              columns={sheetColumnOptions}
+              description="The columns your assistant may change once it finds the row."
+              isLoading={isLoadingSheetColumns}
+              label="Allowed to change"
+              onChange={(columns) =>
+                handleSheetColumnsChange("updateColumns", columns)
+              }
+              selected={editor.config.updateColumns ?? []}
+            />
+          ) : null}
+
+          {operation === "lookup" ? (
+            <SheetColumnPicker
+              columns={sheetColumnOptions}
+              description="Only these columns are read back to your assistant. Leave all unselected to share every column."
+              isLoading={isLoadingSheetColumns}
+              label="Share back (optional)"
+              onChange={(columns) => patchConfig({ returnColumns: columns })}
+              selected={editor.config.returnColumns ?? []}
+            />
+          ) : null}
+        </div>
+      </Step>
+
+      <Step
+        description="Generated from your columns — your assistant collects exactly these from the customer."
+        done={editor.parameters.length > 0}
+        index={4}
+        title="Check what your assistant will ask for"
+      >
+        {editor.parameters.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Choose columns above and they appear here.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex flex-wrap gap-1.5">
+              {editor.parameters.map((parameter) => (
+                <span className="tools-tag font-mono" key={parameter.name}>
+                  {parameter.name}
+                  {parameter.required ? null : (
+                    <span className="ml-1 font-sans text-muted-foreground">
+                      optional
+                    </span>
+                  )}
+                </span>
+              ))}
+            </div>
+            {operation === "update" ? (
+              <p className="max-w-[64ch] text-xs leading-relaxed text-muted-foreground">
+                A column used both to find the row and to change it appears
+                twice: the plain name is the value already in the sheet, and the{" "}
+                <span className="font-mono">new_</span> one is the corrected
+                value to write.
+              </p>
+            ) : null}
+          </div>
+        )}
+
+        <div className="mt-6 border-t border-[var(--report-rule)]">
+          <Disclosure summary="Advanced: matching and limits">
+            <div className="grid gap-5 md:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="sheet-match-mode">How values are matched</Label>
+                <Select
+                  onValueChange={(value: "contains" | "exact" | "equals") =>
+                    patchConfig({ matchMode: value })
+                  }
+                  value={editor.config.matchMode ?? "exact"}
+                >
+                  <SelectTrigger className="w-full" id="sheet-match-mode">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {GOOGLE_SHEETS_MATCH_MODE_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {
+                    GOOGLE_SHEETS_MATCH_MODE_OPTIONS.find(
+                      (option) =>
+                        option.value === (editor.config.matchMode ?? "exact")
+                    )?.description
+                  }
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="sheet-query-strategy">Search method</Label>
+                <Select
+                  onValueChange={(value: "gviz" | "scan") =>
+                    patchConfig({ queryStrategy: value })
+                  }
+                  value={editor.config.queryStrategy ?? "gviz"}
+                >
+                  <SelectTrigger className="w-full" id="sheet-query-strategy">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {GOOGLE_SHEETS_QUERY_STRATEGY_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {
+                    GOOGLE_SHEETS_QUERY_STRATEGY_OPTIONS.find(
+                      (option) =>
+                        option.value === (editor.config.queryStrategy ?? "gviz")
+                    )?.description
+                  }
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="sheet-max-rows">Most rows returned</Label>
+                <Input
+                  id="sheet-max-rows"
+                  max={200}
+                  min={1}
+                  onChange={(event) =>
+                    patchConfig({ maxLookupRows: Number(event.target.value) })
+                  }
+                  type="number"
+                  value={editor.config.maxLookupRows ?? 25}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="sheet-max-scan">Most rows scanned</Label>
+                <Input
+                  id="sheet-max-scan"
+                  max={50000}
+                  min={100}
+                  onChange={(event) =>
+                    patchConfig({ maxScanRows: Number(event.target.value) })
+                  }
+                  type="number"
+                  value={editor.config.maxScanRows ?? 5000}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="sheet-header-row">Row with column names</Label>
+                <Input
+                  id="sheet-header-row"
+                  max={100}
+                  min={1}
+                  onChange={(event) =>
+                    patchConfig({ headerRow: Number(event.target.value) })
+                  }
+                  type="number"
+                  value={editor.config.headerRow ?? 1}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="sheet-data-range">Cell range (optional)</Label>
+                <Input
+                  id="sheet-data-range"
+                  onChange={(event) =>
+                    patchConfig({ dataRange: event.target.value })
+                  }
+                  placeholder="A1:Z5000"
+                  value={editor.config.dataRange ?? ""}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Limits large scans. Leave empty for the automatic limit.
+                </p>
+              </div>
+
+              {operation === "update" || operation === "delete" ? (
+                <div className="md:col-span-2">
+                  <FieldRow
+                    control={
+                      <Switch
+                        checked={editor.config.requireUniqueMatch ?? true}
+                        id="sheet-unique-match"
+                        onCheckedChange={(checked) =>
+                          patchConfig({ requireUniqueMatch: checked })
+                        }
+                      />
+                    }
+                    hint="Stops the change when more than one row matches, so the wrong row is never touched."
+                    htmlFor="sheet-unique-match"
+                    label="Only change a single, exact match"
+                  />
+                </div>
+              ) : null}
+            </div>
+          </Disclosure>
+        </div>
+      </Step>
+    </Steps>
+  )
+
+  const calendarSetup = (
+    <Steps>
+      <Step
+        description="Connect once — every calendar tool uses the same account."
+        done={isGoogleCalendarConnected}
+        index={1}
+        title="Connect Google Calendar"
+      >
+        <GoogleCalendarConnectionCard
+          isConnecting={isConnectingGoogleCalendar}
+          isDisconnecting={isDisconnectingGoogleCalendar}
+          onConnect={handleConnectGoogleCalendar}
+          onDisconnect={handleDisconnectGoogleCalendar}
+          onManage={() => guardUnsaved(() => setSection("connections"))}
+          status={googleCalendarStatus}
+          variant="compact"
+        />
+      </Step>
+
+      <Step
+        description={
+          <>
+            Type <code className="font-mono text-foreground">primary</code> for
+            the connected account&apos;s own calendar, or paste another
+            calendar&apos;s ID from its settings in Google Calendar.
+          </>
+        }
+        done={Boolean(editor.config.calendarId?.trim())}
+        index={2}
+        title="Choose the calendar"
+      >
+        <Input
+          aria-label="Calendar ID"
+          className="max-w-md font-mono text-xs"
+          onChange={(event) => patchConfig({ calendarId: event.target.value })}
+          placeholder="primary"
+          value={editor.config.calendarId ?? ""}
+        />
+      </Step>
+
+      <Step
+        description="Each value is something your assistant works out from the conversation."
+        done={parametersNamed}
+        index={3}
+        title="What your assistant fills in"
+      >
+        <ToolParametersEditor
+          onChange={(parameters) => patchEditor({ parameters })}
+          parameters={editor.parameters}
+        />
+      </Step>
+    </Steps>
+  )
+
+  const developerDetails = (
+    <div className="mt-12 border-t border-[var(--report-rule)]">
+      {selectedToolType === "api_request" ? (
+        <Disclosure summary="For developers: request body">
+          {(editor.config.method ?? "POST") === "POST" ? (
+            <div className="space-y-2">
+              <Textarea
+                aria-describedby="body-template-hint"
+                aria-label="Body template"
+                className="font-mono text-xs"
+                onChange={(event) =>
+                  patchConfig({ bodyTemplate: event.target.value })
+                }
+                rows={8}
+                value={editor.config.bodyTemplate ?? ""}
+              />
+              <p
+                className="text-xs text-muted-foreground"
+                id="body-template-hint"
+              >
+                Use{" "}
+                <code className="font-mono text-foreground">
+                  {"{{value_name}}"}
+                </code>{" "}
+                where a value from your assistant should go. Leave it empty to
+                send the values as plain JSON.
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              A GET request has no body — every value is added to the web
+              address instead.
+            </p>
+          )}
+        </Disclosure>
+      ) : null}
+      <Disclosure summary="For developers: preview the exact request">
+        <RequestPreview
+          config={editor.config}
+          parameters={editor.parameters}
+          type={selectedToolType ?? "api_request"}
+        />
+      </Disclosure>
+    </div>
+  )
+
+  const apiSetup = (
+    <>
+      <Steps>
+        <Step
+          description="The web address from the app's documentation."
+          done={Boolean(endpointValue)}
+          index={1}
+          title="Where it sends the request"
+        >
+          <div className="grid gap-3 sm:grid-cols-[11rem_minmax(0,1fr)]">
+            {methodSelect("method")}
+            <Input
+              aria-label="Web address"
+              className="font-mono text-xs"
+              onChange={(event) => patchConfig({ url: event.target.value })}
+              placeholder={
+                activeBlueprint?.endpointPlaceholder ??
+                "https://api.example.com/v1/lookup"
+              }
+              type="url"
+              value={editor.config.url ?? ""}
+            />
+          </div>
+        </Step>
+
+        <Step
+          description="Stored with this tool and only ever sent to the address above."
+          done={credentialDone}
+          index={2}
+          title={
+            blueprintAuth && blueprintAuth.kind !== "none"
+              ? `Add your ${blueprintAuth.label.charAt(0).toLowerCase()}${blueprintAuth.label.slice(1)}`
+              : "Add your key, if it needs one"
+          }
+        >
+          <RequestHeadersEditor
+            authSpec={blueprintAuth}
+            key={`headers-${String(selectedToolId ?? "new")}`}
+            onChange={(value) => patchConfig({ headersJson: value })}
+            value={editor.config.headersJson ?? "{}"}
+          />
+        </Step>
+
+        <Step
+          description="Each value is something your assistant works out from the conversation."
+          done={parametersNamed}
+          index={3}
+          title="What your assistant fills in"
+        >
+          <ToolParametersEditor
+            onChange={(parameters) => patchEditor({ parameters })}
+            parameters={editor.parameters}
+          />
+        </Step>
+      </Steps>
+      {developerDetails}
+    </>
+  )
+
+  const webhookSetup = (
+    <>
+      <Steps>
+        <Step
+          description="Your assistant's values arrive there as a simple JSON object — ideal for Zapier, Make, n8n or your own server."
+          done={Boolean(endpointValue)}
+          index={1}
+          title="Where it sends the data"
+        >
+          <div className="grid gap-3 sm:grid-cols-[11rem_minmax(0,1fr)]">
+            {methodSelect("webhookMethod")}
+            <Input
+              aria-label="Webhook address"
+              className="font-mono text-xs"
+              onChange={(event) =>
+                patchConfig({ webhookUrl: event.target.value })
+              }
+              placeholder={
+                activeBlueprint?.endpointPlaceholder ??
+                "https://hooks.example.com/assistant-tool"
+              }
+              type="url"
+              value={editor.config.webhookUrl ?? ""}
+            />
+          </div>
+        </Step>
+
+        <Step
+          description="Each value is something your assistant works out from the conversation."
+          done={parametersNamed}
+          index={2}
+          title="What your assistant fills in"
+        >
+          <ToolParametersEditor
+            onChange={(parameters) => patchEditor({ parameters })}
+            parameters={editor.parameters}
+          />
+        </Step>
+      </Steps>
+      {developerDetails}
+    </>
+  )
+
+  const setupTab = (
+    <div>
+      {setupHint}
+      {isGoogleSheetsEditor
+        ? sheetsSetup
+        : isGoogleCalendarEditor
+          ? calendarSetup
+          : selectedToolType === "custom_webhook"
+            ? webhookSetup
+            : apiSetup}
+    </div>
+  )
+
+  /* ── editor: try it ────────────────────────────────────────────────── */
+
+  const testTab = (
+    <section>
+      <h3 className="report-section-title">Try it before your customers do</h3>
+      <p className="mt-1 max-w-[64ch] text-sm leading-relaxed text-muted-foreground">
+        Type what a customer might tell your assistant, run the tool, and read
+        exactly what comes back.
+      </p>
+      <div className="mt-8">
+        <ToolTestConsole
+          blockedReason={testBlockedReason}
+          key={`test-${String(selectedToolId ?? "new")}`}
+          onRun={async (args) => {
+            if (!selectedTool) {
+              throw new Error("Save this tool first.")
+            }
+
+            return await testExecute({ toolId: selectedTool._id, args })
+          }}
+          parameters={editor.parameters}
+        />
+      </div>
+    </section>
+  )
+
+  /* ── editor panel ──────────────────────────────────────────────────── */
+
+  const editorPanel = (
+    <div className="setup-panel min-w-0" key={String(selectedToolId)}>
+      <header className="pb-7">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-4">
+            <BrandMark
+              brand={presentation.brand}
+              icon={presentation.icon}
+              muted={!editor.isEnabled}
+              size="xl"
+            />
+            <div className="min-w-0">
+              <p className="truncate text-sm text-muted-foreground">
+                {presentation.vendor}
+                {selectedTool?.isBuiltin ? " · Built in" : null}
+              </p>
+              <h2 className="setup-panel-title mt-1 break-words">
+                {panelTitle}
+              </h2>
+              <StatusLine
+                className="mt-2"
+                label={panelStatus.label}
+                tone={panelStatus.tone}
+              />
+            </div>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-1">
+            <label className="flex cursor-pointer items-center gap-2.5 rounded-full px-3 py-1.5 text-sm font-medium text-foreground">
+              <Switch
+                aria-label={
+                  editor.isEnabled
+                    ? "Switch this tool off"
+                    : "Switch this tool on"
+                }
+                checked={editor.isEnabled}
+                onCheckedChange={(checked) =>
+                  patchEditor({ isEnabled: checked })
+                }
+              />
+              {editor.isEnabled ? "On" : "Off"}
+            </label>
+
+            {selectedTool && !selectedTool.isBuiltin ? (
+              // Non-modal, so opening the delete dialog from it never leaves
+              // the page's pointer lock behind.
+              <DropdownMenu modal={false}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    aria-label="More actions"
+                    size="icon"
+                    type="button"
+                    variant="ghost"
+                  >
+                    {isDuplicating ? (
+                      <Loader2Icon className="animate-spin" />
+                    ) : (
+                      <EllipsisIcon />
+                    )}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-44">
+                  <DropdownMenuItem
+                    disabled={isDuplicating}
+                    onSelect={() => void handleDuplicate()}
+                  >
+                    <CopyIcon />
+                    Duplicate
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onSelect={() => setIsDeleteDialogOpen(true)}
+                    variant="destructive"
+                  >
+                    <Trash2Icon />
+                    Delete tool
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
+          </div>
+        </div>
+
+        {activeBlueprint?.summary ? (
+          <p className="report-lede mt-5 max-w-[64ch]">
+            {activeBlueprint.summary}
+          </p>
+        ) : null}
+      </header>
+
+      <div className="flex flex-col gap-3 border-b border-[var(--report-rule)] sm:flex-row sm:items-end sm:justify-between">
+        <div aria-label="Tool sections" className="report-filters" role="group">
+          {EDITOR_TABS.map((tab) => (
+            <ReportFilter
+              active={activeEditorTab === tab.id}
+              key={tab.id}
+              onClick={() => setEditorTab(tab.id)}
+            >
+              {tab.label}
+            </ReportFilter>
+          ))}
+        </div>
+        <button
+          className="mb-2.5 self-start sm:self-auto"
+          onClick={() => setEditorTab("overview")}
+          type="button"
+        >
+          <StatusLine
+            label={
+              isToolReady
+                ? "Ready"
+                : `${readinessSteps.length - readyCount} ${
+                    readinessSteps.length - readyCount === 1 ? "step" : "steps"
+                  } left`
+            }
+            tone={isToolReady ? "live" : "attention"}
+          />
+        </button>
+      </div>
+
+      <div className="pt-9" key={activeEditorTab}>
+        {activeEditorTab === "overview"
+          ? overviewTab
+          : activeEditorTab === "setup"
+            ? setupTab
+            : testTab}
+      </div>
+
+      <div
+        className="tools-savebar mt-12 flex flex-wrap items-center gap-2 py-2 pr-2 pl-5"
+        data-dirty={isDirty || undefined}
+      >
+        <p
+          aria-live="polite"
+          className="mr-auto flex min-w-0 items-center gap-2.5 text-sm"
+        >
+          {isDirty ? (
+            <>
+              <span aria-hidden className="setup-dot" data-tone="attention" />
+              <span className="truncate font-medium text-foreground">
+                {isNewTool ? "Not added yet" : "Unsaved changes"}
+              </span>
+            </>
+          ) : (
+            <span className="truncate text-muted-foreground">
+              Saved — changes apply everywhere this tool is on
+            </span>
+          )}
+          <Kbd className="hidden sm:inline-flex">⌘S</Kbd>
+        </p>
+
+        {isNewTool ? (
+          <Button onClick={cancelNewTool} type="button" variant="ghost">
+            Cancel
+          </Button>
+        ) : isDirty && selectedTool ? (
+          <Button
+            onClick={() => {
+              setEditor(toolToEditorState(selectedTool))
+              setIsDirty(false)
+            }}
+            type="button"
+            variant="ghost"
+          >
+            Discard
+          </Button>
+        ) : null}
+
+        <Button
+          className="rounded-full"
+          disabled={isSaving || !isDirty}
+          onClick={handleSave}
+          type="button"
+        >
+          {isSaving ? (
+            <Loader2Icon className="animate-spin" data-icon="inline-start" />
+          ) : (
+            <CheckIcon data-icon="inline-start" />
+          )}
+          {isNewTool ? "Add tool" : "Save"}
+        </Button>
+      </div>
+    </div>
+  )
+
+  /* ── nothing selected ──────────────────────────────────────────────── */
+
+  const startPanel = (
+    <div className="setup-panel min-w-0 pb-10" key="start">
+      <h2 className="setup-panel-title max-w-[22ch]">
+        Pick a tool on the left to change what it does.
+      </h2>
+      <p className="report-lede mt-5 max-w-[60ch]">
+        Or give your assistant something new to do. These are where most
+        businesses start:
+      </p>
+
+      <ul className="mt-8">
+        {FEATURED_BLUEPRINTS.slice(0, 5).map((blueprint) => {
+          const needsGoogle = blueprint.requiresGoogle && !isGoogleConnected
+          const installed = installedCounts[blueprint.id] ?? 0
+
+          return (
+            <li
+              className="setup-row grid grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-4 px-2 py-3.5"
+              key={blueprint.id}
+            >
+              <BrandMark brand={blueprint.brand} icon={blueprint.icon} />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-foreground">
+                  {blueprint.title}
+                </p>
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                  {blueprint.summary}
+                </p>
+              </div>
               <Button
-                className="w-full"
-                onClick={() => guardUnsaved(() => setSection("catalog"))}
+                onClick={() =>
+                  needsGoogle
+                    ? guardUnsaved(() => setSection("connections"))
+                    : installBlueprint(blueprint)
+                }
                 size="sm"
                 type="button"
                 variant="outline"
               >
-                <LayoutGridIcon />
-                Browse catalog
+                {needsGoogle ? (
+                  "Connect Google"
+                ) : (
+                  <>
+                    <PlusIcon data-icon="inline-start" />
+                    {installed ? "Add another" : "Add"}
+                  </>
+                )}
               </Button>
-            </div>
-          </aside>
+            </li>
+          )
+        })}
+      </ul>
 
-          <section className="console-card flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-            {!showEditor ? (
-              <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto px-6 py-10 text-center">
-                <span className="console-medallion size-12">
-                  <WrenchIcon className="size-5" />
-                </span>
-                <p className="mt-4 text-sm font-semibold text-foreground">
-                  Select a tool to configure
-                </p>
-                <p className="mt-1.5 max-w-sm text-sm leading-relaxed text-muted-foreground">
-                  Pick an installed tool on the left to tune what it does — or
-                  start from one of these.
-                </p>
+      <Button
+        className="mt-7"
+        onClick={goToLibrary}
+        type="button"
+        variant="outline"
+      >
+        See all {ADDABLE_BLUEPRINTS.length} tools
+        <ArrowRightIcon data-icon="inline-end" />
+      </Button>
+    </div>
+  )
 
-                <div className="mt-6 grid w-full max-w-xl gap-2.5 sm:grid-cols-2">
-                  {FEATURED_BLUEPRINTS.slice(0, 4).map((blueprint) => {
-                    const SuggestionIcon = blueprint.icon
+  /* ── page ──────────────────────────────────────────────────────────── */
 
-                    return (
-                      <button
-                        className="brand-edge console-card console-interactive flex items-center gap-3 p-3 text-left"
-                        key={blueprint.id}
-                        onClick={() => {
-                          if (blueprint.requiresGoogle && !isGoogleConnected) {
-                            guardUnsaved(() => setSection("connections"))
-                            return
-                          }
+  return (
+    <ConsolePage width="wide">
+      <div className="report setup tools">
+        {hero}
+        {figures}
 
-                          installBlueprint(blueprint)
-                        }}
-                        style={brandStyle(blueprint.brand)}
-                        type="button"
-                      >
-                        <BrandMark
-                          brand={blueprint.brand}
-                          icon={SuggestionIcon}
-                          size="sm"
-                        />
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-[0.82rem] font-medium">
-                            {blueprint.title}
-                          </span>
-                          <span className="block truncate text-[0.7rem] text-muted-foreground">
-                            {blueprint.vendor}
-                          </span>
-                        </span>
-                        <PlusIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                      </button>
-                    )
-                  })}
-                </div>
-
-                <Button
-                  className="mt-5"
-                  onClick={() => setSection("catalog")}
-                  size="sm"
-                  type="button"
-                  variant="outline"
-                >
-                  <LayoutGridIcon />
-                  Browse all {AVAILABLE_BLUEPRINTS.length} offerings
-                </Button>
-              </div>
-            ) : (
-              <>
-                <div className="shrink-0 border-b border-[var(--console-hairline-soft)] px-4 py-3.5 sm:px-5">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="flex min-w-0 items-start gap-3">
-                      <BrandMark
-                        brand={presentation.brand}
-                        icon={EditorIcon}
-                        muted={!editor.isEnabled}
-                      />
-                      <div className="min-w-0">
-                        <p className="console-eyebrow truncate">
-                          {presentation.vendor}
-                        </p>
-                        <h2 className="console-section-title mt-1.5 truncate text-[0.95rem]">
-                          {presentation.typeLabel}
-                        </h2>
-                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                          <Pill
-                            tone={editor.isEnabled ? "positive" : "neutral"}
-                          >
-                            {editor.isEnabled ? "Live" : "Off"}
-                          </Pill>
-                          {editor.enabledForChat ? (
-                            <Pill icon={MessageSquareIcon} tone="info">
-                              Chat
-                            </Pill>
-                          ) : null}
-                          {editor.enabledForVoice && !isVoiceUnsupportedTool ? (
-                            <Pill icon={AudioLinesIcon} tone="accent">
-                              Voice
-                            </Pill>
-                          ) : null}
-                          {selectedTool?.isBuiltin ? (
-                            <Pill icon={ShieldCheckIcon} tone="neutral">
-                              Built-in
-                            </Pill>
-                          ) : null}
-                        </div>
-                      </div>
-                    </div>
-
-                    {selectedTool && !selectedTool.isBuiltin ? (
-                      <div className="flex shrink-0 items-center gap-1.5">
-                        <Button
-                          disabled={isDuplicating}
-                          onClick={handleDuplicate}
-                          size="sm"
-                          type="button"
-                          variant="outline"
-                        >
-                          {isDuplicating ? (
-                            <Loader2Icon className="animate-spin" />
-                          ) : (
-                            <CopyIcon />
-                          )}
-                          Duplicate
-                        </Button>
-                        <Button
-                          className="text-destructive"
-                          onClick={() => setIsDeleteDialogOpen(true)}
-                          size="sm"
-                          type="button"
-                          variant="outline"
-                        >
-                          <Trash2Icon />
-                          Delete
-                        </Button>
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                    <div className="console-segment flex gap-1">
-                      {EDITOR_TABS.filter(
-                        (tab) =>
-                          !(selectedTool?.isBuiltin && tab.id === "setup")
-                      ).map((tab) => (
-                        <button
-                          className={cn(
-                            "console-segment-item border border-transparent px-3 py-1.5 text-[0.78rem] font-medium",
-                            activeEditorTab === tab.id
-                              ? "text-foreground"
-                              : "text-muted-foreground hover:text-foreground"
-                          )}
-                          data-active={activeEditorTab === tab.id || undefined}
-                          key={tab.id}
-                          onClick={() => setEditorTab(tab.id)}
-                          type="button"
-                        >
-                          {tab.label}
-                        </button>
-                      ))}
-                    </div>
-
-                    <button
-                      className="flex items-center gap-2 text-xs transition-colors hover:text-foreground"
-                      onClick={() => setEditorTab("overview")}
-                      type="button"
-                    >
-                      <span
-                        aria-hidden
-                        className={cn(
-                          "console-dot",
-                          isToolReady ? toneClass.positive : toneClass.warning
-                        )}
-                      />
-                      <span className="text-muted-foreground">
-                        {isToolReady
-                          ? "Ready to call"
-                          : `${readyCount} of ${readinessSteps.length} set up`}
-                      </span>
-                    </button>
-                  </div>
-                </div>
-
-                <ScrollArea className="min-h-0 flex-1">
-                  <div className="space-y-4 p-4 sm:p-5">
-                    {activeBlueprint?.setupHint ? (
-                      <div className="console-inset flex items-start gap-2.5 px-3.5 py-3">
-                        <SlidersHorizontalIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                        <p className="text-xs leading-relaxed text-muted-foreground">
-                          {activeBlueprint.setupHint}
-                          {activeBlueprint.docsUrl ? (
-                            <>
-                              {" "}
-                              <a
-                                className="inline-flex items-center gap-1 text-foreground underline underline-offset-2"
-                                href={activeBlueprint.docsUrl}
-                                rel="noreferrer"
-                                target="_blank"
-                              >
-                                Provider docs
-                                <ExternalLinkIcon className="size-3" />
-                              </a>
-                            </>
-                          ) : null}
-                        </p>
-                      </div>
-                    ) : null}
-
-                    {activeEditorTab === "overview" ? (
-                      <>
-                        <div className="grid gap-4 xl:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
-                          <Panel quiet>
-                            <PanelHeader
-                              description="What is still missing before this tool can answer a real conversation."
-                              icon={ShieldCheckIcon}
-                              title="Readiness"
-                            />
-                            <PanelBody>
-                              <ToolReadiness steps={readinessSteps} />
-                            </PanelBody>
-                          </Panel>
-
-                          <Panel quiet>
-                            <PanelHeader
-                              description="How this tool reaches the outside world."
-                              icon={PlugZapIcon}
-                              title="Connection"
-                            />
-                            <PanelBody className="space-y-3">
-                              <div className="console-inset flex items-start justify-between gap-3 px-3.5 py-3">
-                                <div className="min-w-0">
-                                  <p className="console-label">Vendor</p>
-                                  <p className="mt-1 truncate text-sm font-medium">
-                                    {presentation.vendor}
-                                  </p>
-                                </div>
-                                <Pill tone={presentation.tone}>
-                                  {presentation.typeLabel}
-                                </Pill>
-                              </div>
-
-                              {selectedTool?.isBuiltin ? (
-                                <p className="text-xs leading-relaxed text-muted-foreground">
-                                  Built-in actions run inside Osonflow. There is
-                                  no endpoint to configure and no credential to
-                                  store.
-                                </p>
-                              ) : (
-                                <>
-                                  <div className="console-inset px-3.5 py-3">
-                                    <p className="console-label">Endpoint</p>
-                                    <p className="mt-1 truncate font-mono text-xs text-foreground">
-                                      {endpointValue || "Not set yet"}
-                                    </p>
-                                  </div>
-
-                                  <div className="console-inset flex items-start justify-between gap-3 px-3.5 py-3">
-                                    <div className="min-w-0">
-                                      <p className="console-label">
-                                        Credential
-                                      </p>
-                                      <p className="mt-1 truncate text-sm">
-                                        {credential === "not_required"
-                                          ? blueprintAuth
-                                            ? AUTH_KIND_LABELS[
-                                                blueprintAuth.kind
-                                              ]
-                                            : "None required"
-                                          : CREDENTIAL_STATE_COPY[credential]}
-                                      </p>
-                                    </div>
-                                    <Pill
-                                      tone={
-                                        credential === "set" ||
-                                        credential === "not_required"
-                                          ? "positive"
-                                          : "warning"
-                                      }
-                                    >
-                                      {credential === "set" ||
-                                      credential === "not_required"
-                                        ? "OK"
-                                        : "Needs input"}
-                                    </Pill>
-                                  </div>
-
-                                  <Button
-                                    className="w-full"
-                                    onClick={() => setEditorTab("setup")}
-                                    size="sm"
-                                    type="button"
-                                    variant="outline"
-                                  >
-                                    <SlidersHorizontalIcon />
-                                    Open configuration
-                                  </Button>
-                                </>
-                              )}
-                            </PanelBody>
-                          </Panel>
-                        </div>
-
-                        {/* ── identity ─────────────────────────────────── */}
-                        <Panel quiet>
-                          <PanelHeader
-                            description="How the model refers to this tool, and when it should reach for it."
-                            icon={BracesIcon}
-                            title="Identity"
-                          />
-                          <PanelBody className="space-y-4">
-                            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,280px)]">
-                              <div className="space-y-1.5">
-                                <Label htmlFor="tool-name">Tool name</Label>
-                                <Input
-                                  className="font-mono text-xs"
-                                  disabled={selectedTool?.isBuiltin}
-                                  id="tool-name"
-                                  onChange={(event) =>
-                                    patchEditor({ name: event.target.value })
-                                  }
-                                  placeholder="lookup_account"
-                                  value={editor.name}
-                                />
-                                <p className="text-xs text-muted-foreground">
-                                  {editor.name &&
-                                  previewToolName(editor.name) !==
-                                    editor.name ? (
-                                    <>
-                                      Saved as{" "}
-                                      <code className="font-mono text-foreground">
-                                        {previewToolName(editor.name) || "—"}
-                                      </code>
-                                    </>
-                                  ) : (
-                                    "Letters, numbers and underscores, starting with a letter."
-                                  )}
-                                </p>
-                              </div>
-
-                              <div className="console-inset space-y-3 p-3.5">
-                                <div className="flex items-center justify-between gap-3">
-                                  <div className="min-w-0">
-                                    <p className="text-sm font-medium">
-                                      Enabled
-                                    </p>
-                                    <p className="text-xs text-muted-foreground">
-                                      Master switch for this tool
-                                    </p>
-                                  </div>
-                                  <Switch
-                                    checked={editor.isEnabled}
-                                    onCheckedChange={(checked) =>
-                                      patchEditor({ isEnabled: checked })
-                                    }
-                                  />
-                                </div>
-                                <div className="flex items-center justify-between gap-3">
-                                  <div className="min-w-0">
-                                    <p className="text-sm font-medium">Chat</p>
-                                    <p className="text-xs text-muted-foreground">
-                                      Widget and connected channels
-                                    </p>
-                                  </div>
-                                  <Switch
-                                    checked={editor.enabledForChat}
-                                    onCheckedChange={(checked) =>
-                                      patchEditor({ enabledForChat: checked })
-                                    }
-                                  />
-                                </div>
-                                <div className="flex items-center justify-between gap-3">
-                                  <div className="min-w-0">
-                                    <p className="text-sm font-medium">Voice</p>
-                                    <p className="text-xs text-muted-foreground">
-                                      {isVoiceUnsupportedTool
-                                        ? "Voice cannot hand off or resolve"
-                                        : "OpenAI Realtime and Gemini Live"}
-                                    </p>
-                                  </div>
-                                  <Switch
-                                    checked={
-                                      isVoiceUnsupportedTool
-                                        ? false
-                                        : editor.enabledForVoice
-                                    }
-                                    disabled={isVoiceUnsupportedTool}
-                                    onCheckedChange={(checked) =>
-                                      patchEditor({ enabledForVoice: checked })
-                                    }
-                                  />
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="space-y-1.5">
-                              <Label htmlFor="tool-description">
-                                When to use it
-                              </Label>
-                              <Textarea
-                                id="tool-description"
-                                onChange={(event) =>
-                                  patchEditor({
-                                    description: event.target.value,
-                                  })
-                                }
-                                placeholder="Look up an account from the customer's name and the last 4 digits of their phone number."
-                                rows={3}
-                                value={editor.description}
-                              />
-                              <div className="flex items-center justify-between gap-3">
-                                <p className="text-xs text-muted-foreground">
-                                  The model reads this to decide whether to call
-                                  the tool — be specific about the trigger.
-                                </p>
-                                <p className="console-numeral shrink-0 text-xs text-muted-foreground">
-                                  {editor.description.length}/1000
-                                </p>
-                              </div>
-                            </div>
-
-                            {selectedTool?.type === "query" ? (
-                              <div className="space-y-1.5">
-                                <Label>Knowledge base model</Label>
-                                <Select
-                                  onValueChange={(value) =>
-                                    patchConfig({ knowledgeBaseModel: value })
-                                  }
-                                  value={
-                                    editor.config.knowledgeBaseModel ??
-                                    "gpt-4o-mini"
-                                  }
-                                >
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Select model" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {CHAT_MODEL_OPTIONS.map((option) => (
-                                      <SelectItem
-                                        key={option.value}
-                                        value={option.value}
-                                      >
-                                        {option.label}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                <p className="text-xs text-muted-foreground">
-                                  Used to interpret knowledge base search
-                                  results before they reach the assistant.
-                                </p>
-                              </div>
-                            ) : null}
-                          </PanelBody>
-                        </Panel>
-                      </>
-                    ) : null}
-
-                    {activeEditorTab === "setup" ? (
-                      <>
-                        {/* ── google sheets ────────────────────────────────── */}
-                        {isGoogleSheetsEditor ? (
-                          <Panel quiet>
-                            <PanelHeader
-                              actions={
-                                <Pill tone="positive">
-                                  {GOOGLE_SHEETS_OPERATION_LABELS[operation]}
-                                </Pill>
-                              }
-                              description="The spreadsheet this tool reads or writes, and the columns it is allowed to touch."
-                              icon={Table2Icon}
-                              title="Spreadsheet"
-                            />
-                            <PanelBody className="space-y-4">
-                              <GoogleConnectionCard
-                                apiKey={googleApiKey}
-                                isConnecting={isConnectingGoogle}
-                                isDisconnecting={isDisconnectingGoogle}
-                                isRefreshing={isLoadingSpreadsheets}
-                                isSavingApiKey={isSavingGoogleKey}
-                                loadError={spreadsheetLoadError}
-                                onApiKeyChange={setGoogleApiKey}
-                                onConnect={handleConnectGoogle}
-                                onDisconnect={handleDisconnectGoogle}
-                                onManage={() =>
-                                  guardUnsaved(() => setSection("connections"))
-                                }
-                                onRefresh={() => void loadSpreadsheetOptions()}
-                                onSaveApiKey={handleSaveGoogleKey}
-                                onToggleApiKeyFallback={() =>
-                                  setShowApiKeyFallback((current) => !current)
-                                }
-                                showApiKeyFallback={showApiKeyFallback}
-                                spreadsheetCount={spreadsheetOptions.length}
-                                status={googleSheetsStatus}
-                                variant="compact"
-                              />
-
-                              {operation !== "lookup" &&
-                              googleSheetsStatus?.authMethod === "api_key" ? (
-                                <p className="console-tone-warning console-tone-wash rounded-[10px] border px-3 py-2 text-xs">
-                                  API key access only supports lookups. Connect
-                                  a Google account to add, update or delete
-                                  rows.
-                                </p>
-                              ) : null}
-
-                              <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,280px)]">
-                                <div className="space-y-2">
-                                  <Label>Spreadsheet</Label>
-                                  {googleSheetsStatus?.authMethod === "oauth" &&
-                                  !useManualSpreadsheetId ? (
-                                    <>
-                                      <Input
-                                        className="h-9"
-                                        onChange={(event) =>
-                                          setSpreadsheetFilter(
-                                            event.target.value
-                                          )
-                                        }
-                                        placeholder="Filter spreadsheets…"
-                                        value={spreadsheetFilter}
-                                      />
-                                      <Select
-                                        disabled={isLoadingSpreadsheets}
-                                        onValueChange={(value) =>
-                                          patchConfig({ spreadsheetId: value })
-                                        }
-                                        value={
-                                          editor.config.spreadsheetId ||
-                                          undefined
-                                        }
-                                      >
-                                        <SelectTrigger>
-                                          <SelectValue
-                                            placeholder={
-                                              isLoadingSpreadsheets
-                                                ? "Loading your spreadsheets…"
-                                                : "Choose a spreadsheet"
-                                            }
-                                          />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          {filteredSpreadsheetOptions.map(
-                                            (option) => (
-                                              <SelectItem
-                                                key={option.id}
-                                                value={option.id}
-                                              >
-                                                {option.name}
-                                              </SelectItem>
-                                            )
-                                          )}
-                                        </SelectContent>
-                                      </Select>
-                                      {spreadsheetOptions.length === 0 &&
-                                      !isLoadingSpreadsheets &&
-                                      !spreadsheetLoadError ? (
-                                        <p className="text-xs text-muted-foreground">
-                                          No spreadsheets found in this Google
-                                          account.
-                                        </p>
-                                      ) : null}
-                                      <Button
-                                        className="h-auto px-0"
-                                        onClick={() =>
-                                          setUseManualSpreadsheetId(true)
-                                        }
-                                        size="sm"
-                                        type="button"
-                                        variant="link"
-                                      >
-                                        Enter a spreadsheet ID manually
-                                      </Button>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Input
-                                        className="font-mono text-xs"
-                                        onChange={(event) =>
-                                          patchConfig({
-                                            spreadsheetId: event.target.value,
-                                          })
-                                        }
-                                        placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"
-                                        value={
-                                          editor.config.spreadsheetId ?? ""
-                                        }
-                                      />
-                                      {googleSheetsStatus?.authMethod ===
-                                      "oauth" ? (
-                                        <Button
-                                          className="h-auto px-0"
-                                          onClick={() =>
-                                            setUseManualSpreadsheetId(false)
-                                          }
-                                          size="sm"
-                                          type="button"
-                                          variant="link"
-                                        >
-                                          Choose from my Google Drive
-                                        </Button>
-                                      ) : (
-                                        <p className="text-xs text-muted-foreground">
-                                          Connect a Google account to browse
-                                          your spreadsheets.
-                                        </p>
-                                      )}
-                                    </>
-                                  )}
-                                </div>
-
-                                <div className="space-y-2">
-                                  <Label>Sheet tab</Label>
-                                  {googleSheetsStatus?.isConfigured &&
-                                  sheetTabOptions.length > 0 ? (
-                                    <Select
-                                      disabled={isLoadingSheetTabs}
-                                      onValueChange={(value) =>
-                                        patchConfig({ range: value })
-                                      }
-                                      value={editor.config.range || undefined}
-                                    >
-                                      <SelectTrigger>
-                                        <SelectValue
-                                          placeholder={
-                                            isLoadingSheetTabs
-                                              ? "Loading tabs…"
-                                              : "Choose a tab"
-                                          }
-                                        />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {sheetTabOptions.map((tab) => (
-                                          <SelectItem key={tab} value={tab}>
-                                            {tab}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                  ) : (
-                                    <Input
-                                      disabled={
-                                        !editor.config.spreadsheetId?.trim()
-                                      }
-                                      onChange={(event) =>
-                                        patchConfig({
-                                          range: event.target.value,
-                                        })
-                                      }
-                                      placeholder="Sheet1"
-                                      value={editor.config.range ?? ""}
-                                    />
-                                  )}
-                                  <p className="text-xs text-muted-foreground">
-                                    Column headers load from the first row of
-                                    this tab.
-                                  </p>
-                                </div>
-                              </div>
-
-                              {operation === "lookup" ||
-                              operation === "update" ||
-                              operation === "delete" ? (
-                                <SheetColumnPicker
-                                  columns={sheetColumnOptions}
-                                  description="Columns used to find the matching row — the assistant must send the values already stored in the sheet. Tool parameters are generated from this selection."
-                                  isLoading={isLoadingSheetColumns}
-                                  label="Search columns"
-                                  onChange={(columns) =>
-                                    handleSheetColumnsChange(
-                                      "searchColumns",
-                                      columns
-                                    )
-                                  }
-                                  selected={editor.config.searchColumns ?? []}
-                                />
-                              ) : null}
-
-                              {operation === "append" ? (
-                                <SheetColumnPicker
-                                  columns={sheetColumnOptions}
-                                  description="Columns the assistant can fill when adding a new row."
-                                  isLoading={isLoadingSheetColumns}
-                                  label="Value columns"
-                                  onChange={(columns) =>
-                                    handleSheetColumnsChange(
-                                      "valueColumns",
-                                      columns
-                                    )
-                                  }
-                                  selected={editor.config.valueColumns ?? []}
-                                />
-                              ) : null}
-
-                              {operation === "update" ? (
-                                <SheetColumnPicker
-                                  columns={sheetColumnOptions}
-                                  description="Columns the assistant can change after finding a row. Pick a search column here too and it gets a second, new_ input for the corrected value."
-                                  isLoading={isLoadingSheetColumns}
-                                  label="Update columns"
-                                  onChange={(columns) =>
-                                    handleSheetColumnsChange(
-                                      "updateColumns",
-                                      columns
-                                    )
-                                  }
-                                  selected={editor.config.updateColumns ?? []}
-                                />
-                              ) : null}
-
-                              {operation === "lookup" ? (
-                                <SheetColumnPicker
-                                  columns={sheetColumnOptions}
-                                  description="Only these columns are returned to the assistant. Leave empty to return all of them."
-                                  isLoading={isLoadingSheetColumns}
-                                  label="Return columns (optional)"
-                                  onChange={(columns) =>
-                                    patchConfig({ returnColumns: columns })
-                                  }
-                                  selected={editor.config.returnColumns ?? []}
-                                />
-                              ) : null}
-
-                              <div className="console-inset overflow-hidden">
-                                <button
-                                  className="flex w-full items-center justify-between px-3.5 py-2.5 text-left"
-                                  onClick={() =>
-                                    setShowAdvancedSheets((current) => !current)
-                                  }
-                                  type="button"
-                                >
-                                  <span className="text-sm font-medium">
-                                    Matching &amp; scale
-                                  </span>
-                                  <ChevronDownIcon
-                                    className={cn(
-                                      "size-4 text-muted-foreground transition-transform",
-                                      showAdvancedSheets && "rotate-180"
-                                    )}
-                                  />
-                                </button>
-
-                                {showAdvancedSheets ? (
-                                  <div className="grid gap-4 border-t border-[var(--console-hairline-soft)] p-3.5 md:grid-cols-2">
-                                    <div className="space-y-1.5">
-                                      <Label>Match mode</Label>
-                                      <Select
-                                        onValueChange={(
-                                          value: "contains" | "exact" | "equals"
-                                        ) => patchConfig({ matchMode: value })}
-                                        value={
-                                          editor.config.matchMode ?? "exact"
-                                        }
-                                      >
-                                        <SelectTrigger>
-                                          <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          {GOOGLE_SHEETS_MATCH_MODE_OPTIONS.map(
-                                            (option) => (
-                                              <SelectItem
-                                                key={option.value}
-                                                value={option.value}
-                                              >
-                                                {option.label}
-                                              </SelectItem>
-                                            )
-                                          )}
-                                        </SelectContent>
-                                      </Select>
-                                      <p className="text-xs text-muted-foreground">
-                                        {
-                                          GOOGLE_SHEETS_MATCH_MODE_OPTIONS.find(
-                                            (option) =>
-                                              option.value ===
-                                              (editor.config.matchMode ??
-                                                "exact")
-                                          )?.description
-                                        }
-                                      </p>
-                                    </div>
-
-                                    <div className="space-y-1.5">
-                                      <Label>Query strategy</Label>
-                                      <Select
-                                        onValueChange={(
-                                          value: "gviz" | "scan"
-                                        ) =>
-                                          patchConfig({ queryStrategy: value })
-                                        }
-                                        value={
-                                          editor.config.queryStrategy ?? "gviz"
-                                        }
-                                      >
-                                        <SelectTrigger>
-                                          <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          {GOOGLE_SHEETS_QUERY_STRATEGY_OPTIONS.map(
-                                            (option) => (
-                                              <SelectItem
-                                                key={option.value}
-                                                value={option.value}
-                                              >
-                                                {option.label}
-                                              </SelectItem>
-                                            )
-                                          )}
-                                        </SelectContent>
-                                      </Select>
-                                      <p className="text-xs text-muted-foreground">
-                                        {
-                                          GOOGLE_SHEETS_QUERY_STRATEGY_OPTIONS.find(
-                                            (option) =>
-                                              option.value ===
-                                              (editor.config.queryStrategy ??
-                                                "gviz")
-                                          )?.description
-                                        }
-                                      </p>
-                                    </div>
-
-                                    <div className="space-y-1.5">
-                                      <Label>Max rows returned</Label>
-                                      <Input
-                                        max={200}
-                                        min={1}
-                                        onChange={(event) =>
-                                          patchConfig({
-                                            maxLookupRows: Number(
-                                              event.target.value
-                                            ),
-                                          })
-                                        }
-                                        type="number"
-                                        value={
-                                          editor.config.maxLookupRows ?? 25
-                                        }
-                                      />
-                                    </div>
-
-                                    <div className="space-y-1.5">
-                                      <Label>Max scan rows (fallback)</Label>
-                                      <Input
-                                        max={50000}
-                                        min={100}
-                                        onChange={(event) =>
-                                          patchConfig({
-                                            maxScanRows: Number(
-                                              event.target.value
-                                            ),
-                                          })
-                                        }
-                                        type="number"
-                                        value={
-                                          editor.config.maxScanRows ?? 5000
-                                        }
-                                      />
-                                    </div>
-
-                                    <div className="space-y-1.5">
-                                      <Label>Header row</Label>
-                                      <Input
-                                        max={100}
-                                        min={1}
-                                        onChange={(event) =>
-                                          patchConfig({
-                                            headerRow: Number(
-                                              event.target.value
-                                            ),
-                                          })
-                                        }
-                                        type="number"
-                                        value={editor.config.headerRow ?? 1}
-                                      />
-                                    </div>
-
-                                    <div className="space-y-1.5">
-                                      <Label>Data range (optional)</Label>
-                                      <Input
-                                        onChange={(event) =>
-                                          patchConfig({
-                                            dataRange: event.target.value,
-                                          })
-                                        }
-                                        placeholder="A1:Z5000"
-                                        value={editor.config.dataRange ?? ""}
-                                      />
-                                      <p className="text-xs text-muted-foreground">
-                                        Bounds fallback scans. Leave empty for
-                                        the automatic cap.
-                                      </p>
-                                    </div>
-
-                                    {operation === "update" ||
-                                    operation === "delete" ? (
-                                      <div className="console-inset flex items-center justify-between gap-3 px-3 py-2.5 md:col-span-2">
-                                        <div className="min-w-0">
-                                          <p className="text-sm font-medium">
-                                            Require a unique match
-                                          </p>
-                                          <p className="text-xs text-muted-foreground">
-                                            Blocks the write when more than one
-                                            row matches.
-                                          </p>
-                                        </div>
-                                        <Switch
-                                          checked={
-                                            editor.config.requireUniqueMatch ??
-                                            true
-                                          }
-                                          onCheckedChange={(checked) =>
-                                            patchConfig({
-                                              requireUniqueMatch: checked,
-                                            })
-                                          }
-                                        />
-                                      </div>
-                                    ) : null}
-                                  </div>
-                                ) : null}
-                              </div>
-                            </PanelBody>
-                          </Panel>
-                        ) : null}
-
-                        {/* ── google calendar ──────────────────────────────── */}
-                        {isGoogleCalendarEditor ? (
-                          <Panel quiet>
-                            <PanelHeader
-                              actions={
-                                <Pill tone="positive">
-                                  {GOOGLE_CALENDAR_OPERATION_LABELS[operation]}
-                                </Pill>
-                              }
-                              description="The Google account and calendar this tool reads from and writes to."
-                              icon={CalendarClockIcon}
-                              title="Calendar"
-                            />
-                            <PanelBody className="space-y-4">
-                              <GoogleCalendarConnectionCard
-                                isConnecting={isConnectingGoogleCalendar}
-                                isDisconnecting={isDisconnectingGoogleCalendar}
-                                onConnect={handleConnectGoogleCalendar}
-                                onDisconnect={handleDisconnectGoogleCalendar}
-                                onManage={() =>
-                                  guardUnsaved(() => setSection("connections"))
-                                }
-                                status={googleCalendarStatus}
-                                variant="compact"
-                              />
-
-                              <div className="space-y-2">
-                                <Label>Calendar ID</Label>
-                                <Input
-                                  className="font-mono text-xs"
-                                  onChange={(event) =>
-                                    patchConfig({
-                                      calendarId: event.target.value,
-                                    })
-                                  }
-                                  placeholder="primary"
-                                  value={editor.config.calendarId ?? ""}
-                                />
-                                <p className="text-xs text-muted-foreground">
-                                  Use{" "}
-                                  <code className="font-mono text-foreground">
-                                    primary
-                                  </code>{" "}
-                                  for the connected account's own calendar, or
-                                  paste another calendar's ID from that
-                                  calendar's settings in Google Calendar.
-                                </p>
-                              </div>
-                            </PanelBody>
-                          </Panel>
-                        ) : null}
-
-                        {/* ── api request ──────────────────────────────────── */}
-                        {selectedToolType === "api_request" ? (
-                          <Panel quiet>
-                            <PanelHeader
-                              description="Where the call goes, how it is authenticated, and the body the assistant's arguments are poured into."
-                              icon={ServerCogIcon}
-                              title="Endpoint"
-                            />
-                            <PanelBody className="space-y-4">
-                              <div className="grid gap-3 sm:grid-cols-[120px_minmax(0,1fr)]">
-                                <div className="space-y-1.5">
-                                  <Label>Method</Label>
-                                  <Select
-                                    onValueChange={(value: "GET" | "POST") =>
-                                      patchConfig({ method: value })
-                                    }
-                                    value={editor.config.method ?? "POST"}
-                                  >
-                                    <SelectTrigger>
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="GET">GET</SelectItem>
-                                      <SelectItem value="POST">POST</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                <div className="space-y-1.5">
-                                  <Label>URL</Label>
-                                  <Input
-                                    className="font-mono text-xs"
-                                    onChange={(event) =>
-                                      patchConfig({ url: event.target.value })
-                                    }
-                                    placeholder={
-                                      activeBlueprint?.endpointPlaceholder ??
-                                      "https://api.example.com/v1/lookup"
-                                    }
-                                    value={editor.config.url ?? ""}
-                                  />
-                                </div>
-                              </div>
-
-                              <RequestHeadersEditor
-                                authSpec={blueprintAuth}
-                                key={`headers-${String(selectedToolId ?? "new")}`}
-                                onChange={(value) =>
-                                  patchConfig({ headersJson: value })
-                                }
-                                value={editor.config.headersJson ?? "{}"}
-                              />
-
-                              {(editor.config.method ?? "POST") === "POST" ? (
-                                <div className="space-y-1.5">
-                                  <Label>Body template</Label>
-                                  <Textarea
-                                    className="font-mono text-xs"
-                                    onChange={(event) =>
-                                      patchConfig({
-                                        bodyTemplate: event.target.value,
-                                      })
-                                    }
-                                    rows={7}
-                                    value={editor.config.bodyTemplate ?? ""}
-                                  />
-                                  <p className="text-xs text-muted-foreground">
-                                    Use{" "}
-                                    <code className="font-mono text-foreground">
-                                      {"{{parameter_name}}"}
-                                    </code>{" "}
-                                    placeholders. Leave the template empty to
-                                    post the raw arguments as JSON.
-                                  </p>
-                                </div>
-                              ) : (
-                                <p className="console-inset px-3 py-2.5 text-xs text-muted-foreground">
-                                  On a GET request every parameter is appended
-                                  to the URL as a query string value.
-                                </p>
-                              )}
-                            </PanelBody>
-                          </Panel>
-                        ) : null}
-
-                        {/* ── custom webhook ───────────────────────────────── */}
-                        {selectedToolType === "custom_webhook" ? (
-                          <Panel quiet>
-                            <PanelHeader
-                              description="The assistant's arguments are delivered to this endpoint as a flat JSON object."
-                              icon={SquareTerminalIcon}
-                              title="Webhook"
-                            />
-                            <PanelBody>
-                              <div className="grid gap-3 sm:grid-cols-[120px_minmax(0,1fr)]">
-                                <div className="space-y-1.5">
-                                  <Label>Method</Label>
-                                  <Select
-                                    onValueChange={(value: "GET" | "POST") =>
-                                      patchConfig({ webhookMethod: value })
-                                    }
-                                    value={
-                                      editor.config.webhookMethod ?? "POST"
-                                    }
-                                  >
-                                    <SelectTrigger>
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="GET">GET</SelectItem>
-                                      <SelectItem value="POST">POST</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                <div className="space-y-1.5">
-                                  <Label>Webhook URL</Label>
-                                  <Input
-                                    className="font-mono text-xs"
-                                    onChange={(event) =>
-                                      patchConfig({
-                                        webhookUrl: event.target.value,
-                                      })
-                                    }
-                                    placeholder={
-                                      activeBlueprint?.endpointPlaceholder ??
-                                      "https://hooks.example.com/assistant-tool"
-                                    }
-                                    value={editor.config.webhookUrl ?? ""}
-                                  />
-                                </div>
-                              </div>
-                            </PanelBody>
-                          </Panel>
-                        ) : null}
-
-                        {/* ── parameters ───────────────────────────────────── */}
-                        {!selectedTool?.isBuiltin && !isGoogleSheetsEditor ? (
-                          <Panel quiet>
-                            <PanelHeader
-                              description="The inputs the model is allowed to send. Names and descriptions are part of the prompt."
-                              icon={BracesIcon}
-                              title="Parameters"
-                            />
-                            <PanelBody>
-                              <ToolParametersEditor
-                                onChange={(parameters) =>
-                                  patchEditor({ parameters })
-                                }
-                                parameters={editor.parameters}
-                              />
-                            </PanelBody>
-                          </Panel>
-                        ) : null}
-
-                        {isGoogleSheetsEditor ? (
-                          <Panel quiet>
-                            <PanelHeader
-                              description="Generated from the columns you selected above — the assistant sees exactly these inputs."
-                              icon={BracesIcon}
-                              title="Parameters"
-                            />
-                            <PanelBody>
-                              {editor.parameters.length === 0 ? (
-                                <p className="text-xs text-muted-foreground">
-                                  Choose columns above to generate parameters.
-                                </p>
-                              ) : (
-                                <div className="space-y-2.5">
-                                  <div className="flex flex-wrap gap-1.5">
-                                    {editor.parameters.map((parameter) => (
-                                      <Pill
-                                        key={parameter.name}
-                                        tone={
-                                          parameter.required
-                                            ? "accent"
-                                            : "neutral"
-                                        }
-                                      >
-                                        <span className="font-mono">
-                                          {parameter.name}
-                                        </span>
-                                        {parameter.required
-                                          ? " · required"
-                                          : ""}
-                                      </Pill>
-                                    ))}
-                                  </div>
-                                  {operation === "update" ? (
-                                    <p className="text-xs text-muted-foreground">
-                                      A column that both finds the row and gets
-                                      changed appears twice: the plain name
-                                      carries the value already in the sheet,
-                                      and the{" "}
-                                      <span className="font-mono">new_</span>
-                                      one carries the corrected value to write.
-                                    </p>
-                                  ) : null}
-                                </div>
-                              )}
-                            </PanelBody>
-                          </Panel>
-                        ) : null}
-
-                        {selectedToolType === "api_request" ||
-                        selectedToolType === "custom_webhook" ? (
-                          <Panel quiet>
-                            <PanelHeader
-                              description="The call as it leaves Osonflow, with sample arguments in place of the model's."
-                              icon={SquareTerminalIcon}
-                              title="Outgoing request"
-                            />
-                            <PanelBody>
-                              <RequestPreview
-                                config={editor.config}
-                                parameters={editor.parameters}
-                                type={selectedToolType}
-                              />
-                            </PanelBody>
-                          </Panel>
-                        ) : null}
-                      </>
-                    ) : null}
-
-                    {/* ── test ─────────────────────────────────────────── */}
-                    {activeEditorTab === "test" ? (
-                      <Panel quiet>
-                        <PanelHeader
-                          description="Call the tool with arguments you choose and read back exactly what the assistant would receive."
-                          icon={FlaskConicalIcon}
-                          title="Test console"
-                        />
-                        <PanelBody>
-                          <ToolTestConsole
-                            key={`test-${String(selectedToolId ?? "new")}`}
-                            blockedReason={testBlockedReason}
-                            onRun={async (args) => {
-                              if (!selectedTool) {
-                                throw new Error("Save this tool first.")
-                              }
-
-                              return await testExecute({
-                                toolId: selectedTool._id,
-                                args,
-                              })
-                            }}
-                            parameters={editor.parameters}
-                          />
-                        </PanelBody>
-                      </Panel>
-                    ) : null}
-                  </div>
-                </ScrollArea>
-
-                <div className="shrink-0 border-t border-[var(--console-hairline-soft)] bg-card px-4 py-3 sm:px-5">
-                  <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
-                    <div className="flex min-w-0 items-center gap-2 sm:mr-auto">
-                      {isDirty ? (
-                        <>
-                          <span
-                            aria-hidden
-                            className="console-dot console-tone-warning"
-                          />
-                          <span className="text-xs text-muted-foreground">
-                            Unsaved changes
-                          </span>
-                        </>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">
-                          Changes apply to every channel this tool is on.
-                        </span>
-                      )}
-                    </div>
-
-                    {isDirty && selectedTool ? (
-                      <Button
-                        onClick={() => {
-                          setEditor(toolToEditorState(selectedTool))
-                          setIsDirty(false)
-                        }}
-                        type="button"
-                        variant="ghost"
-                      >
-                        Discard
-                      </Button>
-                    ) : null}
-
-                    <Button
-                      disabled={isSaving}
-                      onClick={handleSave}
-                      type="button"
-                    >
-                      {isSaving ? (
-                        <Loader2Icon className="animate-spin" />
-                      ) : (
-                        <SaveIcon />
-                      )}
-                      Save tool
-                    </Button>
-                  </div>
-                </div>
-              </>
-            )}
-          </section>
+        <div
+          className="mt-10 border-b border-[var(--report-rule)]"
+          ref={sectionsRef}
+        >
+          <div
+            aria-label="Assistant tools sections"
+            className="report-filters"
+            role="group"
+          >
+            {SECTIONS.map((entry) => (
+              <ReportFilter
+                active={section === entry.id}
+                count={
+                  entry.id === "tools"
+                    ? tools.length
+                    : entry.id === "catalog"
+                      ? ADDABLE_BLUEPRINTS.length
+                      : undefined
+                }
+                key={entry.id}
+                onClick={() => guardUnsaved(() => setSection(entry.id))}
+              >
+                {entry.label}
+              </ReportFilter>
+            ))}
+          </div>
         </div>
-      ) : null}
 
-      {section === "catalog" ? (
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 sm:px-6">
-          <div className="mx-auto w-full max-w-[1540px]">
+        {section === "tools" ? (
+          <div className="grid gap-10 pt-8 lg:grid-cols-[19rem_minmax(0,1fr)] lg:gap-14">
+            <ToolIndex
+              draft={
+                isNewTool
+                  ? {
+                      title: activeBlueprint?.title ?? "New tool",
+                      presentation,
+                    }
+                  : null
+              }
+              filter={libraryFilter}
+              onAdd={goToLibrary}
+              onFilterChange={setLibraryFilter}
+              onOpen={openTool}
+              onQueryChange={setLibraryQuery}
+              query={libraryQuery}
+              selectedToolId={isNewTool ? null : (selectedToolId ?? null)}
+              statuses={statuses}
+              tools={tools}
+            />
+
+            <div className="min-w-0 scroll-mt-6" ref={panelRef}>
+              {showEditor ? editorPanel : startPanel}
+            </div>
+          </div>
+        ) : null}
+
+        {section === "catalog" ? (
+          <div className="pt-8">
             <ToolCatalog
               category={catalogCategory}
               installedCounts={installedCounts}
@@ -2713,92 +2755,88 @@ export const AssistantToolsView = () => {
               query={catalogQuery}
             />
           </div>
-        </div>
-      ) : null}
+        ) : null}
 
-      {section === "connections" ? (
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 sm:px-6">
-          <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4">
-            <GoogleConnectionCard
-              apiKey={googleApiKey}
-              isConnecting={isConnectingGoogle}
-              isDisconnecting={isDisconnectingGoogle}
-              isRefreshing={isLoadingSpreadsheets}
-              isSavingApiKey={isSavingGoogleKey}
-              loadError={spreadsheetLoadError}
-              onApiKeyChange={setGoogleApiKey}
-              onConnect={handleConnectGoogle}
-              onDisconnect={handleDisconnectGoogle}
-              onRefresh={() => void loadSpreadsheetOptions()}
-              onSaveApiKey={handleSaveGoogleKey}
-              onToggleApiKeyFallback={() =>
-                setShowApiKeyFallback((current) => !current)
-              }
-              showApiKeyFallback={showApiKeyFallback}
-              status={googleSheetsStatus}
-            />
+        {section === "connections" ? (
+          <div className="pb-6">
+            <ReportSection
+              index={1}
+              lede="Sign in once here. Every tool that uses the account shares the same connection."
+              title="Connected accounts"
+            >
+              <div>
+                <GoogleConnectionCard
+                  apiKey={googleApiKey}
+                  isConnecting={isConnectingGoogle}
+                  isDisconnecting={isDisconnectingGoogle}
+                  isRefreshing={isLoadingSpreadsheets}
+                  isSavingApiKey={isSavingGoogleKey}
+                  loadError={spreadsheetLoadError}
+                  onApiKeyChange={setGoogleApiKey}
+                  onConnect={handleConnectGoogle}
+                  onDisconnect={handleDisconnectGoogle}
+                  onRefresh={() => void loadSpreadsheetOptions()}
+                  onSaveApiKey={handleSaveGoogleKey}
+                  onToggleApiKeyFallback={() =>
+                    setShowApiKeyFallback((current) => !current)
+                  }
+                  showApiKeyFallback={showApiKeyFallback}
+                  status={googleSheetsStatus}
+                />
+                <GoogleCalendarConnectionCard
+                  isConnecting={isConnectingGoogleCalendar}
+                  isDisconnecting={isDisconnectingGoogleCalendar}
+                  onConnect={handleConnectGoogleCalendar}
+                  onDisconnect={handleDisconnectGoogleCalendar}
+                  status={googleCalendarStatus}
+                />
+              </div>
+            </ReportSection>
 
-            <GoogleCalendarConnectionCard
-              isConnecting={isConnectingGoogleCalendar}
-              isDisconnecting={isDisconnectingGoogleCalendar}
-              onConnect={handleConnectGoogleCalendar}
-              onDisconnect={handleDisconnectGoogleCalendar}
-              status={googleCalendarStatus}
-            />
-
-            <Panel>
-              <PanelHeader
-                actions={
-                  <Pill icon={GlobeLockIcon} tone="neutral">
-                    Outbound only
-                  </Pill>
-                }
-                description="Every host your assistants can reach, the credential each one uses, and whether that credential has actually been set."
-                icon={PlugZapIcon}
-                title="Endpoints in use"
+            <ReportSection
+              index={2}
+              lede="Every outside address your tools reach, the key each one uses, and whether that key has actually been filled in."
+              title="Apps your assistant calls"
+            >
+              <ConnectionsInventory
+                onOpenTool={openToolAndReveal}
+                tools={tools}
               />
-              <PanelBody flush>
-                <ConnectionsInventory tools={tools} />
-              </PanelBody>
-            </Panel>
+            </ReportSection>
 
-            <Panel>
-              <PanelHeader
-                description="What happens between the model deciding to call a tool and the answer coming back."
-                icon={ShieldCheckIcon}
-                title="How tool calls run"
-              />
-              <PanelBody className="grid gap-3 sm:grid-cols-2">
-                {[
-                  {
-                    title: "Scoped to this workspace",
-                    body: "A tool is only ever visible to assistants in the organization that created it, and only on the channels it is switched on for.",
-                  },
-                  {
-                    title: "Outbound requests are fenced",
-                    body: "Calls must be http(s), and loopback, private, link-local and carrier-NAT addresses are refused. Every redirect hop is re-checked.",
-                  },
-                  {
-                    title: "Responses are capped",
-                    body: "At most 4,000 characters of a response reach the model, so a large payload cannot flood the conversation.",
-                  },
-                  {
-                    title: "Voice runs a subset",
-                    body: "Handoff and resolve are chat-only. Every other tool can be exposed to OpenAI Realtime and Gemini Live.",
-                  },
-                ].map((entry) => (
-                  <div className="console-inset p-3.5" key={entry.title}>
-                    <p className="text-sm font-medium">{entry.title}</p>
-                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                      {entry.body}
-                    </p>
-                  </div>
-                ))}
-              </PanelBody>
-            </Panel>
+            <ReportSection
+              index={3}
+              lede="What happens between your assistant deciding to use a tool and the answer coming back."
+              title="How tool calls stay safe"
+            >
+              <ul className="grid gap-x-10 md:grid-cols-2">
+                {SAFEGUARDS.map((entry) => {
+                  const SafeguardIcon = entry.icon
+
+                  return (
+                    <li
+                      className="tools-field flex items-start gap-4 py-5"
+                      key={entry.title}
+                    >
+                      <span className="setup-glyph size-9">
+                        <SafeguardIcon aria-hidden className="size-4" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-foreground">
+                          {entry.title}
+                        </p>
+                        <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                          {entry.body}
+                        </p>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            </ReportSection>
           </div>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
 
       <AlertDialog
         onOpenChange={(open) => {
@@ -2808,10 +2846,10 @@ export const AssistantToolsView = () => {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
+            <AlertDialogTitle>Leave without saving?</AlertDialogTitle>
             <AlertDialogDescription>
-              This tool has edits that have not been saved. Leaving now throws
-              them away.
+              This tool has changes that haven&apos;t been saved. If you leave
+              now they&apos;ll be lost.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -2837,16 +2875,18 @@ export const AssistantToolsView = () => {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Delete {selectedTool?.name ?? "this tool"}?
+              Delete{" "}
+              {selectedTool ? toolDisplayName(selectedTool) : "this tool"}?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              The assistant stops being able to call it immediately. This cannot
-              be undone.
+              Your assistant stops using it straight away. This can&apos;t be
+              undone — to pause it instead, switch it off.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>Keep it</AlertDialogCancel>
             <AlertDialogAction
+              className="bg-destructive text-white hover:bg-destructive/90"
               onClick={() => {
                 setIsDeleteDialogOpen(false)
                 void handleDelete()
@@ -2857,6 +2897,6 @@ export const AssistantToolsView = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </ConsolePage>
   )
 }

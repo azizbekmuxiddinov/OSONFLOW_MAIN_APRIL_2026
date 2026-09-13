@@ -193,7 +193,7 @@ export const AppearanceFormFields = ({ form }: AppearanceFormFieldsProps) => {
             contrastAgainst={getContrastingTextColor(appearance.launcherColor)}
             contrastLabel="Launcher icon and label"
             description="Background of the floating button."
-            fallbackColor="#3b82f6"
+            fallbackColor="#6366f1"
             form={form}
             label="Launcher colour"
             name="appearance.launcherColor"

@@ -1,4 +1,5 @@
 import { saveMessage } from "@convex-dev/agent"
+import { generateText } from "ai"
 import { components, internal } from "../_generated/api"
 import type { Id } from "../_generated/dataModel"
 import { supportAgent } from "../system/ai/agents/supportAgent"
@@ -19,6 +20,67 @@ import {
   getLatestTextAgentMessage,
 } from "./agentMessageText"
 import { OPENAI_CHAT_MODEL, getOpenAIChatModelFromSecretValue } from "./openai"
+
+/**
+ * A turn can still end with no text of its own: every step spent on tools, or a
+ * generation that failed outright. The widget has to render something, but the
+ * canned English sentence that used to be written here landed verbatim in front
+ * of visitors of an assistant configured to speak Uzbek — which reads as a bug
+ * dropped into the middle of an otherwise fluent conversation, and is not
+ * something a merchant can edit away.
+ *
+ * So the sentence is written by the model instead, on this rare path only: a
+ * handful of tokens in and one short sentence out. English is used only if that
+ * call fails too.
+ *
+ * The language is taken from the assistant's own previous message, not from the
+ * visitor's. The turns that land here are confirmations — "ha togri", "ok",
+ * "dushnabda 15000" — and two words of romanised Uzbek are too thin a signal:
+ * asked to match the visitor, the model answered one of them in Russian. The
+ * assistant's last message is a full fluent sentence already in the right
+ * language, so it identifies it reliably.
+ */
+export const writeFallbackReply = async ({
+  model,
+  languageSample,
+  visitorMessage,
+  kind,
+}: {
+  model: any
+  languageSample?: string | null
+  visitorMessage: string
+  kind: "acknowledge" | "lost"
+}): Promise<string> => {
+  const englishFallback =
+    kind === "acknowledge"
+      ? "Thanks — that's been taken care of. Anything else I can help with?"
+      : "Sorry, something went wrong on my side and I lost that reply. Could you send it again?"
+
+  const anchor = languageSample?.trim() || visitorMessage.trim()
+
+  if (!anchor) {
+    return englishFallback
+  }
+
+  const intent =
+    kind === "acknowledge"
+      ? "Confirm warmly that what they asked for has been done, then ask whether there is anything else you can help with."
+      : "Apologise briefly that the reply was lost on your side, and ask them to send the message again."
+
+  try {
+    const response = await generateText({
+      model,
+      maxOutputTokens: 80,
+      system:
+        "You write one short sentence to send next in a customer support chat. Write it in the same language as the assistant's previous message. Output only that sentence: no quotes, no preamble, no translation, no explanation, and never quote or repeat the visitor's own words.",
+      prompt: `The assistant's previous message (match this language):\n${anchor}\n\nThe visitor's last message:\n${visitorMessage}\n\nWhat to say: ${intent}`,
+    })
+
+    return response.text?.trim() || englishFallback
+  } catch {
+    return englishFallback
+  }
+}
 
 export const getLatestAssistantMessage = async (
   ctx: any,

@@ -40,6 +40,7 @@ import { extractAgentMessageText } from "../lib/agentMessageText"
 import {
   getCalledToolNames,
   getLatestAssistantMessage,
+  writeFallbackReply,
 } from "../lib/chatReply"
 import {
   requireContactSessionConversation,
@@ -736,10 +737,21 @@ export const create = action({
         // assistant message the widget has nothing to render against, so the
         // visitor is left watching a typing indicator over a reply that is
         // never coming.
+        //
+        // The acknowledgement is written in the visitor's own language rather
+        // than hardcoded, so it does not arrive in English in the middle of a
+        // conversation the assistant has been holding in another language.
         if (!assistantReplyText) {
-          assistantReplyText = didCallTool(result)
-            ? "Thanks — that's been taken care of. Anything else I can help with?"
-            : "Sorry, something went wrong on my side and I lost that reply. Could you send it again?"
+          assistantReplyText = await writeFallbackReply({
+            model: getOpenAIChatModelFromSecretValue(
+              openAISecretValue,
+              chatModel
+            ),
+            languageSample:
+              latestAssistantMessage?.text ?? previousAssistantMessage?.text,
+            visitorMessage: promptText,
+            kind: didCallTool(result) ? "acknowledge" : "lost",
+          })
 
           await saveMessage(ctx, components.agent, {
             threadId: args.threadId,
