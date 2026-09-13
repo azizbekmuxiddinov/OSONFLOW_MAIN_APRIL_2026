@@ -1,6 +1,6 @@
 /* ============================================================
    Osonflow — Japandi landing interactivity (zero-build, vanilla)
-   Live grounded chat + voice, knowledge training, agent inbox,
+   Live demo that answers from a real business's own pages,
    interactive pipeline, ROI calculator,
    animated FAQ, embed modal, and calm scroll choreography.
    ============================================================ */
@@ -43,41 +43,6 @@ const $ = (s, c) => (c || document).querySelector(s);
   const $$ = (s, c) => Array.from((c || document).querySelectorAll(s));
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const esc = (t) => String(t).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
-
-  /* ---------------- Shared knowledge corpus ---------------- */
-  const knowledge = [
-    { id: "k-1", title: "What Osonflow does", type: "file", source: "osonflow-faq.pdf",
-      content: "Osonflow is an AI customer support tool for websites. When a visitor writes or calls in, Osonflow answers using your own content — your web pages, help articles, and uploaded files. When a question needs a person, it passes the whole conversation to your team so the customer never repeats themselves.", date: "2026-06-01" },
-    { id: "k-2", title: "Pricing and plans", type: "url", source: "https://osonflow.ai/pricing",
-      content: "There are three plans. Starter is free: the full chat widget, up to 1,000 conversations, one website to read from, and email handover. Growth is 299.000 soms a month: voice support, the shared team inbox, up to 10 team seats, unlimited pages read from your site, and Slack. Enterprise is custom-priced with an SLA, a dedicated database, and custom voice options.", date: "2026-06-05" },
-    { id: "k-3", title: "Voice support", type: "file", source: "voice_capabilities.txt",
-      content: "Customers can speak to Osonflow instead of typing — they tap the voice button in the widget and talk. Voice calls go into the same queue as chat. If a call needs a person, Osonflow rings your support team and hands over mid-call, with a written transcript already waiting in the shared inbox.", date: "2026-06-10" },
-    { id: "k-4", title: "Setup and integrations", type: "url", source: "https://docs.osonflow.ai/setup",
-      content: "Installing Osonflow is one line of code in your site's head: <script src='https://widget.osonflow.uz/widget.js' data-id='oson-demo'></script>. You can pick a colour theme to match your brand, and it works with Shopify, WordPress, and HubSpot.", date: "2026-06-12" }
-  ];
-
-  function generateAiResponse(query) {
-    const q = query.toLowerCase();
-    const find = (id) => knowledge.find((k) => k.id === id);
-    if (/(price|plan|cost|pricing|tier)/.test(q)) return (find("k-2") || {}).content || "Plans start free. Growth is 299.000 soms a month and adds voice support and shared inbox seats for your team.";
-    if (/(voice|speak|realtime|audio|call)/.test(q)) return (find("k-3") || {}).content || "Customers can talk to Osonflow instead of typing, and your team can join the call or read the live transcript from the shared inbox.";
-    if (/(install|embed|script|setup|code|integrat)/.test(q)) return (find("k-4") || {}).content || "Setup is one line of code in your site's head — that's it.";
-    if (/(human|person|handoff|agent|escalat|specialist)/.test(q)) return "When Osonflow is not sure enough, or the question is urgent, the chat goes to your team. They see the whole conversation the moment they open it.";
-    for (const item of knowledge) {
-      const kws = item.title.toLowerCase().split(/\s+/);
-      if (kws.some((kw) => kw.length > 3 && q.includes(kw))) return "[From " + item.source + "]: " + item.content;
-    }
-    return "Osonflow answers the repetitive questions from your own content, and passes the harder ones to your team with the full conversation attached.";
-  }
-
-  function intentFor(query) {
-    const q = query.toLowerCase();
-    if (/(price|plan|cost|pricing)/.test(q)) return "About pricing";
-    if (/(voice|audio|call)/.test(q)) return "About voice";
-    if (/(install|embed|script|setup|code)/.test(q)) return "Setup question";
-    if (/(human|person|handoff|agent|escalat)/.test(q)) return "Wants a person";
-    return "Just trying it out";
-  }
 
   /* ---------------- Reveal on scroll (hero only; rest uses Framer Motion) ---------------- */
   const reveals = $$("[data-reveal]");
@@ -193,20 +158,66 @@ const $ = (s, c) => (c || document).querySelector(s);
   }
 
   /* ---------------- Pipeline stepper ---------------- */
+  /* Each step plays a small scene on the ink stage. The scenes share one world:
+     the three sheets added in step 1 are the sources every later answer cites. */
+  const sheet = (cls, name, kind, heading, lines, style) =>
+    `<div class="sheet ${cls}" style="${style || ""}"><div class="sheet__head"><span class="sheet__name">${name}</span><span class="sheet__kind">${kind}</span></div>` +
+    `<div class="sheet__body"><b>${heading}</b>${lines.map((l) => `<span>${l}</span>`).join("")}</div><span class="sheet__scan"></span>` +
+    `<span class="sheet__read"><svg viewBox="0 0 16 16" width="10" height="10" aria-hidden="true"><path d="M3.5 8.5 6.5 11.5 12.5 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Read</span></div>`;
+  const sgauge = (value, bar, mood, delay) =>
+    `<div class="sgauge sgauge--${mood}" style="--v:${value};--bar:${bar};--d:${delay}s" role="img" aria-label="Confidence ${value}%, your bar is ${bar}%">` +
+    `<div class="sgauge__read"><span><b data-tick="${value}" data-tick-delay="${delay * 1000}">${value}</b>%</span><small>sure</small></div>` +
+    `<div class="sgauge__track"><span class="sgauge__fill"></span><span class="sgauge__bar"><em>your bar ${bar}%</em></span></div></div>`;
   const pviews = [
-    { rule: "", title: "You add your content", desc: "You don't write scripts or keyword rules. Point Osonflow at your website, or upload the PDFs and text files your team already answers from. It reads them once and keeps them up to date.",
-      term: '<div class="term"><div class="term__title">WHAT YOU GIVE IT</div><pre>Your files and pages  ───────▶  Read and organised\n  ├─ billing-faq.txt                  ├─ ready in 92ms\n  └─ setup-guide.pdf                  └─ ready in 130ms</pre><div class="term__ok">Done — Osonflow can now answer from both.</div></div>' },
+    { title: "You add your content", desc: "You don't write scripts or keyword rules. Point Osonflow at your website, or upload the PDFs and text files your team already answers from. It reads them once and keeps them up to date.",
+      scene: '<div class="scn scn--ingest"><div class="desk">' +
+        sheet("", "yourshop.uz/pricing", "Web page", "Plans and prices", ["Starter is free for up to 100 chats a month.", "Growth is 299 000 soms a month.", "Business is 790 000 soms a month."], "--i:0;--r:-5deg;--x:2%") +
+        sheet("", "Refund policy.pdf", "PDF, 4 pages", "Refunds", ["Unworn items can be returned within 14 days.", "Money reaches your card in 3 to 5 working days."], "--i:1;--r:1.5deg;--x:34%") +
+        sheet("", "Delivery questions.txt", "Text file", "Delivery", ["Tashkent orders arrive the next day.", "Regions take 2 to 4 days by courier."], "--i:2;--r:6deg;--x:66%") +
+        '</div><div class="scn__note" style="--d:2.7s"><b data-tick="46" data-tick-delay="2700">46</b> passages from 3 sources, ready to answer from</div></div>' },
     { title: "Osonflow reads it", desc: "When a customer asks something, Osonflow pulls up only the parts of your content that actually relate to the question — then writes its answer from those, and nothing else.",
-      term: '<div class="term"><div class="term__title term__title--ochre">FINDING THE ANSWER</div><pre>Customer asks ────────▶ Osonflow looks it up ────────▶ Answer\n  "Do you have Pro?"           in your own content       "Growth is 299.000 soms a month"</pre><div class="term__ok">The answer came from your pricing page.</div></div>' },
+      scene: '<div class="scn scn--find">' +
+        sheet("sheet--open", "yourshop.uz/pricing", "Web page", "Plans and prices", ["Starter is free for up to 100 chats a month.", '<mark style="--d:1.1s">Growth is 299 000 soms a month.</mark>', "Business is 790 000 soms a month.", "Every plan includes the voice assistant."]) +
+        '<div class="chat"><div class="bub bub--them" style="--d:.2s">How much is the Growth plan?</div>' +
+        '<div class="bub bub--typing" style="--d:.8s"><i></i><i></i><i></i></div>' +
+        '<div class="bub bub--us" style="--d:2s">Growth is 299 000 soms a month.</div>' +
+        '<div class="cite" style="--d:2.4s"><span class="cite__swatch"></span>From yourshop.uz/pricing</div></div></div>' },
     { title: "It answers — or it stops", desc: "Before replying, Osonflow rates how well the answer is backed by your content. If that rating falls below the level you set, it doesn't send a guess — it stops and gets a person.",
-      term: '<div class="term"><div class="term__title">CHECKING BEFORE IT REPLIES</div><pre>Draft answer ─────────▶ How well is this backed up?\n                          ├─ Found in your content: yes\n                          ├─ Confidence: 95%\n                          └─ Your threshold: 80%</pre><div class="term__ok">Confident enough — send it, no one needed.</div></div>' },
+      scene: '<div class="scn scn--gate"><div class="chat">' +
+        '<div class="bub bub--them" style="--d:.2s">Can I return a jacket I bought 10 days ago?</div>' +
+        '<div class="swap" style="--d:2.6s"><div class="bub bub--draft" style="--d:.8s">Yes. Unworn items can be returned within 14 days.</div>' +
+        '<div class="bub bub--us">Yes. Unworn items can be returned within 14 days.</div></div>' +
+        '<div class="cite" style="--d:2.9s"><span class="cite__swatch"></span>Sent, from Refund policy.pdf</div></div>' +
+        sgauge(95, 80, "pass", 1.3) + "</div>" },
     { title: "Your team steps in", desc: "If confidence drops, or the customer just asks for a person, your team is notified and the chat appears in the shared inbox. The customer stays in the same conversation and never repeats themselves.",
-      term: '<div class="term"><div class="term__title term__title--ochre">HANDING OVER</div><pre>Customer ──────────────▶ Not confident enough ──────▶ Team notified\n                            │ (Confidence: 44%)        │\n                            └──────────────────────────┴─▶ Shared inbox</pre><div class="term__warn">Passing this conversation to your team, with the full history.</div></div>' }
+      scene: '<div class="scn scn--hand"><div class="chat">' +
+        '<div class="bub bub--them" style="--d:.2s">The jacket arrived torn. I want my money back today.</div>' +
+        '<div class="bub bub--draft bub--held" style="--d:.8s">Sorry about that. Refunds usually take…</div>' +
+        '<div class="sys" style="--d:2.7s">Held back and sent to your shared inbox</div>' +
+        '<div class="bub bub--team" style="--d:3.5s"><span class="bub__who">Madina, support team</span>Hi, I can see the whole chat. Sending a courier for the jacket and refunding you today.</div></div>' +
+        sgauge(44, 80, "fail", 1.3) + "</div>" }
   ];
   const pipelineView = $("#pipelineView");
+  function runCounts(root) {
+    $$("[data-tick]", root).forEach((el) => {
+      const to = parseInt(el.dataset.tick, 10);
+      if (reduceMotion) { el.textContent = to; return; }
+      el.textContent = "0";
+      setTimeout(() => {
+        const t0 = performance.now();
+        const tick = (now) => {
+          const p = Math.min(1, (now - t0) / 1100);
+          el.textContent = Math.round(to * (1 - Math.pow(1 - p, 3)));
+          if (p < 1) requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }, parseInt(el.dataset.tickDelay || "0", 10));
+    });
+  }
   function renderPipeline(i) {
     const v = pviews[i];
-    pipelineView.innerHTML = '<div class="pview__in"><span class="pview__rule"></span><h4>' + v.title + "</h4><p>" + v.desc + "</p>" + v.term + "</div>";
+    pipelineView.innerHTML = '<div class="pview__in"><h4>' + v.title + "</h4><p>" + v.desc + "</p>" + v.scene + "</div>";
+    runCounts(pipelineView);
   }
   if (pipelineView) {
     renderPipeline(0);
@@ -215,6 +226,105 @@ const $ = (s, c) => (c || document).querySelector(s);
       btn.classList.add("is-active");
       renderPipeline(parseInt(btn.dataset.step, 10));
     }, { signal }));
+  }
+
+  /* ---------------- Platform tiles: one hands-on moment each ---------------- */
+  /* Every visible word for every state lives in the markup, so the page's
+     translator handles them; these handlers only flip state attributes. */
+  const srcdemo = $(".srcdemo");
+  if (srcdemo) {
+    const citeBtn = $(".srcdemo__cite", srcdemo);
+    citeBtn.addEventListener("click", () => {
+      const open = srcdemo.dataset.open !== "true";
+      srcdemo.dataset.open = String(open);
+      citeBtn.setAttribute("aria-expanded", String(open));
+    }, { signal });
+  }
+
+  const inbx = $(".inbx");
+  if (inbx) {
+    const go = (state, focusSel) => {
+      inbx.dataset.state = state;
+      const next = $(focusSel, inbx);
+      if (next && document.activeElement && inbx.contains(document.activeElement)) next.focus({ preventScroll: true });
+    };
+    $(".inbx__claim", inbx).addEventListener("click", () => go("claimed", ".inbx__send"), { signal });
+    $(".inbx__send", inbx).addEventListener("click", () => go("sent", ".inbx__reset"), { signal });
+    $(".inbx__reset", inbx).addEventListener("click", () => go("new", ".inbx__claim"), { signal });
+  }
+
+  const route = $(".route");
+  if (route) {
+    const msgs = $$(".route__msg", route);
+    const syncChips = () => $$(".route__chip", route).forEach((chip) => {
+      const current = route.dataset[chip.dataset.field];
+      $$("[data-v]", chip).forEach((opt) => opt.classList.toggle("is-on", opt.dataset.v === current));
+    });
+    const sortChats = (animate) => {
+      const first = new Map(msgs.map((m) => [m, m.getBoundingClientRect()]));
+      msgs.forEach((m) => {
+        const lane = m.dataset.kind === route.dataset.if ? route.dataset.to : "ai";
+        $(`.route__lane[data-lane="${lane}"] .route__slot`, route).appendChild(m);
+      });
+      $$(".route__lane", route).forEach((l) => l.classList.toggle("is-target", l.dataset.lane === route.dataset.to));
+      if (!animate || reduceMotion) return;
+      msgs.forEach((m) => {
+        const a = first.get(m), b = m.getBoundingClientRect();
+        const dx = a.left - b.left, dy = a.top - b.top;
+        if (!dx && !dy) return;
+        m.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], { duration: 520, easing: "cubic-bezier(0.22, 1, 0.36, 1)" });
+      });
+    };
+    $$(".route__chip", route).forEach((chip) => chip.addEventListener("click", () => {
+      const options = chip.dataset.options.split(" ");
+      const field = chip.dataset.field;
+      route.dataset[field] = options[(options.indexOf(route.dataset[field]) + 1) % options.length];
+      syncChips();
+      sortChats(true);
+    }, { signal }));
+    syncChips();
+    sortChats(false);
+  }
+
+  const setbar = $(".setbar");
+  if (setbar) {
+    const input = $(".setbar__input", setbar);
+    const readout = $(".setbar__handle b", setbar);
+    const rows = $$(".setbar__row", setbar);
+    const apply = (raw) => {
+      const bar = Math.max(30, Math.min(98, Math.round(raw)));
+      setbar.style.setProperty("--bar", bar);
+      readout.textContent = bar;
+      rows.forEach((row) => {
+        const team = parseInt(row.style.getPropertyValue("--v"), 10) < bar;
+        if (row.classList.contains("is-team") === team) return;
+        row.classList.toggle("is-team", team);
+        row.classList.remove("is-flip");
+        void row.offsetWidth;
+        row.classList.add("is-flip");
+      });
+      return bar;
+    };
+    input.addEventListener("input", () => { input.value = apply(input.value); }, { signal });
+    apply(input.value);
+    // Show once that the line moves: ease it down past the middle question and back.
+    if (!reduceMotion && "IntersectionObserver" in window) {
+      const so = trackObserver(new IntersectionObserver((entries) => {
+        if (!entries.some((e) => e.isIntersecting)) return;
+        so.disconnect();
+        let touched = false;
+        input.addEventListener("pointerdown", () => { touched = true; }, { once: true, signal });
+        const t0 = performance.now() + 500;
+        const tick = (now) => {
+          if (touched) return;
+          const p = Math.max(0, Math.min(1, (now - t0) / 1800));
+          input.value = apply(80 - 16 * Math.sin(p * Math.PI));
+          if (p < 1) requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }, { threshold: 0.6 }));
+      so.observe(setbar);
+    }
   }
 
   /* ---------------- ROI calculator ---------------- */
@@ -229,361 +339,412 @@ const $ = (s, c) => (c || document).querySelector(s);
   }
   if (roiConv && roiCost) { roiConv.addEventListener("input", updateRoi, { signal }); roiCost.addEventListener("input", updateRoi, { signal }); updateRoi(); }
 
-  /* ---------------- Experience room tabs / loop UX ---------------- */
-  const glider = $("#xtabGlider");
-  const xstagePrompt = $("#xstagePrompt");
-  const xNudge = $("#xNudge");
-  const xNudgeText = $("#xNudgeText");
-  const xNudgeGo = $("#xNudgeGo");
-  const xNudgeDismiss = $("#xNudgeDismiss");
-  const PROMPTS = {
-    chat: "Try a suggested question — or type your own.",
-    train: "Teach it a new fact, then ask about it in the chat.",
-    inbox: "The same conversation shows up here, in full."
+  /* ---------------- Live demo: answers from a business's own pages ---------------- */
+  /* Osonflow finds the passage that best matches the question and answers with it,
+     citing the page. When nothing matches well enough, or the customer asks for a
+     person, the chat goes to the team instead. Samples ship in all three page
+     languages because matching compares the words the visitor actually types. */
+  const DEMO_SAMPLES = {
+    shop: {
+      name: "Libos Store",
+      asks: ["Do you deliver on Sundays?", "Can I return a jacket after a week?", "Can I pay in installments?", "Do you sell gift cards?"],
+      pages: [
+        { title: { en: "Delivery", uz: "Yetkazib berish", ru: "Доставка" },
+          text: { en: "We deliver across Tashkent the next day for 25 000 soms, and for free on orders over 500 000 soms. Delivery to the regions takes 2 to 4 days. Couriers also work on Saturdays and Sundays.",
+                  uz: "Toshkent bo'ylab ertasi kuni 25 000 so'mga yetkazib beramiz, 500 000 so'mdan ortiq buyurtmalar uchun esa bepul. Viloyatlarga yetkazish 2–4 kun davom etadi. Kuryerlar shanba va yakshanba kunlari ham ishlaydi.",
+                  ru: "Доставляем по Ташкенту на следующий день за 25 000 сумов, а при заказе от 500 000 сумов бесплатно. Доставка в регионы занимает 2–4 дня. Курьеры работают и в субботу, и в воскресенье." },
+          keys: { en: "shipping courier weekend cost free", uz: "dostavka kuryer dam olish narxi bepul yetkazasizmi", ru: "курьер доставляете выходные стоимость бесплатно" } },
+        { title: { en: "Returns", uz: "Qaytarish", ru: "Возврат" },
+          text: { en: "You can return or exchange unworn items within 14 days if you have the receipt. The money goes back to your card within 3 to 5 working days.",
+                  uz: "Kiyilmagan mahsulotni chek bilan 14 kun ichida qaytarish yoki almashtirish mumkin. Pul kartangizga 3–5 ish kunida qaytariladi.",
+                  ru: "Неношеные вещи можно вернуть или обменять в течение 14 дней при наличии чека. Деньги возвращаются на карту за 3–5 рабочих дней." },
+          keys: { en: "refund return exchange swap money back week", uz: "qaytarsam almashtirish pul hafta", ru: "возврат вернуть обмен деньги неделю" } },
+        { title: { en: "Sizes", uz: "O'lchamlar", ru: "Размеры" },
+          text: { en: "Our sizes go from XS to 3XL. If you are between two sizes, we recommend the larger one. You can try clothes on in the store before paying.",
+                  uz: "O'lchamlarimiz XS dan 3XL gacha. Ikki o'lcham orasida bo'lsangiz, kattarog'ini tavsiya qilamiz. Do'konda to'lashdan oldin kiyib ko'rishingiz mumkin.",
+                  ru: "Размеры от XS до 3XL. Если вы между двумя размерами, советуем брать больший. В магазине можно примерить одежду до оплаты." },
+          keys: { en: "size fit bigger smaller try fitting", uz: "o'lcham razmer kattaroq kichikroq kiyib", ru: "размер больше меньше примерить примерка" } },
+        { title: { en: "Payment", uz: "To'lov", ru: "Оплата" },
+          text: { en: "You can pay with Click, Payme, Uzcard, Humo, or in cash to the courier. Installments with Uzum Nasiya are available for orders over 1 000 000 soms.",
+                  uz: "Click, Payme, Uzcard, Humo orqali yoki kuryerga naqd pul bilan to'lashingiz mumkin. 1 000 000 so'mdan ortiq buyurtmalar uchun Uzum Nasiya orqali muddatli to'lov bor.",
+                  ru: "Оплатить можно через Click, Payme, Uzcard, Humo или наличными курьеру. Для заказов от 1 000 000 сумов доступна рассрочка через Uzum Nasiya." },
+          keys: { en: "pay payment card cash installments credit monthly", uz: "to'lov to'lash karta naqd muddatli nasiya kredit", ru: "оплата оплатить карта наличные рассрочка кредит частями" } },
+        { title: { en: "Store and hours", uz: "Do'kon va ish vaqti", ru: "Магазин и часы работы" },
+          text: { en: "Our store is at 12 Amir Temur Street in Tashkent. It is open every day from 10:00 to 21:00.",
+                  uz: "Do'konimiz Toshkentda, Amir Temur ko'chasi 12-uyda. Har kuni 10:00 dan 21:00 gacha ishlaydi.",
+                  ru: "Наш магазин находится в Ташкенте, на улице Амира Темура, 12. Работаем каждый день с 10:00 до 21:00." },
+          keys: { en: "address location located store shop open hours time working", uz: "manzil qayerda joylashgan do'kon ish vaqti ochiq soat", ru: "адрес где находится магазин часы работы время открыт" } },
+        { title: { en: "Your order", uz: "Buyurtmangiz", ru: "Ваш заказ" },
+          text: { en: "After you order, we send an SMS with a link to track it. The courier calls 30 minutes before arriving.",
+                  uz: "Buyurtma bergach, uni kuzatish havolasi bilan SMS yuboramiz. Kuryer yetib kelishidan 30 daqiqa oldin qo'ng'iroq qiladi.",
+                  ru: "После заказа мы отправляем SMS со ссылкой для отслеживания. Курьер звонит за 30 минут до приезда." },
+          keys: { en: "track tracking order status sms call courier arrive", uz: "buyurtma kuzatish holati sms qo'ng'iroq keladi", ru: "заказ отследить статус смс звонок приедет" } }
+      ]
+    },
+    dental: {
+      name: "Tabassum Dental",
+      asks: ["How much is teeth cleaning?", "Are you open on Sunday?", "Do you treat children?", "Do you accept insurance?"],
+      pages: [
+        { title: { en: "Prices", uz: "Narxlar", ru: "Цены" },
+          text: { en: "A check-up with a dentist costs 100 000 soms. Professional teeth cleaning costs 350 000 soms. A filling starts from 400 000 soms.",
+                  uz: "Stomatolog ko'rigi 100 000 so'm turadi. Tishlarni professional tozalash 350 000 so'm. Plomba 400 000 so'mdan boshlanadi.",
+                  ru: "Осмотр у стоматолога стоит 100 000 сумов. Профессиональная чистка зубов стоит 350 000 сумов. Пломба от 400 000 сумов." },
+          keys: { en: "price cost checkup cleaning filling", uz: "narx narxi turadi tozalash ko'rik plomba", ru: "цена стоимость стоит осмотр чистка пломба" } },
+        { title: { en: "Opening hours", uz: "Ish vaqti", ru: "Часы работы" },
+          text: { en: "We are open Monday to Saturday from 9:00 to 20:00. On Sundays we only see patients with urgent pain.",
+                  uz: "Dushanbadan shanbagacha 9:00 dan 20:00 gacha ishlaymiz. Yakshanba kuni faqat shoshilinch og'riq bilan kelgan bemorlarni qabul qilamiz.",
+                  ru: "Работаем с понедельника по субботу с 9:00 до 20:00. В воскресенье принимаем только пациентов с острой болью." },
+          keys: { en: "open hours weekend time schedule working", uz: "ish vaqti ochiq dam olish jadval", ru: "часы открыты выходные график" } },
+        { title: { en: "Booking", uz: "Qabulga yozilish", ru: "Запись" },
+          text: { en: "Book a visit by calling +998 71 200 00 00 or by writing to us on Telegram. Most patients get an appointment the same week.",
+                  uz: "Qabulga +998 71 200 00 00 raqamiga qo'ng'iroq qilib yoki Telegram orqali yozilishingiz mumkin. Ko'pchilik bemorlar shu haftaning o'zida qabulga kiradi.",
+                  ru: "Записаться можно по телефону +998 71 200 00 00 или в Telegram. Большинство пациентов попадают на приём в ту же неделю." },
+          keys: { en: "book appointment visit schedule telegram phone call", uz: "yozilish navbat telegram telefon", ru: "записаться запись телеграм телефон" } },
+        { title: { en: "Children", uz: "Bolalar", ru: "Дети" },
+          text: { en: "We treat children from 3 years old. A parent can stay in the room during the visit.",
+                  uz: "3 yoshdan katta bolalarni davolaymiz. Ota-ona qabul vaqtida xonada qolishi mumkin.",
+                  ru: "Лечим детей с 3 лет. Родитель может находиться в кабинете во время приёма." },
+          keys: { en: "kids child children son daughter baby", uz: "bola bolalar farzand o'g'il qiz", ru: "дети ребёнок ребенка сын дочь" } },
+        { title: { en: "Implants", uz: "Implantlar", ru: "Импланты" },
+          text: { en: "A dental implant costs from 5 500 000 soms, crown included. The first consultation about implants is free.",
+                  uz: "Implant tojsi bilan birga 5 500 000 so'mdan turadi. Implant bo'yicha birinchi maslahat bepul.",
+                  ru: "Имплант с коронкой стоит от 5 500 000 сумов. Первая консультация по имплантам бесплатная." },
+          keys: { en: "implant tooth missing crown price", uz: "implant tish toj narxi", ru: "имплант зуб коронка цена" } },
+        { title: { en: "Toothache", uz: "Tish og'rig'i", ru: "Если болит зуб" },
+          text: { en: "If you are in pain, call us and we will see you the same day, even on Sunday.",
+                  uz: "Tishingiz og'risa, qo'ng'iroq qiling, sizni o'sha kuniyoq, hatto yakshanba kuni ham qabul qilamiz.",
+                  ru: "Если болит зуб, позвоните нам, и мы примем вас в тот же день, даже в воскресенье." },
+          keys: { en: "pain hurts emergency urgent toothache today", uz: "og'riq og'riyapti shoshilinch bugun", ru: "боль срочно экстренно сегодня" } }
+      ]
+    },
+    food: {
+      name: "Navro'z Kitchen",
+      asks: ["Is plov served in the evening?", "Can I book a table for 12 people?", "Is delivery free?", "Do you have a halal certificate?"],
+      pages: [
+        { title: { en: "Opening hours", uz: "Ish vaqti", ru: "Часы работы" },
+          text: { en: "We are open every day from 11:00 to 23:00. The kitchen takes the last orders at 22:30.",
+                  uz: "Har kuni 11:00 dan 23:00 gacha ishlaymiz. Oshxona oxirgi buyurtmalarni 22:30 da qabul qiladi.",
+                  ru: "Работаем каждый день с 11:00 до 23:00. Последние заказы кухня принимает в 22:30." },
+          keys: { en: "open hours time close closing late working", uz: "ish vaqti ochiq yopiladi kech soat", ru: "часы открыты закрываетесь поздно время" } },
+        { title: { en: "Table booking", uz: "Stol band qilish", ru: "Бронь столов" },
+          text: { en: "Book a table by phone or on Telegram. For groups of more than 10 people, please book one day ahead.",
+                  uz: "Stolni telefon yoki Telegram orqali band qilishingiz mumkin. 10 kishidan ortiq guruhlar uchun bir kun oldin band qiling.",
+                  ru: "Забронировать стол можно по телефону или в Telegram. Для компаний больше 10 человек бронируйте за день." },
+          keys: { en: "book reserve reservation table people group seats", uz: "band bron stol kishi guruh odam", ru: "бронь забронировать стол человек компания гостей" } },
+        { title: { en: "Delivery", uz: "Yetkazib berish", ru: "Доставка" },
+          text: { en: "We deliver within 5 km with our own couriers. Delivery is free on orders over 150 000 soms, otherwise it costs 15 000 soms.",
+                  uz: "5 km radiusda o'z kuryerlarimiz orqali yetkazib beramiz. 150 000 so'mdan ortiq buyurtmalarga yetkazish bepul, aks holda 15 000 so'm.",
+                  ru: "Доставляем в радиусе 5 км своими курьерами. При заказе от 150 000 сумов доставка бесплатная, иначе 15 000 сумов." },
+          keys: { en: "deliver delivery courier free cost price", uz: "yetkazib yetkazasizmi dostavka kuryer bepul narxi", ru: "доставка доставляете курьер бесплатно стоимость" } },
+        { title: { en: "Menu", uz: "Menyu", ru: "Меню" },
+          text: { en: "Plov is served every day until 15:00, while it lasts. We also have vegetarian dishes and a children's menu.",
+                  uz: "Osh har kuni soat 15:00 gacha, tugaguncha tortiladi. Vegetarian taomlar va bolalar menyusi ham bor.",
+                  ru: "Плов подаём каждый день до 15:00, пока не закончится. Есть вегетарианские блюда и детское меню." },
+          keys: { en: "plov menu food dishes vegetarian kids evening lunch", uz: "osh palov menyu taom vegetarian bolalar kechqurun tushlik", ru: "плов меню блюда вегетарианское детское вечером обед" } },
+        { title: { en: "Banquets", uz: "Banketlar", ru: "Банкеты" },
+          text: { en: "Our banquet hall seats up to 80 guests. The banquet menu starts from 180 000 soms per person.",
+                  uz: "Banket zalimiz 80 nafargacha mehmonga mo'ljallangan. Banket menyusi bir kishi uchun 180 000 so'mdan boshlanadi.",
+                  ru: "Банкетный зал вмещает до 80 гостей. Банкетное меню от 180 000 сумов на человека." },
+          keys: { en: "banquet wedding party event hall guests birthday", uz: "banket to'y bazm tadbir zal mehmon tug'ilgan", ru: "банкет свадьба праздник мероприятие зал гости рождения" } },
+        { title: { en: "Parking", uz: "Avtoturargoh", ru: "Парковка" },
+          text: { en: "There is free parking for guests right next to the entrance.",
+                  uz: "Mehmonlar uchun kiraverishda bepul avtoturargoh bor.",
+                  ru: "Для гостей есть бесплатная парковка прямо у входа." },
+          keys: { en: "parking car park", uz: "parkovka avtoturargoh mashina", ru: "парковка машина авто" } }
+      ]
+    }
   };
-  const LOOP_ORDER = ["chat", "train", "inbox"];
-  const visited = new Set(["chat"]);
-  let currentTab = "chat";
-  let nudgeTimer = null;
-  let nudgeTarget = null;
-  let hasChatted = false;
-  let hasTrained = false;
+  /* A visitor's own site: suggestions are asked in the site's language, since answers
+     start by matching the words of the question against the words on its pages. */
+  const SITE_ASKS = {
+    en: ["Do you deliver?", "How can I pay?", "Where are you located?", "What are your opening hours?"],
+    ru: ["Есть доставка?", "Как можно оплатить?", "Где вы находитесь?", "Какой у вас график работы?"],
+    uz: ["Yetkazib berasizmi?", "Qanday to'lash mumkin?", "Manzilingiz qayerda?", "Ish vaqtingiz qanday?"]
+  };
+  const siteLanguage = (passages) => {
+    const sample = passages.slice(0, 60).map((p) => p.text).join(" ");
+    const letters = sample.match(/\p{L}/gu) || [];
+    const cyrillic = sample.match(/\p{Script=Cyrillic}/gu) || [];
+    if (letters.length && cyrillic.length / letters.length > 0.3) return "ru";
+    if (/\b(va|uchun|bilan|yetkazib|mahsulot|narxi|buyurtma)\b|o['‘’ʻ]|g['‘’ʻ]/i.test(sample)) return "uz";
+    return "en";
+  };
 
-  function moveGlider(tab) {
-    if (!glider || !tab) return;
-    const parent = tab.parentElement;
-    if (!parent) return;
-    const left = tab.offsetLeft;
-    glider.style.left = left + "px";
-    glider.style.width = tab.offsetWidth + "px";
-  }
+  const demo = $(".demo");
+  if (demo) {
+    const log = $("#demoLog"), asks = $("#demoAsks"), askForm = $("#demoAskForm"), askInput = $("#demoAskInput");
+    const urlForm = $("#demoUrlForm"), urlInput = $("#demoUrl"), replyForm = $("#demoReplyForm"), replyInput = $("#demoReplyInput");
+    const MATCH_BAR = 0.55;
+    const STOP = new Set([
+      ..."a an the is are was be do does did you your we our us i me my it its this that of to in on at for with and or but can could would will should how what when where which who why much many any there have has had please tell about get after before".split(" "),
+      ..."va bilan uchun ham bu shu u men mening siz sizda sizning sizlar biz bizda bormi bor mi qanday qancha qachon qayerda qayer nima necha nechta mumkinmi mumkin kerak iltimos bir keyin oldin bo'ladimi boladimi qilsa bo'lsa".split(" "),
+      ..."и в во на с со по к у о об от до за для из что как где когда какой какая какие сколько ли есть можно мне меня мой моя я вы вас ваш это то не да нет бы же пожалуйста а или но через после".split(" ")
+    ]);
+    const GREETING = /^(hi|hello|hey|salom|assalomu alaykum|assalom|привет|здравствуйте|добрый день)[\s!.,?]*$/i;
+    const ASKED_FOR_PERSON = /\b(human|real person|a person|operator|manager|live agent)\b|operator|menejer|odam bilan|xodim bilan|с человеком|живым|оператор|менеджер/i;
 
-  function setStagePrompt(name) {
-    if (!xstagePrompt) return;
-    const next = PROMPTS[name] || PROMPTS.chat;
-    if (reduceMotion) {
-      xstagePrompt.textContent = next;
-      return;
-    }
-    xstagePrompt.classList.add("is-swap");
-    window.setTimeout(() => {
-      xstagePrompt.textContent = next;
-      xstagePrompt.classList.remove("is-swap");
-    }, 180);
-  }
+    const normalize = (t) => t.toLowerCase().replace(/[‘’ʻʼ`´]/g, "'").replace(/ё/g, "е");
+    const stem = (w) => { const b = w.replace(/'/g, ""); return b.length >= 6 ? b.slice(0, 5) : b.length === 5 ? b.slice(0, 4) : b; };
+    const wordsOf = (t) => normalize(t).match(/[\p{L}\p{N}']+/gu) || [];
+    const termsOf = (t) => [...new Set(wordsOf(t).filter((w) => w.length > 1 && !STOP.has(w)).map(stem).filter((s) => s.length > 1))];
+    const same = (a, b) => a === b || (Math.min(a.length, b.length) >= 4 && (a.startsWith(b) || b.startsWith(a)));
 
-  function syncLoop(name) {
-    visited.add(name);
-  }
+    const state = { kind: "sample", sample: "shop", host: "", chunks: [], busy: false };
+    const lang = () => (["uz", "ru"].includes(document.documentElement.lang) ? document.documentElement.lang : "en");
 
-  function hideNudge() {
-    if (!xNudge) return;
-    xNudge.classList.remove("is-in");
-    window.setTimeout(() => {
-      if (!xNudge.classList.contains("is-in")) xNudge.hidden = true;
-    }, 320);
-    nudgeTarget = null;
-  }
-
-  function showNudge(text, targetTab) {
-    if (!xNudge || !xNudgeText || !xNudgeGo) return;
-    if (currentTab === targetTab) return;
-    nudgeTarget = targetTab;
-    xNudgeText.textContent = text;
-    xNudgeGo.textContent = targetTab === "inbox" ? "Open inbox" : targetTab === "train" ? "Teach it" : "Open chat";
-    xNudge.hidden = false;
-    requestAnimationFrame(() => xNudge.classList.add("is-in"));
-    if (nudgeTimer) window.clearTimeout(nudgeTimer);
-    nudgeTimer = window.setTimeout(hideNudge, 7000);
-  }
-
-  if (xNudgeGo) xNudgeGo.addEventListener("click", () => {
-    const target = nudgeTarget;
-    hideNudge();
-    if (target) activateTab(target);
-  }, { signal });
-  if (xNudgeDismiss) xNudgeDismiss.addEventListener("click", hideNudge, { signal });
-
-  function activateTab(name, opts) {
-    opts = opts || {};
-    if (!name || (name === currentTab && !opts.force)) {
-      moveGlider($('.xtab[data-xtab="' + name + '"]'));
-      return;
+    function sampleChunks(key) {
+      const l = lang();
+      return DEMO_SAMPLES[key].pages.map((p) => ({ title: p.title[l], url: "", text: p.text[l], terms: termsOf(p.text[l] + " " + p.keys[l] + " " + p.title[l]) }));
     }
 
-    const prevName = currentTab;
-    const prevPanel = $('.xpanel[data-xpanel="' + prevName + '"]');
-    const nextPanel = $('.xpanel[data-xpanel="' + name + '"]');
+    /* Customers and websites rarely use the same word ("where are you?" vs "address").
+       For a visitor's own site these groups widen the search; the model still decides
+       whether a passage really answers. Samples keep strict matching. */
+    const RELATED = [
+      "where located location address branch shop store find qayerda joylashgan manzil manzilingiz filial do'kon где находитесь адрес расположены филиал магазин",
+      "deliver delivery shipping courier yetkazib yetkazish dostavka kuryer доставка доставляете курьер",
+      "pay payment card cash installments credit to'lov to'lash karta naqd muddatli nasiya оплата оплатить карта наличные рассрочка кредит",
+      "hours open schedule time working ish vaqti vaqtingiz ochiq soat jadval график работы работаете часы режим",
+      "price cost much narx narxi qancha turadi цена стоимость сколько стоит",
+      "return refund exchange qaytarish qaytarsam almashtirish возврат вернуть обмен",
+      "phone call contact telefon aloqa qo'ng'iroq телефон контакты связаться позвонить"
+    ].map(termsOf);
+    const relatedTerms = (terms) => [...new Set(RELATED.filter((group) => group.some((g) => terms.some((t) => same(g, t)))).flat())].filter((g) => !terms.some((t) => same(g, t)));
 
-    $$(".xtab").forEach((t) => {
-      const on = t.dataset.xtab === name;
-      t.classList.toggle("is-active", on);
-      t.setAttribute("aria-selected", on ? "true" : "false");
-      if (on) moveGlider(t);
-    });
+    /* Passages ranked by how much of the question they cover, rarer words counting more. */
+    function rankMatches(question, { widen = false } = {}) {
+      const qTerms = termsOf(question);
+      if (!qTerms.length || !state.chunks.length) return { ranked: [], terms: qTerms };
+      const n = state.chunks.length;
+      const weights = qTerms.map((q) => {
+        const df = state.chunks.reduce((c, ch) => c + (ch.terms.some((t) => same(t, q)) ? 1 : 0), 0);
+        // A word the pages never use counts as fully as a rare one: missing the key word means no answer.
+        return { q, w: df ? Math.log(1 + n / df) : Math.log(1 + n), known: df > 0 };
+      });
+      const total = weights.reduce((sum, x) => sum + x.w, 0);
+      // Related words help a passage rank, at half weight, without inflating the question's own total.
+      const extra = widen ? relatedTerms(qTerms) : [];
+      const covers = (chunk) => weights.reduce((sum, x) => sum + (x.known && chunk.terms.some((t) => same(t, x.q)) ? x.w : 0), 0);
+      const related = (chunk) => extra.reduce((sum, g) => sum + (chunk.terms.some((t) => same(t, g)) ? 0.5 : 0), 0);
+      const ranked = state.chunks
+        .map((chunk) => ({ chunk, score: Math.min(1, (covers(chunk) + Math.min(related(chunk), total * 0.5)) / total) }))
+        .filter((m) => m.score > 0)
+        .sort((x, y) => y.score - x.score || x.chunk.text.length - y.chunk.text.length);
+      return { ranked, terms: qTerms };
+    }
 
-    if (prevPanel && nextPanel && prevPanel !== nextPanel && !reduceMotion) {
-      prevPanel.classList.add("is-leaving");
-      prevPanel.classList.remove("is-active");
-      window.setTimeout(() => {
-        prevPanel.classList.remove("is-leaving");
-        prevPanel.hidden = true;
-      }, 260);
-      nextPanel.hidden = false;
-      nextPanel.classList.add("is-active");
-    } else {
-      $$(".xpanel").forEach((p) => {
-        const on = p.dataset.xpanel === name;
-        p.classList.toggle("is-active", on);
-        p.hidden = !on;
-        p.classList.remove("is-leaving");
+    function bestMatch(question) {
+      const { ranked, terms } = rankMatches(question);
+      return { chunk: ranked[0] ? ranked[0].chunk : null, score: ranked[0] ? ranked[0].score : 0, terms };
+    }
+
+    /* Page text is untrusted, so every visible string is set as text, never as HTML. */
+    function el(tag, cls, text) {
+      const node = document.createElement(tag);
+      if (cls) node.className = cls;
+      if (text != null) node.textContent = text;
+      return node;
+    }
+
+    function addMessage(role, text) {
+      const row = el("div", "demo__msg demo__msg--" + role);
+      if (role === "bot") row.appendChild(el("span", "demo__who", "Osonflow"));
+      if (role === "team") row.appendChild(el("span", "demo__who", "Your team"));
+      row.appendChild(el("p", "demo__bubble", text));
+      log.appendChild(row);
+      log.scrollTop = log.scrollHeight;
+      return row;
+    }
+
+    function setTeam(view) { demo.dataset.team = view; }
+    function setStatus(key) { demo.dataset.status = key; }
+
+    function markPassage(target, text, terms) {
+      target.textContent = "";
+      text.split(/([\p{L}\p{N}'’ʻ]+)/u).forEach((part) => {
+        const isWord = /[\p{L}\p{N}]/u.test(part);
+        const hit = isWord && !STOP.has(normalize(part)) && terms.some((q) => same(stem(normalize(part)), q));
+        target.appendChild(hit ? el("mark", "", part) : document.createTextNode(part));
       });
     }
 
-    currentTab = name;
-    syncLoop(name);
-    setStagePrompt(name);
-    if (name === "inbox") renderWsLog();
-    hideNudge();
-  }
-
-  const firstTab = $(".xtab.is-active");
-  if (firstTab) {
-    requestAnimationFrame(() => moveGlider(firstTab));
-    window.addEventListener("resize", () => moveGlider($(".xtab.is-active")), { signal });
-  }
-  $$(".xtab").forEach((t) => t.addEventListener("click", () => activateTab(t.dataset.xtab), { signal }));
-  syncLoop("chat");
-
-  /* ---------------- Threads / workspace state ---------------- */
-
-  const greet = "Hi! I'm the Osonflow assistant. Ask me about plans, setting up the widget, or voice support.";
-  const liveThread = { id: "t-live", name: "You (live demo)", avatar: "U", status: "ai_handled", urgency: "low", conf: 95, intent: "Just trying it out",
-    messages: [{ sender: "ai", text: greet }] };
-  const threads = [ liveThread,
-    { id: "t-1", name: "Hiroshi T.", avatar: "HT", status: "waiting", urgency: "high", conf: 74, intent: "Billing question",
-      messages: [{ sender: "client", text: "Hi, I need help configuring our corporate credit card settings." }, { sender: "ai", text: "You can update billing info via Account settings in your dashboard. Want a direct update link?" }, { sender: "client", text: "No, we require single-invoice wire transfer setups. Can you route this only to billing specialists?" }] },
-    { id: "t-2", name: "Freja Lindqvist", avatar: "FL", status: "ai_handled", urgency: "low", conf: 98, intent: "Setup question",
-      messages: [{ sender: "client", text: "Can I train the model by feeding it my support website link?" }, { sender: "ai", text: "Yes — on Growth you can add any web address. Osonflow reads the pages and knows them within 5 minutes." }, { sender: "client", text: "Perfect, works like a charm. I crawled the entire helpdesk." }] },
-    { id: "t-3", name: "Julian Thorne", avatar: "JT", status: "agent_active", urgency: "medium", conf: 61, intent: "Voice problem",
-      messages: [{ sender: "client", text: "Hello, testing the Osonflow voice platform on my staging app." }, { sender: "ai", text: "Greetings, I'm ready to converse. How can I assist with your voice test?" }, { sender: "client", text: "The audio drops out slightly during real-time voice in local Chrome." }] },
-    { id: "t-4", name: "Sora Tanaka", avatar: "ST", status: "resolved", urgency: "low", conf: 94, intent: "Happy customer",
-      messages: [{ sender: "client", text: "Integrating Osonflow on Shopify. Will custom categories show automatically?" }, { sender: "ai", text: "Yes — Osonflow reads your Shopify product tags and keeps its answers in step with your catalogue." }, { sender: "client", text: "Thank you! Setup reduced our initial response workload by 60%." }] }
-  ];
-  let activeThreadId = "t-live";
-
-  /* ---------------- Grounding panel ---------------- */
-  function setGrounding(intent, conf) {
-    const gi = $("#groundIntent"), gm = $("#groundMeter"), gc = $("#groundConf");
-    const card = $(".xaside__card--ground");
-    if (gi) gi.textContent = intent;
-    if (gm) {
-      gm.style.width = conf + "%";
-      gm.classList.toggle("low", conf < 80);
-      gm.classList.remove("is-tick");
-      void gm.offsetWidth;
-      gm.classList.add("is-tick");
-    }
-    if (gc) gc.textContent = conf + "%";
-    if (card) {
-      card.classList.remove("is-flash");
-      void card.offsetWidth;
-      card.classList.add("is-flash");
-    }
-  }
-
-  /* ---------------- Chat widget ---------------- */
-  const chatBody = $("#chatBody"), chatForm = $("#chatForm"), chatInput = $("#chatInput");
-  function avatar(sender) { return sender === "client" ? "ME" : "AI"; }
-  function clearChipInvite() {
-    $$("#suggestChips .chip--invite").forEach((c) => c.classList.remove("chip--invite"));
-  }
-  function appendChat(sender, text, voice) {
-    const wrap = document.createElement("div");
-    wrap.className = "msg msg--" + sender + " is-enter";
-    wrap.innerHTML = '<span class="msg__ava">' + avatar(sender) + '</span><div class="msg__bubble">' + (voice ? '<span class="msg__voice">Voice log</span>' : "") + esc(text) + "</div>";
-    chatBody.appendChild(wrap);
-    chatBody.scrollTop = chatBody.scrollHeight;
-    window.setTimeout(() => wrap.classList.remove("is-enter"), 500);
-  }
-  function showTyping() {
-    const widget = $("#widget");
-    if (widget) widget.classList.add("is-busy");
-    const t = document.createElement("div");
-    t.className = "msg msg--ai is-enter"; t.id = "typingRow";
-    t.innerHTML = '<span class="msg__ava">AI</span><div class="typing"><i></i><i></i><i></i></div>';
-    chatBody.appendChild(t); chatBody.scrollTop = chatBody.scrollHeight;
-  }
-  function hideTyping() {
-    const t = $("#typingRow"); if (t) t.remove();
-    const widget = $("#widget");
-    if (widget) widget.classList.remove("is-busy");
-  }
-
-  function pushToLive(sender, text, voice) {
-    liveThread.messages.push({ sender, text, voice });
-    if (activeThreadId === "t-live" && wsActivePanelVisible()) renderWsLog();
-    renderThreads(true);
-  }
-
-  function handleUserMessage(text) {
-    clearChipInvite();
-    hasChatted = true;
-    visited.add("chat");
-    appendChat("client", text);
-    pushToLive("client", text);
-    const intent = intentFor(text);
-    const low = /(human|person|handoff|agent|escalat)/.test(text.toLowerCase());
-    setGrounding(intent, low ? 62 : 95);
-    liveThread.intent = intent;
-    if (low) {
-      liveThread.status = "waiting";
-      liveThread.urgency = "high";
-      liveThread.conf = 62;
-    }
-    showTyping();
-    setTimeout(() => {
-      hideTyping();
-      const reply = generateAiResponse(text);
-      appendChat("ai", reply);
-      pushToLive("ai", reply);
-      if (currentTab === "chat") {
-        showNudge(low
-          ? "Not confident enough — this chat is now waiting in the team inbox."
-          : "Answered from your content. The same chat is now in the team inbox.", "inbox");
+    function showAnswer(match) {
+      const { chunk, score, terms } = match;
+      $("#demoSrcTitle").textContent = chunk.title;
+      const urlEl = $("#demoSrcUrl");
+      if (chunk.url) {
+        try { const u = new URL(chunk.url); urlEl.textContent = u.hostname.replace(/^www\./, "") + (u.pathname === "/" ? "" : u.pathname); } catch (_) { urlEl.textContent = chunk.url; }
+        urlEl.hidden = false;
+      } else {
+        urlEl.hidden = true;
       }
-    }, reduceMotion ? 400 : 1100);
-  }
+      markPassage($("#demoSrcText"), chunk.text, terms);
+      const pct = Math.round(score * 100);
+      $("#demoMatch").textContent = pct;
+      $("#demoMatchFill").style.width = pct + "%";
+      setTeam("answer");
+    }
 
-  if (chatForm) {
-    chatForm.addEventListener("submit", (e) => {
+    function handOff(question, reason) {
+      $("#demoTicketQuote").textContent = question;
+      demo.dataset.reason = reason;
+      demo.dataset.replied = "false";
+      setTeam("handoff");
+    }
+
+    /* Words from the answer, so the cited passage lights up where the two agree. */
+    function answerTerms(question, answer) { return [...new Set([...termsOf(question), ...termsOf(answer)])]; }
+
+    async function answerFromSite(question) {
+      const { ranked, terms } = rankMatches(question, { widen: true });
+      // Nothing on the pages shares a word with the question: hand off without spending a model call.
+      if (!ranked.length || ranked[0].score < 0.25) return { kind: "handoff" };
+      const top = ranked.slice(0, 3);
+      try {
+        const res = await fetch("/api/demo/answer", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question, lang: lang(), passages: top.map(({ chunk }) => ({ title: chunk.title, url: chunk.url, text: chunk.text, sig: chunk.sig })) })
+        });
+        const data = await res.json();
+        if (!res.ok || data.error) throw new Error(data.error || "unavailable");
+        if (!data.found) return { kind: "handoff" };
+        const cited = top[data.passage] || top[0];
+        return { kind: "answer", text: data.answer, match: { chunk: cited.chunk, score: cited.score, terms: answerTerms(question, data.answer) } };
+      } catch (_) {
+        // The model is a nicety, not a dependency: fall back to quoting the best passage.
+        const best = ranked[0];
+        return best.score >= MATCH_BAR ? { kind: "answer", text: best.chunk.text, match: { chunk: best.chunk, score: best.score, terms } } : { kind: "handoff" };
+      }
+    }
+
+    function respond(question) {
+      const asked = ASKED_FOR_PERSON.test(question);
+      const typing = el("div", "demo__msg demo__msg--bot demo__msg--typing");
+      typing.appendChild(el("span", "demo__dots")).append(el("i"), el("i"), el("i"));
+      log.appendChild(typing);
+      log.scrollTop = log.scrollHeight;
+      const kindAtStart = state.kind + ":" + state.host + ":" + state.sample;
+
+      const settle = (result) => {
+        typing.remove();
+        // The visitor switched business while this was on its way; drop the stale reply.
+        if (kindAtStart !== state.kind + ":" + state.host + ":" + state.sample) return;
+        if (result.kind === "asked") {
+          addMessage("bot", "Of course. I've passed this chat to the team. They'll reply here.");
+          handOff(question, "asked");
+        } else if (result.kind === "nudge") {
+          addMessage("bot", "Ask me something about this business, like delivery, prices, or opening hours.");
+        } else if (result.kind === "answer") {
+          addMessage("bot", result.text);
+          showAnswer(result.match);
+        } else {
+          addMessage("bot", "I couldn't find that in this business's pages, so I've passed your question to the team. They'll reply here.");
+          handOff(question, "missing");
+        }
+      };
+
+      const delay = reduceMotion ? 150 : 650;
+      if (asked) { window.setTimeout(() => settle({ kind: "asked" }), delay); return; }
+      if (!termsOf(question).length || GREETING.test(question)) { window.setTimeout(() => settle({ kind: "nudge" }), delay); return; }
+
+      if (state.kind === "site") {
+        const started = Date.now();
+        answerFromSite(question).then((result) => window.setTimeout(() => settle(result), Math.max(0, delay - (Date.now() - started))));
+        return;
+      }
+
+      const match = bestMatch(question);
+      window.setTimeout(() => settle(match.chunk && match.score >= MATCH_BAR ? { kind: "answer", text: match.chunk.text, match } : { kind: "handoff" }), delay);
+    }
+
+    function ask(question) {
+      const q = question.trim().slice(0, 300);
+      if (!q || state.busy) return;
+      addMessage("customer", q);
+      respond(q);
+    }
+
+    function renderAsks(list) {
+      asks.textContent = "";
+      list.forEach((q) => {
+        const b = el("button", "demo__chip", q);
+        b.type = "button";
+        b.addEventListener("click", () => { b.classList.add("is-used"); ask(b.textContent); }, { signal });
+        asks.appendChild(b);
+      });
+    }
+
+    function startChat(name, pageCount, asksList) {
+      $("#demoBizName").textContent = name;
+      $("#demoBizMark").textContent = name.trim().charAt(0).toUpperCase();
+      $("#demoPageCount").textContent = pageCount;
+      log.textContent = "";
+      addMessage("bot", "Hi! Ask me anything about this business.");
+      renderAsks(asksList);
+      setTeam("idle");
+    }
+
+    function loadSample(key) {
+      state.kind = "sample";
+      state.sample = key;
+      state.host = "";
+      demo.dataset.kind = "sample";
+      state.chunks = sampleChunks(key);
+      $$(".demo__sample", demo).forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.sample === key)));
+      startChat(DEMO_SAMPLES[key].name, DEMO_SAMPLES[key].pages.length, DEMO_SAMPLES[key].asks);
+      setStatus("ready");
+    }
+
+    async function readSite(raw) {
+      const value = raw.trim();
+      if (!value || /\s/.test(value) || !/\.[a-z]{2,}/i.test(value)) { setStatus("invalid_url"); urlInput.focus(); return; }
+      state.busy = true;
+      demo.dataset.phase = "reading";
+      urlInput.setAttribute("aria-busy", "true");
+      setStatus("reading");
+      try {
+        const res = await fetch("/api/demo/read-site", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: value }) });
+        const data = await res.json().catch(() => ({ error: "unreachable" }));
+        if (!res.ok || data.error) { setStatus(data.error || "unreachable"); return; }
+        state.kind = "site";
+        state.host = data.host;
+        state.chunks = data.passages.map((p) => ({ ...p, terms: termsOf(p.title + " " + p.text) }));
+        demo.dataset.kind = "site";
+        $$(".demo__sample", demo).forEach((b) => b.setAttribute("aria-pressed", "false"));
+        const siteLang = siteLanguage(data.passages);
+        // English suggestions go through the page translator; a Russian or Uzbek site gets its own.
+        startChat(data.host, data.pageCount, SITE_ASKS[siteLang === "en" ? "en" : siteLang]);
+        setStatus("ready");
+        askInput.focus({ preventScroll: true });
+      } catch (_) {
+        setStatus("unreachable");
+      } finally {
+        state.busy = false;
+        demo.dataset.phase = "ready";
+        urlInput.removeAttribute("aria-busy");
+      }
+    }
+
+    urlForm.addEventListener("submit", (e) => { e.preventDefault(); if (!state.busy) readSite(urlInput.value); }, { signal });
+    $$(".demo__sample", demo).forEach((b) => b.addEventListener("click", () => { if (!state.busy) loadSample(b.dataset.sample); }, { signal }));
+    askForm.addEventListener("submit", (e) => { e.preventDefault(); const v = askInput.value; askInput.value = ""; ask(v); }, { signal });
+    $("#demoHuman").addEventListener("click", () => ask("I'd like to talk to a person."), { signal });
+    replyForm.addEventListener("submit", (e) => {
       e.preventDefault();
-      const v = chatInput.value.trim();
+      const v = replyInput.value.trim().slice(0, 300);
       if (!v) return;
-      chatInput.value = "";
-      handleUserMessage(v);
+      replyInput.value = "";
+      addMessage("team", v);
+      demo.dataset.replied = "true";
     }, { signal });
-  }
-  $$("#suggestChips .chip").forEach((c) => c.addEventListener("click", () => {
-    clearChipInvite();
-    activateTab("chat");
-    handleUserMessage(c.textContent.trim());
-  }, { signal }));
 
-  /* escalation */
-  const escalateBtn = $("#escalateBtn");
-  if (escalateBtn) escalateBtn.addEventListener("click", () => {
-    escalateBtn.classList.remove("is-pulse");
-    void escalateBtn.offsetWidth;
-    escalateBtn.classList.add("is-pulse");
-    appendChat("client", "[Alert] Visitor asked to speak to a person.");
-    liveThread.status = "waiting"; liveThread.urgency = "high"; liveThread.conf = 44; liveThread.intent = "Asked for a person";
-    pushToLive("client", "[Alert] Visitor asked to speak to a person.");
-    setGrounding("Asked for a person", 44);
-    showTyping();
-    setTimeout(() => {
-      hideTyping();
-      const m = "I have passed this over to the support team. Someone will pick it up in a moment.";
-      appendChat("ai", m);
-      pushToLive("ai", m);
-      showNudge("Passed to a person — open the team inbox to take over.", "inbox");
-    }, reduceMotion ? 350 : 900);
-  }, { signal });
+    // Samples answer in the page's language, so a language switch restarts the sample chat.
+    const langWatch = new MutationObserver(() => { if (state.kind === "sample") loadSample(state.sample); });
+    langWatch.observe(document.documentElement, { attributes: true, attributeFilter: ["lang"] });
+    trackObserver(langWatch);
 
-  /* ---------------- Voice mode ---------------- */
-  const voiceToggle = $("#voiceToggle"), voiceStage = $("#voiceStage"), widgetInput = $("#chatForm");
-  const orb = $("#voiceOrb"), voiceStateLabel = $("#voiceStateLabel"), voiceText = $("#voiceText"), widgetState = $("#widgetState");
-  let voiceOn = false;
-  function setVoiceState(state, text) { if (orb) orb.dataset.state = state; if (voiceStateLabel) voiceStateLabel.textContent = "State: " + state; if (text && voiceText) voiceText.textContent = text; }
-  function toggleVoice(on) {
-    voiceOn = on;
-    voiceToggle.classList.toggle("is-on", on);
-    voiceStage.hidden = !on; chatBody.hidden = on; widgetInput.hidden = on;
-    widgetState.textContent = on ? "Connected · On a call" : "AI assistant · Online";
-    if (on) { setVoiceState("listening", "Listening…"); setTimeout(() => { if (voiceOn) setVoiceState("speaking", '"Hi, this is Osonflow. I know your help content — ask me about pricing or setup."'); }, 1700); }
-    else setVoiceState("idle", "Tap a prompt below to hear how a spoken support call would go.");
-  }
-  if (voiceToggle) voiceToggle.addEventListener("click", () => toggleVoice(!voiceOn), { signal });
-  $$(".vbtn").forEach((b) => b.addEventListener("click", () => {
-    const kind = b.dataset.voice;
-    setVoiceState("listening", kind === "pricing" ? 'Listening… "What are your pricing plans?"' : 'Listening… "Can I speak to a person?"');
-    setTimeout(() => {
-      if (kind === "pricing") { const t = "Starter is free, and Growth is 299.000 soms a month — that adds voice support, reading from your website, and 10 seats for your team."; setVoiceState("speaking", '"' + t + '"'); pushToLive("ai", t, true); }
-      else { const t = "Of course — passing you over now. Your team will see this whole conversation."; setVoiceState("speaking", '"' + t + '"'); liveThread.status = "waiting"; liveThread.urgency = "high"; liveThread.conf = 44; liveThread.intent = "Asked for a person"; setGrounding("Asked for a person", 44); pushToLive("ai", t, true); }
-    }, 1400);
-  }, { signal }));
-
-  /* ---------------- Knowledge hub ---------------- */
-  const poolList = $("#poolList"), trainForm = $("#trainForm");
-  let trainType = "file";
-  function renderPool(flashId) {
-    if (!poolList) return;
-    poolList.innerHTML = knowledge.map((k) => '<div class="kitem' + (flashId && k.id === flashId ? " is-new" : "") + '"><div class="kitem__top"><span class="kitem__title"><span class="kitem__type">' + (k.type === "file" ? "▤" : "↗") + "</span>" + esc(k.title) + '</span><span class="kitem__src">' + esc(k.source) + '</span></div><div class="kitem__body">' + esc(k.content) + '</div><div class="kitem__foot"><span>In use · Private to you</span><span>Added ' + k.date + "</span></div></div>").join("");
-  }
-  renderPool();
-  $$(".tseg").forEach((s) => s.addEventListener("click", () => {
-    $$(".tseg").forEach((x) => x.classList.remove("is-active")); s.classList.add("is-active");
-    trainType = s.dataset.ttype;
-    $("#trainSource").value = trainType === "file" ? "refund-policy.txt" : "https://help.yoursite.com/faq";
-  }, { signal }));
-  if (trainForm) trainForm.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const title = $("#trainTitle").value.trim(), content = $("#trainContent").value.trim(), source = $("#trainSource").value.trim();
-    if (!title || !content || !source) return;
-    const id = "k-" + Date.now();
-    knowledge.unshift({ id, title, type: trainType, source, content, date: new Date().toISOString().slice(0, 10) });
-    hasTrained = true;
-    visited.add("train");
-    syncLoop(currentTab);
-    renderPool(id);
-    $("#trainTitle").value = ""; $("#trainContent").value = ""; $("#trainSource").value = "";
-    const ok = $("#trainOk"); ok.hidden = false; setTimeout(() => (ok.hidden = true), 4000);
-    showNudge("Saved. Now ask about “" + title + "” in the customer chat.", "chat");
-  }, { signal });
-
-  /* ---------------- Agent workspace ---------------- */
-  const wsThreads = $("#wsThreads"), wsLog = $("#wsLog"), wsClient = $("#wsClient"), wsIntent = $("#wsIntent"), wsResolve = $("#wsResolve");
-  const statusIcon = { resolved: "✓", agent_active: "◉", waiting: "◷", ai_handled: "✦" };
-  function wsActivePanelVisible() { const p = $('.xpanel[data-xpanel="inbox"]'); return p && p.classList.contains("is-active"); }
-  function renderThreads(flashLive) {
-    if (!wsThreads) return;
-    const openEl = $("#wsOpenCount");
-    if (openEl) {
-      openEl.textContent = threads.filter((t) => t.status !== "resolved").length + " open";
-      if (flashLive) {
-        openEl.classList.remove("is-bump");
-        void openEl.offsetWidth;
-        openEl.classList.add("is-bump");
-      }
-    }
-    wsThreads.innerHTML = threads.map((t) => {
-      const last = t.messages[t.messages.length - 1].text;
-      const liveFlash = flashLive && t.id === "t-live" ? " is-live-update" : "";
-      return '<button class="wsitem ' + (t.id === activeThreadId ? "is-active" : "") + liveFlash + '" data-id="' + t.id + '"><div class="wsitem__top"><span class="wsitem__who"><span class="wsitem__ava">' + t.avatar + '</span><span class="wsitem__name">' + esc(t.name) + '</span></span><span class="wsitem__conf">' + (statusIcon[t.status] || "✦") + " " + t.conf + '%</span></div><div class="wsitem__snip">' + esc(last) + '</div><div class="wsitem__foot"><span class="wsitem__intent">' + esc(t.intent) + '</span><span class="ubadge ubadge--' + t.urgency + '">' + t.urgency + "</span></div></button>";
-    }).join("");
-    $$(".wsitem", wsThreads).forEach((b) => b.addEventListener("click", () => { activeThreadId = b.dataset.id; renderThreads(); renderWsLog(); }, { signal }));
-  }
-  function renderWsLog() {
-    const t = threads.find((x) => x.id === activeThreadId) || threads[0];
-    if (!wsLog) return;
-    wsClient.textContent = t.name; wsIntent.textContent = t.intent;
-    wsResolve.classList.toggle("is-resolved", t.status === "resolved");
-    wsResolve.textContent = t.status === "resolved" ? "Resolved" : "Resolve";
-    const role = { client: "Customer", ai: "AI assistant", agent: "Your team" };
-    wsLog.innerHTML = t.messages.map((m) => '<div class="wsmsg wsmsg--' + m.sender + '"><span class="wsmsg__who">' + role[m.sender] + (m.voice ? " · Voice" : "") + '</span><div class="wsmsg__bubble">' + esc(m.text) + "</div></div>").join("");
-    wsLog.scrollTop = wsLog.scrollHeight;
-  }
-  if (wsThreads) {
-    renderThreads(); renderWsLog();
-    wsResolve.addEventListener("click", () => { const t = threads.find((x) => x.id === activeThreadId); if (t && t.status !== "resolved") { t.status = "resolved"; renderThreads(); renderWsLog(); } }, { signal });
-    $("#wsReplyForm").addEventListener("submit", (e) => {
-      e.preventDefault();
-      const v = $("#wsReplyInput").value.trim(); if (!v) return;
-      const t = threads.find((x) => x.id === activeThreadId); t.messages.push({ sender: "agent", text: v }); t.status = "agent_active";
-      $("#wsReplyInput").value = "";
-      renderThreads(); renderWsLog();
-      if (t.id === "t-live") appendChat("ai", v);
-    }, { signal });
+    loadSample("shop");
   }
 
   /* ---------------- FAQ accordion ---------------- */

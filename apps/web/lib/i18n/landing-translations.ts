@@ -44,18 +44,6 @@ export const landingTranslations: Record<string, LandingTranslationValue> = {
     uz: "/oy",
     ru: "/мес.",
   },
-  "→ AI resolves & logs": {
-    uz: "→ AI hal qiladi va yozadi",
-    ru: "→ AI решает и логирует",
-  },
-  "→ priority queue": {
-    uz: "→ ustuvor navbat",
-    ru: "→ приоритетная очередь",
-  },
-  "→ route to human": {
-    uz: "→ insonga yo'naltirish",
-    ru: "→ маршрутизация к человеку",
-  },
   "< 3 min": {
     uz: "< 3 daq",
     ru: "< 3 мин",
@@ -368,10 +356,6 @@ export const landingTranslations: Record<string, LandingTranslationValue> = {
     uz: "moslik: ISO-TAYYOR",
     ru: "соответствие: ISO-READY",
   },
-  "confidence < 60%": {
-    uz: "ishonch < 60%",
-    ru: "уверенность < 60%",
-  },
   "Confidence gates keep low-certainty replies quiet.": {
     uz: "Ishonch filtrlari past aniqlikdagi javoblarni jim tutadi.",
     ru: "Пороги уверенности глушат ответы с низкой определённостью.",
@@ -443,10 +427,6 @@ export const landingTranslations: Record<string, LandingTranslationValue> = {
   "Custom integrations": {
     uz: "Maxsus integratsiyalar",
     ru: "Индивидуальные интеграции",
-  },
-  "customer = VIP": {
-    uz: "mijoz = VIP",
-    ru: "клиент = VIP",
   },
   "Customer chat": {
     uz: "Mijoz chati",
@@ -571,10 +551,6 @@ export const landingTranslations: Record<string, LandingTranslationValue> = {
   "Escalate to a human": {
     uz: "Insonga eskalatsiya",
     ru: "Эскалировать человеку",
-  },
-  "Escalated": {
-    uz: "Eskalatsiya qilingan",
-    ru: "Эскалировано",
   },
   "Escalated bypass": {
     uz: "Eskalatsiya bypass",
@@ -739,10 +715,6 @@ export const landingTranslations: Record<string, LandingTranslationValue> = {
   "Hand off": {
     uz: "Uzatish",
     ru: "Передача",
-  },
-  "Handled refund FAQ. Customer still unhappy with timing.": {
-    uz: "Qaytarib berish FAQ hal qilindi. Mijoz hali ham muddatdan norozi.",
-    ru: "FAQ по возврату закрыт. Клиент всё ещё недоволен сроками.",
   },
   "Hello, testing the Osonflow voice platform on my staging app.": {
     uz: "Salom, staging ilovamda Osonflow ovoz platformasini sinab ko'ryapman.",
@@ -911,10 +883,6 @@ export const landingTranslations: Record<string, LandingTranslationValue> = {
   "Intercom": {
     uz: "Intercom",
     ru: "Intercom",
-  },
-  "Internal · Dana: VIP, expedite this one": {
-    uz: "Ichki · Dana: VIP, buni tezlashtiring",
-    ru: "Внутреннее · Dana: VIP, ускорьте этот",
   },
   "Internal notes and full history on every thread": {
     uz: "Har bir suhbatda ichki eslatmalar va to'liq tarix",
@@ -1854,10 +1822,6 @@ export const landingTranslations: Record<string, LandingTranslationValue> = {
     uz: "Har bir mijozni barcha suhbatlarda eslab qoladi",
     ru: "Помнит каждого клиента во всех диалогах",
   },
-  "Learned": {
-    uz: "O'rganildi",
-    ru: "Изучено",
-  },
   "Try it yourself": {
     uz: "O'zingiz sinab ko'ring",
     ru: "Попробуйте сами",
@@ -2089,21 +2053,9 @@ export const landingTranslations: Record<string, LandingTranslationValue> = {
     uz: "Osonflow biznesingiz uchun haqiqatan to'g'ri bo'lgan ma'lumotlar asosida javob beradi — va har bir javobning manbasini ko'rsatadi, shuning uchun jamoangiz uni tekshira oladi.",
     ru: "Osonflow отвечает на основе того, что действительно верно для вашего бизнеса, — и показывает источник каждого ответа, чтобы команда могла его проверить.",
   },
-  "Can I return an item after 30 days?": {
-    uz: "Mahsulotni 30 kundan keyin qaytarsam bo'ladimi?",
-    ru: "Можно вернуть товар через 30 дней?",
-  },
-  "Yes — unused items can be returned within 45 days of delivery.": {
-    uz: "Ha — ishlatilmagan mahsulotni yetkazib berilganidan keyin 45 kun ichida qaytarish mumkin.",
-    ru: "Да — неиспользованный товар можно вернуть в течение 45 дней после доставки.",
-  },
   "Customers can speak instead of typing.": {
     uz: "Mijozlar yozish o'rniga gapirishi mumkin.",
     ru: "Клиенты могут говорить, а не печатать.",
-  },
-  "Hi James — I've pushed your refund through today.": {
-    uz: "Salom, James — pulingizni bugun qaytarib berishni tasdiqladim.",
-    ru: "Здравствуйте, Джеймс! Я оформил ваш возврат сегодня.",
   },
   "See what AI handled, claim what needs a person, and keep internal notes on every thread.": {
     uz: "AI nimani hal qilganini ko'ring, odam kerak bo'lgan suhbatlarni o'z zimmangizga oling va har bir suhbatda ichki izohlar qoldiring.",
@@ -2112,18 +2064,6 @@ export const landingTranslations: Record<string, LandingTranslationValue> = {
   "Route by topic, confidence, and urgency — with an audit trail on every automated decision.": {
     uz: "Mavzu, ishonch darajasi va shoshilinchlik bo'yicha yo'naltiring — har bir avtomatik qaror bo'yicha audit izi bilan.",
     ru: "Маршрутизация по теме, уверенности и срочности — с аудит-следом по каждому автоматическому решению.",
-  },
-  "Answer sent": {
-    uz: "Javob yuborildi",
-    ru: "Ответ отправлен",
-  },
-  "Passed to your team": {
-    uz: "Jamoangizga uzatildi",
-    ru: "Передано вашей команде",
-  },
-  "Your threshold: 80%": {
-    uz: "Sizning chegarangiz: 80%",
-    ru: "Ваш порог: 80%",
   },
   "You decide how sure it has to be.": {
     uz: "Qanchalik ishonchli bo'lishi kerakligini siz belgilaysiz.",
@@ -2148,5 +2088,521 @@ export const landingTranslations: Record<string, LandingTranslationValue> = {
   "Voice quality": {
     uz: "Ovoz sifati",
     ru: "Качество голоса",
+  },
+  "Web page": {
+    uz: "Veb-sahifa",
+    ru: "Веб-страница",
+  },
+  "PDF, 4 pages": {
+    uz: "PDF, 4 sahifa",
+    ru: "PDF, 4 страницы",
+  },
+  "Text file": {
+    uz: "Matn fayli",
+    ru: "Текстовый файл",
+  },
+  "Plans and prices": {
+    uz: "Tariflar va narxlar",
+    ru: "Тарифы и цены",
+  },
+  "Starter is free for up to 100 chats a month.": {
+    uz: "Starter oyiga 100 tagacha chat uchun bepul.",
+    ru: "Starter бесплатен до 100 чатов в месяц.",
+  },
+  "Growth is 299 000 soms a month.": {
+    uz: "Growth oyiga 299 000 so'm.",
+    ru: "Growth стоит 299 000 сумов в месяц.",
+  },
+  "Business is 790 000 soms a month.": {
+    uz: "Business oyiga 790 000 so'm.",
+    ru: "Business стоит 790 000 сумов в месяц.",
+  },
+  "Every plan includes the voice assistant.": {
+    uz: "Har bir tarifda ovozli yordamchi bor.",
+    ru: "Голосовой помощник есть в каждом тарифе.",
+  },
+  "Refunds": {
+    uz: "Pulni qaytarish",
+    ru: "Возврат денег",
+  },
+  "Unworn items can be returned within 14 days.": {
+    uz: "Kiyilmagan mahsulotni 14 kun ichida qaytarish mumkin.",
+    ru: "Неношеные вещи можно вернуть в течение 14 дней.",
+  },
+  "Money reaches your card in 3 to 5 working days.": {
+    uz: "Pul kartangizga 3–5 ish kunida tushadi.",
+    ru: "Деньги поступают на карту за 3–5 рабочих дней.",
+  },
+  "Delivery": {
+    uz: "Yetkazib berish",
+    ru: "Доставка",
+  },
+  "Tashkent orders arrive the next day.": {
+    uz: "Toshkent bo'ylab buyurtmalar ertasi kuni yetkaziladi.",
+    ru: "Заказы по Ташкенту приходят на следующий день.",
+  },
+  "Regions take 2 to 4 days by courier.": {
+    uz: "Viloyatlarga kuryer 2–4 kunda yetkazadi.",
+    ru: "В регионы курьер доставляет за 2–4 дня.",
+  },
+  "Read": {
+    uz: "O'qildi",
+    ru: "Прочитано",
+  },
+  "passages from 3 sources, ready to answer from": {
+    uz: "ta parcha 3 ta manbadan, javob berishga tayyor",
+    ru: "фрагментов из 3 источников готовы для ответов",
+  },
+  "How much is the Growth plan?": {
+    uz: "Growth tarifi qancha turadi?",
+    ru: "Сколько стоит тариф Growth?",
+  },
+  "From yourshop.uz/pricing": {
+    uz: "Manba: yourshop.uz/pricing",
+    ru: "Источник: yourshop.uz/pricing",
+  },
+  "Can I return a jacket I bought 10 days ago?": {
+    uz: "10 kun oldin olgan kurtkamni qaytarsam bo'ladimi?",
+    ru: "Можно вернуть куртку, купленную 10 дней назад?",
+  },
+  "Yes. Unworn items can be returned within 14 days.": {
+    uz: "Ha. Kiyilmagan mahsulotni 14 kun ichida qaytarish mumkin.",
+    ru: "Да. Неношеные вещи можно вернуть в течение 14 дней.",
+  },
+  "Sent, from Refund policy.pdf": {
+    uz: "Yuborildi, manba: Refund policy.pdf",
+    ru: "Отправлено, источник: Refund policy.pdf",
+  },
+  "sure": {
+    uz: "ishonch",
+    ru: "уверен",
+  },
+  "your bar 80%": {
+    uz: "chegarangiz 80%",
+    ru: "ваш порог 80%",
+  },
+  "Confidence 95%, your bar is 80%": {
+    uz: "Ishonch 95%, chegarangiz 80%",
+    ru: "Уверенность 95%, ваш порог 80%",
+  },
+  "Confidence 44%, your bar is 80%": {
+    uz: "Ishonch 44%, chegarangiz 80%",
+    ru: "Уверенность 44%, ваш порог 80%",
+  },
+  "The jacket arrived torn. I want my money back today.": {
+    uz: "Kurtka yirtiq keldi. Pulimni bugun qaytaring.",
+    ru: "Куртка пришла порванной. Верните деньги сегодня.",
+  },
+  "Sorry about that. Refunds usually take…": {
+    uz: "Uzr so'raymiz. Pul odatda qaytariladi…",
+    ru: "Приносим извинения. Обычно возврат занимает…",
+  },
+  "Held back and sent to your shared inbox": {
+    uz: "To'xtatildi va umumiy inboxga yuborildi",
+    ru: "Не отправлено, передано в общий инбокс",
+  },
+  "Madina, support team": {
+    uz: "Madina, yordam jamoasi",
+    ru: "Мадина, команда поддержки",
+  },
+  "Hi, I can see the whole chat. Sending a courier for the jacket and refunding you today.": {
+    uz: "Salom, butun chatni ko'rib turibman. Kurtka uchun kuryer yuboraman va pulingizni bugun qaytaraman.",
+    ru: "Здравствуйте, я вижу весь чат. Отправляю курьера за курткой и возвращаю деньги сегодня.",
+  },
+  "When will my refund reach my card?": {
+    uz: "Pulim kartamga qachon qaytadi?",
+    ru: "Когда деньги вернутся на карту?",
+  },
+  "Your money reaches your card in 3 to 5 working days.": {
+    uz: "Pulingiz kartangizga 3–5 ish kunida tushadi.",
+    ru: "Деньги поступят на вашу карту за 3–5 рабочих дней.",
+  },
+  "See where this came from": {
+    uz: "Qayerdan olinganini ko'rish",
+    ru: "Показать, откуда ответ",
+  },
+  "Hide the source": {
+    uz: "Manbani yashirish",
+    ru: "Скрыть источник",
+  },
+  "Refund policy.pdf, page 2": {
+    uz: "Refund policy.pdf, 2-sahifa",
+    ru: "Refund policy.pdf, страница 2",
+  },
+  "Page 2 of 4": {
+    uz: "2-sahifa, jami 4",
+    ru: "Страница 2 из 4",
+  },
+  "Delivery fees are refunded if the item arrived damaged.": {
+    uz: "Mahsulot shikastlangan kelsa, yetkazish haqi qaytariladi.",
+    ru: "Если товар пришёл повреждённым, стоимость доставки возвращается.",
+  },
+  "Sale items can be exchanged but not refunded.": {
+    uz: "Chegirmadagi mahsulotni almashtirish mumkin, pulini qaytarib bo'lmaydi.",
+    ru: "Товары со скидкой можно обменять, но не вернуть.",
+  },
+  "Needs a person": {
+    uz: "Odam kerak",
+    ru: "Нужен человек",
+  },
+  "Yours now": {
+    uz: "Endi sizda",
+    ru: "Теперь ваш",
+  },
+  "Solved": {
+    uz: "Hal qilindi",
+    ru: "Решено",
+  },
+  "Answered the refund question. He still wants his money sooner.": {
+    uz: "Pulni qaytarish haqidagi savolga javob berdi. Mijoz pulni tezroq olishni xohlaydi.",
+    ru: "Ответил на вопрос о возврате. Клиент всё равно хочет получить деньги быстрее.",
+  },
+  "Only your team sees this": {
+    uz: "Buni faqat jamoangiz ko'radi",
+    ru: "Это видит только ваша команда",
+  },
+  "VIP customer. Approve the refund today.": {
+    uz: "VIP mijoz. Pulni bugun qaytarishni tasdiqlang.",
+    ru: "VIP-клиент. Одобрите возврат сегодня.",
+  },
+  "You": {
+    uz: "Siz",
+    ru: "Вы",
+  },
+  "Hi Jasur, I approved your refund. It reaches your card today.": {
+    uz: "Salom Jasur, pulni qaytarishni tasdiqladim. Bugun kartangizga tushadi.",
+    ru: "Здравствуйте, Жасур, возврат одобрен. Деньги придут на карту сегодня.",
+  },
+  "Claim this chat": {
+    uz: "Chatni o'zimga olish",
+    ru: "Взять чат",
+  },
+  "Start over": {
+    uz: "Qaytadan boshlash",
+    ru: "Начать заново",
+  },
+  "If the customer is": {
+    uz: "Agar mijoz",
+    ru: "Если клиент",
+  },
+  "a VIP": {
+    uz: "VIP bo'lsa",
+    ru: "VIP",
+  },
+  "upset": {
+    uz: "norozi bo'lsa",
+    ru: "недоволен",
+  },
+  "asking for a refund": {
+    uz: "pulni qaytarishni so'rasa",
+    ru: "просит возврат",
+  },
+  "Change who this rule applies to": {
+    uz: "Qoida kimga tegishli ekanini o'zgartirish",
+    ru: "Изменить, к кому относится правило",
+  },
+  "send the chat to": {
+    uz: "chatni yuboring:",
+    ru: "отправить чат",
+  },
+  "the priority queue": {
+    uz: "ustuvor navbatga",
+    ru: "в приоритетную очередь",
+  },
+  "your team": {
+    uz: "jamoangizga",
+    ru: "вашей команде",
+  },
+  "Change where these chats go": {
+    uz: "Bu chatlar qayerga borishini o'zgartirish",
+    ru: "Изменить, куда идут эти чаты",
+  },
+  "Your team": {
+    uz: "Jamoangiz",
+    ru: "Ваша команда",
+  },
+  "Priority": {
+    uz: "Ustuvor",
+    ru: "Приоритет",
+  },
+  "Where is my order?": {
+    uz: "Buyurtmam qayerda?",
+    ru: "Где мой заказ?",
+  },
+  "Invoice needed today": {
+    uz: "Hisob-faktura bugun kerak",
+    ru: "Счёт нужен сегодня",
+  },
+  "It broke again!": {
+    uz: "Yana buzildi!",
+    ru: "Опять сломалось!",
+  },
+  "Refund for my jacket": {
+    uz: "Kurtkam uchun pulni qaytaring",
+    ru: "Верните деньги за куртку",
+  },
+  "Do you deliver on Sundays?": {
+    uz: "Yakshanba kuni yetkazib berasizmi?",
+    ru: "Вы доставляете по воскресеньям?",
+  },
+  "Can I swap for a bigger size?": {
+    uz: "Kattaroq o'lchamga almashtirsam bo'ladimi?",
+    ru: "Можно обменять на размер больше?",
+  },
+  "The jacket arrived torn.": {
+    uz: "Kurtka yirtiq keldi.",
+    ru: "Куртка пришла порванной.",
+  },
+  "Osonflow answers": {
+    uz: "Osonflow javob beradi",
+    ru: "Osonflow отвечает",
+  },
+  "Goes to your team": {
+    uz: "Jamoangizga boradi",
+    ru: "Уходит вашей команде",
+  },
+  "Your bar": {
+    uz: "Chegarangiz",
+    ru: "Ваш порог",
+  },
+  "Your bar: how sure Osonflow must be before it answers": {
+    uz: "Chegarangiz: javob berishdan oldin Osonflow qanchalik ishonchli bo'lishi kerak",
+    ru: "Ваш порог: насколько Osonflow должен быть уверен, чтобы ответить",
+  },
+  "You don't write scripts or keyword rules. Point Osonflow at your website, or upload the PDFs and text files your team already answers from. It reads them once and keeps them up to date.": {
+    uz: "Skript yoki kalit so'z qoidalarini yozish shart emas. Osonflow'ga saytingizni ko'rsating yoki jamoangiz javob berishda foydalanadigan PDF va matn fayllarini yuklang. U ularni bir marta o'qiydi va doim yangilab boradi.",
+    ru: "Не нужно писать скрипты или правила по ключевым словам. Укажите Osonflow ваш сайт или загрузите PDF и текстовые файлы, по которым ваша команда уже отвечает. Он прочитает их один раз и будет держать в актуальном виде.",
+  },
+  "When a customer asks something, Osonflow pulls up only the parts of your content that actually relate to the question — then writes its answer from those, and nothing else.": {
+    uz: "Mijoz savol berganda, Osonflow kontentingizdan faqat savolga tegishli qismlarni topadi va javobni faqat shular asosida yozadi.",
+    ru: "Когда клиент задаёт вопрос, Osonflow находит в вашем контенте только то, что относится к вопросу, и пишет ответ только на этой основе.",
+  },
+  "Before replying, Osonflow rates how well the answer is backed by your content. If that rating falls below the level you set, it doesn't send a guess — it stops and gets a person.": {
+    uz: "Javob berishdan oldin Osonflow javob kontentingiz bilan qanchalik tasdiqlanganini baholaydi. Baho siz belgilagan darajadan past bo'lsa, taxmin yubormaydi: to'xtaydi va odamni chaqiradi.",
+    ru: "Перед ответом Osonflow оценивает, насколько ответ подтверждён вашим контентом. Если оценка ниже заданного вами уровня, он не отправляет догадку, а останавливается и зовёт человека.",
+  },
+  "If confidence drops, or the customer just asks for a person, your team is notified and the chat appears in the shared inbox. The customer stays in the same conversation and never repeats themselves.": {
+    uz: "Ishonch pasaysa yoki mijoz odam bilan gaplashmoqchi bo'lsa, jamoangizga xabar boradi va chat umumiy inboxda paydo bo'ladi. Mijoz o'sha suhbatda qoladi va hech narsani qayta aytmaydi.",
+    ru: "Если уверенность падает или клиент просит человека, ваша команда получает уведомление, а чат появляется в общем инбоксе. Клиент остаётся в том же диалоге и ничего не повторяет.",
+  },
+  "Ask it about your business.": {
+    uz: "Undan biznesingiz haqida so'rang.",
+    ru: "Спросите его о своём бизнесе.",
+  },
+  "Paste your website or pick a sample. Then ask what your customers ask, and see where each answer comes from and when a person takes over.": {
+    uz: "Saytingiz manzilini kiriting yoki namunani tanlang. Keyin mijozlaringiz beradigan savollarni bering va har bir javob qayerdan olinganini hamda qachon odam ishga kirishishini ko'ring.",
+    ru: "Вставьте адрес своего сайта или выберите пример. Затем задайте вопросы, которые задают ваши клиенты, и посмотрите, откуда берётся каждый ответ и когда подключается человек.",
+  },
+  "Your website": {
+    uz: "Saytingiz",
+    ru: "Ваш сайт",
+  },
+  "Read my site": {
+    uz: "Saytimni o'qish",
+    ru: "Прочитать сайт",
+  },
+  "Reading…": {
+    uz: "O'qilmoqda…",
+    ru: "Читаем…",
+  },
+  "Sample businesses": {
+    uz: "Namuna bizneslar",
+    ru: "Примеры бизнеса",
+  },
+  "Or try a sample": {
+    uz: "Yoki namunani sinab ko'ring",
+    ru: "Или попробуйте пример",
+  },
+  "Clothing shop": {
+    uz: "Kiyim do'koni",
+    ru: "Магазин одежды",
+  },
+  "Dental clinic": {
+    uz: "Stomatologiya",
+    ru: "Стоматология",
+  },
+  "Restaurant": {
+    uz: "Restoran",
+    ru: "Ресторан",
+  },
+  "Ready. Ask a question in the chat.": {
+    uz: "Tayyor. Chatda savol bering.",
+    ru: "Готово. Задайте вопрос в чате.",
+  },
+  "Reading your site. This takes about 15 seconds.": {
+    uz: "Saytingiz o'qilmoqda. Bu taxminan 15 soniya oladi.",
+    ru: "Читаем ваш сайт. Это займёт около 15 секунд.",
+  },
+  "That doesn't look like a website address. Try something like yourshop.uz.": {
+    uz: "Bu sayt manziliga o'xshamaydi. Masalan, yourshop.uz kabi kiriting.",
+    ru: "Это не похоже на адрес сайта. Попробуйте, например, yourshop.uz.",
+  },
+  "We couldn't open that site. Check the address, or try a sample.": {
+    uz: "Bu saytni ochib bo'lmadi. Manzilni tekshiring yoki namunani sinab ko'ring.",
+    ru: "Не удалось открыть сайт. Проверьте адрес или попробуйте пример.",
+  },
+  "That site has almost no readable text. Try another page, or a sample.": {
+    uz: "Bu saytda o'qiladigan matn deyarli yo'q. Boshqa sahifani yoki namunani sinab ko'ring.",
+    ru: "На этом сайте почти нет текста. Попробуйте другую страницу или пример.",
+  },
+  "You've read several sites in a row. Wait a few minutes, or try a sample.": {
+    uz: "Ketma-ket bir nechta sayt o'qildi. Bir necha daqiqa kuting yoki namunani sinab ko'ring.",
+    ru: "Вы прочитали несколько сайтов подряд. Подождите пару минут или попробуйте пример.",
+  },
+  "Pages read": {
+    uz: "O'qilgan sahifalar",
+    ru: "Прочитано страниц",
+  },
+  "Ask for a person": {
+    uz: "Odam bilan gaplashish",
+    ru: "Позвать человека",
+  },
+  "Questions to try": {
+    uz: "Sinab ko'rish uchun savollar",
+    ru: "Вопросы для примера",
+  },
+  "Your question": {
+    uz: "Savolingiz",
+    ru: "Ваш вопрос",
+  },
+  "Ask what your customers ask…": {
+    uz: "Mijozlaringiz nimani so'rasa, shuni so'rang…",
+    ru: "Спросите то, что спрашивают ваши клиенты…",
+  },
+  "What your team sees": {
+    uz: "Jamoangiz nimani ko'radi",
+    ru: "Что видит ваша команда",
+  },
+  "Ask a question in the chat. Here you'll see the exact passage each answer came from, and the moment a person needs to step in.": {
+    uz: "Chatda savol bering. Bu yerda har bir javob olingan aniq parchani va odam aralashishi kerak bo'lgan paytni ko'rasiz.",
+    ru: "Задайте вопрос в чате. Здесь вы увидите точный фрагмент, из которого взят каждый ответ, и момент, когда нужен человек.",
+  },
+  "Answered from": {
+    uz: "Javob manbasi",
+    ru: "Ответ взят из",
+  },
+  "How well it matched": {
+    uz: "Qanchalik mos keldi",
+    ru: "Насколько совпало",
+  },
+  "Below this line, the chat goes to your team": {
+    uz: "Bu chiziqdan past bo'lsa, chat jamoangizga o'tadi",
+    ru: "Ниже этой линии чат уходит вашей команде",
+  },
+  "Nobody from your team was needed.": {
+    uz: "Jamoangizdan hech kim kerak bo'lmadi.",
+    ru: "Никто из команды не понадобился.",
+  },
+  "Replied": {
+    uz: "Javob berildi",
+    ru: "Отвечено",
+  },
+  "Not found in your content": {
+    uz: "Kontentingizda topilmadi",
+    ru: "Не найдено в вашем контенте",
+  },
+  "The customer asked for a person": {
+    uz: "Mijoz odam bilan gaplashmoqchi",
+    ru: "Клиент попросил человека",
+  },
+  "Customer wrote": {
+    uz: "Mijoz yozdi",
+    ru: "Клиент написал",
+  },
+  "Reply as your team": {
+    uz: "Jamoangiz nomidan javob bering",
+    ru: "Ответьте от имени команды",
+  },
+  "Write a reply…": {
+    uz: "Javob yozing…",
+    ru: "Напишите ответ…",
+  },
+  "Sent. It appears in the customer's chat.": {
+    uz: "Yuborildi. U mijoz chatida ko'rinadi.",
+    ru: "Отправлено. Ответ появился в чате клиента.",
+  },
+  "Hi! Ask me anything about this business.": {
+    uz: "Salom! Bu biznes haqida xohlagan savolingizni bering.",
+    ru: "Здравствуйте! Спросите что угодно об этом бизнесе.",
+  },
+  "Of course. I've passed this chat to the team. They'll reply here.": {
+    uz: "Albatta. Chatni jamoaga o'tkazdim. Ular shu yerda javob berishadi.",
+    ru: "Конечно. Я передал чат команде. Они ответят здесь.",
+  },
+  "Ask me something about this business, like delivery, prices, or opening hours.": {
+    uz: "Bu biznes haqida so'rang: masalan, yetkazib berish, narxlar yoki ish vaqti.",
+    ru: "Спросите что-нибудь об этом бизнесе: например, о доставке, ценах или часах работы.",
+  },
+  "I couldn't find that in this business's pages, so I've passed your question to the team. They'll reply here.": {
+    uz: "Buni biznes sahifalaridan topa olmadim, shuning uchun savolingizni jamoaga o'tkazdim. Ular shu yerda javob berishadi.",
+    ru: "Я не нашёл этого на страницах бизнеса, поэтому передал ваш вопрос команде. Они ответят здесь.",
+  },
+  "I'd like to talk to a person.": {
+    uz: "Odam bilan gaplashmoqchiman.",
+    ru: "Я хочу поговорить с человеком.",
+  },
+  "Can I return a jacket after a week?": {
+    uz: "Kurtkani bir haftadan keyin qaytarsam bo'ladimi?",
+    ru: "Можно вернуть куртку через неделю?",
+  },
+  "Can I pay in installments?": {
+    uz: "Muddatli to'lov qilsa bo'ladimi?",
+    ru: "Можно оплатить в рассрочку?",
+  },
+  "Do you sell gift cards?": {
+    uz: "Sovg'a sertifikati bormi?",
+    ru: "Есть подарочные сертификаты?",
+  },
+  "How much is teeth cleaning?": {
+    uz: "Tish tozalash qancha turadi?",
+    ru: "Сколько стоит чистка зубов?",
+  },
+  "Are you open on Sunday?": {
+    uz: "Yakshanba kuni ishlaysizmi?",
+    ru: "Вы работаете в воскресенье?",
+  },
+  "Do you treat children?": {
+    uz: "Bolalarni davolaysizmi?",
+    ru: "Лечите детей?",
+  },
+  "Do you accept insurance?": {
+    uz: "Sug'urta polisini qabul qilasizmi?",
+    ru: "Вы принимаете страховой полис?",
+  },
+  "Is plov served in the evening?": {
+    uz: "Kechqurun osh bormi?",
+    ru: "Плов вечером есть?",
+  },
+  "Can I book a table for 12 people?": {
+    uz: "12 kishiga stol band qilsa bo'ladimi?",
+    ru: "Можно забронировать стол на 12 человек?",
+  },
+  "Is delivery free?": {
+    uz: "Yetkazib berish bepulmi?",
+    ru: "Доставка бесплатная?",
+  },
+  "Do you have a halal certificate?": {
+    uz: "Halol sertifikatingiz bormi?",
+    ru: "У вас есть сертификат халяль?",
+  },
+  "Do you deliver?": {
+    uz: "Yetkazib berasizmi?",
+    ru: "Есть доставка?",
+  },
+  "How can I pay?": {
+    uz: "Qanday to'lasa bo'ladi?",
+    ru: "Как можно оплатить?",
+  },
+  "Where are you located?": {
+    uz: "Qayerda joylashgansiz?",
+    ru: "Где вы находитесь?",
+  },
+  "What are your opening hours?": {
+    uz: "Ish vaqtingiz qanday?",
+    ru: "Какой у вас график работы?",
+  },
+  "Written by AI using only this passage.": {
+    uz: "Faqat shu parcha asosida AI yozdi.",
+    ru: "Ответ написан ИИ только по этому фрагменту.",
   },
 }

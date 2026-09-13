@@ -190,7 +190,7 @@
     /* ---------- 7 · magnetic buttons ---------- */
     safe("magnet", function () {
       if (REDUCE || !FINE) return;
-      $$(".btn, .wtool, .chip, .footer__social-link").forEach(function (btn) {
+      $$(".btn, .footer__social-link").forEach(function (btn) {
         var raf = null;
         btn.addEventListener("mousemove", function (e) {
           if (raf) return;
@@ -215,7 +215,7 @@
 
     /* ---------- 8 · cursor spotlight on cards ---------- */
     safe("spotlight", function () {
-      var cards = $$(".tile, .plan, .opsmetric, .xaside__card, .train, .pool, .faq__help");
+      var cards = $$(".tile, .plan, .opsmetric, .faq__help");
       cards.forEach(function (card) { card.classList.add("mo-spot"); });
       if (REDUCE || !FINE) return;
       cards.forEach(function (card) {

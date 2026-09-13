@@ -11,6 +11,7 @@ import { generateText } from "ai";
 import { getOpenAIChatModelFromSecretValue } from "../lib/openai";
 import { enforceRateLimit } from "../lib/rateLimits";
 import { OutboundUrlError, safeFetch } from "../lib/outboundUrl";
+import { firecrawlScrape, getFirecrawlApiKey } from "../lib/firecrawl";
 import {
     MAX_SCRAPED_HTML_LENGTH,
     MAX_SCRAPED_TEXT_LENGTH,
@@ -122,6 +123,43 @@ async function scrapeWebsite(url: string): Promise<{
     text: string;
 }> {
     const normalizedUrl = normalizeAndValidateWebsiteUrl(url);
+
+    // Firecrawl renders JavaScript-built pages that a plain fetch reads as empty.
+    // Any failure falls through to the direct fetch below.
+    const firecrawlApiKey = getFirecrawlApiKey();
+
+    if (firecrawlApiKey) {
+        try {
+            const page = await firecrawlScrape(normalizedUrl, firecrawlApiKey, {
+                timeoutMs: SCRAPE_TIMEOUT_MS + 15_000,
+            });
+
+            if (page && page.markdown.length >= 40) {
+                const fallbackTitle = new URL(normalizedUrl).hostname;
+                const text = [
+                    `Source URL: ${normalizedUrl}`,
+                    page.title ? `Page Title: ${page.title}` : null,
+                    page.description ? `Page Description: ${page.description}` : null,
+                    page.markdown,
+                ]
+                    .filter(Boolean)
+                    .join("\n\n")
+                    .slice(0, MAX_SCRAPED_TEXT_LENGTH);
+
+                return {
+                    normalizedUrl,
+                    title: page.title || fallbackTitle,
+                    text,
+                };
+            }
+        } catch (error) {
+            console.warn("Firecrawl scrape failed, using direct fetch", {
+                url: normalizedUrl,
+                error: error instanceof Error ? error.message : String(error),
+            });
+        }
+    }
+
     const abortController = new AbortController();
     const timeout = setTimeout(() => abortController.abort(), SCRAPE_TIMEOUT_MS);
 

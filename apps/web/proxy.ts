@@ -23,6 +23,7 @@ const isPublicRoute = createRouteMatcher([
   "/sign-up(.*)",
   "/sso-callback(.*)",
   "/org-selection(.*)",
+  "/api/demo(.*)",
 ])
 
 const isOrgFreeRoute = createRouteMatcher([

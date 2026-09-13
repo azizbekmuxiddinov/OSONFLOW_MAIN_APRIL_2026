@@ -222,8 +222,7 @@ html.mo-on .japandi-landing .mo-host:not(.mo-in) .mo-word {
    ============================================================ */
 .japandi-landing .tile,
 .japandi-landing .plan,
-.japandi-landing .opsmetric,
-.japandi-landing .xaside__card {
+.japandi-landing .opsmetric {
   position: relative;
   transition: transform .45s var(--mo-out), box-shadow .45s var(--mo-out), border-color .35s var(--mo-soft);
 }
@@ -271,8 +270,6 @@ html.mo-on .japandi-landing .mo-host:not(.mo-in) .mo-word {
 /* ============================================================
    8 · BENTO — the handoff gauges fill as the tile arrives
    ============================================================ */
-.japandi-landing .gauge__track i { transform-origin: 0 50%; transition: transform 1.2s var(--mo-out) .35s; }
-html.mo-on .japandi-landing .tile:not(.mo-in) .gauge__track i { transform: scaleX(0); }
 
 /* ============================================================
    9 · PIPELINE — active step glow + view swap
@@ -350,24 +347,6 @@ html.mo-on .japandi-landing .tile:not(.mo-in) .gauge__track i { transform: scale
 .japandi-landing .acc__sign { transition: transform .45s var(--mo-spring), color .3s var(--mo-soft); }
 
 /* ============================================================
-   13 · EXPERIENCE ROOM — panel swap, message entrance
-   ============================================================ */
-.japandi-landing .xpanel.is-active { animation: moPanelIn .45s var(--mo-out) both; }
-@keyframes moPanelIn {
-  from { opacity: 0; transform: translate3d(0, 12px, 0) scale(.995); filter: blur(6px); }
-  to   { opacity: 1; transform: none; filter: none; }
-}
-.japandi-landing .msg.is-enter { animation: moMsgIn .5s var(--mo-spring) both; }
-@keyframes moMsgIn {
-  from { opacity: 0; transform: translate3d(0, 12px, 0) scale(.96); }
-  to   { opacity: 1; transform: none; }
-}
-.japandi-landing .chip { transition: transform .3s var(--mo-spring), background .25s, border-color .25s, box-shadow .3s; }
-.japandi-landing .chip:hover { transform: translateY(-2px); box-shadow: 0 10px 20px -14px rgba(0, 0, 0, .5); }
-.japandi-landing .wsitem { transition: transform .3s var(--mo-out), background .25s; }
-.japandi-landing .wsitem:hover { transform: translateX(3px); }
-
-/* ============================================================
    15 · CASE STUDY SLOT / misc surfaces
    ============================================================ */
 .japandi-landing .case-study-placeholder { position: relative; overflow: hidden; }
@@ -441,7 +420,6 @@ html.mo-on body { animation: moPageIn .7s var(--mo-soft) both; }
   .japandi-landing .opschart__area,
   .japandi-landing .opsmetric__spark-fill,
   .japandi-landing .opschart__node { opacity: 1; transform: none; animation: none; }
-  .japandi-landing .gauge__track i { transform: none !important; }
   html.mo-on body { animation: none; }
 }
 
