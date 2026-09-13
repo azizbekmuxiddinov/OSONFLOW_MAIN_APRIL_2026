@@ -1,90 +1,153 @@
 import Image from "next/image"
-import Link from "next/link"
-import {
-  ArrowUpRightIcon,
-  HeadphonesIcon,
-  LineChartIcon,
-  MessageSquareTextIcon,
-} from "lucide-react"
+import { CheckIcon, Table2Icon } from "lucide-react"
+import type { CSSProperties } from "react"
 
-import { marketingPath } from "@/lib/urls"
+/**
+ * The stage beside the sign-in form: the product at work, drawn rather than
+ * claimed.
+ *
+ * A customer writes in Uzbek and the assistant answers in Uzbek. The order
+ * lookup appears on a separate "behind the scenes" card, because a tool's
+ * result is internal — in the real widget the customer only ever sees the
+ * assistant's own sentence. The Uzbek lines are the example itself and are
+ * marked `lang="uz"`, so they read the same whichever interface language is
+ * chosen.
+ */
 
-const highlights = [
-  {
-    icon: MessageSquareTextIcon,
-    title: "Unified inbox",
-    description: "Chat, email, and social in one calm workspace.",
-  },
-  {
-    icon: HeadphonesIcon,
-    title: "AI with a human handoff",
-    description: "Resolve faster without losing context or judgment.",
-  },
-  {
-    icon: LineChartIcon,
-    title: "Support you can measure",
-    description: "Live analytics so your team always knows what matters.",
-  },
-] as const
+const delay = (seconds: number) => ({ "--d": `${seconds}s` }) as CSSProperties
 
 export const AuthBrandPanel = () => {
   return (
-    <aside className="auth-brand-panel relative hidden overflow-hidden lg:flex lg:flex-col lg:justify-between">
-      <div className="auth-brand-ambient pointer-events-none absolute inset-0" aria-hidden />
+    <aside
+      aria-label="What your assistant does"
+      className="auth-stage-wrap hidden lg:block"
+    >
+      <div className="auth-stage">
+        <Image
+          alt=""
+          className="auth-stage__photo"
+          fill
+          priority
+          sizes="55vw"
+          src="/landing/assets/hero-landscape.png"
+        />
+        <div aria-hidden className="auth-stage__veil" />
 
-      <div className="relative z-10 flex flex-col gap-10 p-10 xl:p-14">
-        <Link
-          className="auth-brand-logo inline-flex w-fit items-center gap-3"
-          href={marketingPath("/")}
-        >
-          <Image
-            alt=""
-            className="auth-brand-logo__mark"
-            height={30}
-            priority
-            src="/landing/assets/logo-mark.png"
-            width={30}
-          />
-          <span className="auth-brand-logo__name">Osonflow</span>
-        </Link>
-
-        <div className="max-w-md space-y-5">
-          <p className="auth-eyebrow auth-eyebrow--panel">Customer support, reimagined</p>
-          <h2 className="auth-brand-headline">
-            One calm front door
-            <span className="auth-brand-headline__accent"> for every conversation.</span>
-          </h2>
-          <p className="auth-brand-lede">
-            Join teams who replaced scattered tools with one elegant support layer — grounded
-            in context, ready for humans when it matters.
+        <div className="auth-stage__content">
+          <p className="auth-glass-pill">
+            <span aria-hidden className="auth-live-dot" />
+            <span className="truncate">
+              Your website, Telegram, WhatsApp and Instagram
+            </span>
           </p>
+
+          <div aria-hidden className="auth-scene">
+            <div className="auth-scene__stack">
+              <div className="auth-behind">
+                <p className="auth-behind__label">Behind the scenes</p>
+                <div className="auth-behind__row">
+                  <span className="auth-behind__icon">
+                    <span className="auth-swap">
+                      <span className="auth-swap__before flex items-center justify-center">
+                        <span className="auth-spinner" />
+                      </span>
+                      <span className="auth-swap__after flex items-center justify-center">
+                        <Table2Icon className="size-4" />
+                      </span>
+                    </span>
+                  </span>
+                  <span className="auth-swap min-w-0">
+                    <span className="auth-swap__before">
+                      <span className="auth-behind__title block">
+                        Looking up the order…
+                      </span>
+                      <span className="auth-behind__meta block">
+                        Google Sheets
+                      </span>
+                    </span>
+                    <span className="auth-swap__after">
+                      <span className="auth-behind__title flex items-center gap-1.5">
+                        <CheckIcon className="size-3.5 shrink-0 text-[#5fdc9c]" />
+                        Order found
+                      </span>
+                      <span className="auth-behind__meta block">
+                        Shipped today, arrives tomorrow
+                      </span>
+                    </span>
+                  </span>
+                </div>
+              </div>
+
+              <div className="auth-chat-wrap">
+                <span className="auth-lang-pill">
+                  O‘zbekcha · Русский · English
+                </span>
+
+                <div className="auth-chat">
+                  <div className="auth-chat__head">
+                    <span className="auth-chat__avatar">
+                      <Image
+                        alt=""
+                        height={40}
+                        src="/landing/assets/logo-mark.svg"
+                        width={70}
+                      />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-[0.86rem] leading-tight font-semibold">
+                        Your assistant
+                      </p>
+                      <p className="mt-0.5 flex items-center gap-1.5 text-[0.72rem] text-[var(--auth-ink-soft)]">
+                        <span className="size-1.5 rounded-full bg-[#22c55e]" />
+                        Online
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="auth-chat__body">
+                    <p
+                      className="auth-msg auth-msg--customer"
+                      lang="uz"
+                      style={delay(0.9)}
+                    >
+                      Salom! 4821-buyurtmam qachon yetib keladi?
+                    </p>
+                    <p
+                      className="auth-msg auth-msg--assistant"
+                      lang="uz"
+                      style={delay(3.3)}
+                    >
+                      Buyurtmangiz bugun jo‘natildi va ertaga soat 14:00 gacha
+                      yetib boradi. Kuryer raqamini yuboraymi?
+                    </p>
+                    <p
+                      className="auth-msg auth-msg--customer"
+                      lang="uz"
+                      style={delay(5)}
+                    >
+                      Ha, iltimos!
+                    </p>
+                    <span className="auth-typing" style={delay(5.8)}>
+                      <span />
+                      <span />
+                      <span />
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h2 className="auth-stage__headline">
+              Every customer answered, in their own language.
+            </h2>
+            <p className="auth-stage__lede">
+              Your assistant replies day and night, checks the tools you already
+              use, and brings in your team when a person is needed.
+            </p>
+          </div>
         </div>
-
-        <ul className="max-w-md space-y-3">
-          {highlights.map((item, index) => (
-            <li
-              className="auth-brand-card"
-              key={item.title}
-              style={{ animationDelay: `${index * 80}ms` }}
-            >
-              <div className="auth-brand-card__icon">
-                <item.icon className="size-[1.05rem]" strokeWidth={1.75} />
-              </div>
-              <div className="space-y-0.5">
-                <p className="auth-brand-card__title">{item.title}</p>
-                <p className="auth-brand-card__text">{item.description}</p>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      <div className="auth-brand-footer relative z-10">
-        <p className="auth-brand-footer__note">Trusted by modern support teams</p>
-        <Link className="auth-brand-footer__link group" href={marketingPath("/")}>
-          Explore the platform
-          <ArrowUpRightIcon className="size-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-        </Link>
       </div>
     </aside>
   )

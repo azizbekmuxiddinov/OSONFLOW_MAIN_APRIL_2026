@@ -1,10 +1,10 @@
 "use client"
 
 import { useAuth, useSession } from "@clerk/nextjs"
-import { Spinner } from "@workspace/ui/components/spinner"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useEffect } from "react"
 
+import { AuthFormSkeleton } from "../components/auth-fields"
 import { CustomSignInForm } from "../components/custom-sign-in-form"
 
 export const SignInView = () => {
@@ -52,12 +52,13 @@ export const SignInView = () => {
     shouldRedirectToOrgSelection,
   ])
 
-  if (!isLoaded || !isSessionLoaded || shouldRedirectToOrgSelection || isSignedIn) {
-    return (
-      <div className="flex min-h-[18rem] items-center justify-center">
-        <Spinner className="size-6 text-muted-foreground" />
-      </div>
-    )
+  if (
+    !isLoaded ||
+    !isSessionLoaded ||
+    shouldRedirectToOrgSelection ||
+    isSignedIn
+  ) {
+    return <AuthFormSkeleton />
   }
 
   return <CustomSignInForm />

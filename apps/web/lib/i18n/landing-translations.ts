@@ -2075,4 +2075,78 @@ export const landingTranslations: Record<string, LandingTranslationValue> = {
     uz: "Ish jarayonini ko'ring",
     ru: "Посмотреть в деле",
   },
+
+  // --- platform bento, proof slab, and FAQ help card (2026 redesign) ---
+  "One place for every customer conversation.": {
+    uz: "Har bir mijoz suhbati uchun yagona joy.",
+    ru: "Все разговоры с клиентами — в одном месте.",
+  },
+  "A chat widget for your website, a shared inbox for your team, and AI that knows when to step back — built to work as one.": {
+    uz: "Saytingiz uchun chat oynasi, jamoangiz uchun umumiy inbox va qachon chetga chiqishni biladigan AI — barchasi bitta tizim bo'lib ishlaydi.",
+    ru: "Чат-виджет для сайта, общий инбокс для команды и ИИ, который знает, когда уступить место человеку, — всё работает как единое целое.",
+  },
+  "Osonflow answers from what's actually true for your business — and shows the source for every reply, so your team can check it.": {
+    uz: "Osonflow biznesingiz uchun haqiqatan to'g'ri bo'lgan ma'lumotlar asosida javob beradi — va har bir javobning manbasini ko'rsatadi, shuning uchun jamoangiz uni tekshira oladi.",
+    ru: "Osonflow отвечает на основе того, что действительно верно для вашего бизнеса, — и показывает источник каждого ответа, чтобы команда могла его проверить.",
+  },
+  "Can I return an item after 30 days?": {
+    uz: "Mahsulotni 30 kundan keyin qaytarsam bo'ladimi?",
+    ru: "Можно вернуть товар через 30 дней?",
+  },
+  "Yes — unused items can be returned within 45 days of delivery.": {
+    uz: "Ha — ishlatilmagan mahsulotni yetkazib berilganidan keyin 45 kun ichida qaytarish mumkin.",
+    ru: "Да — неиспользованный товар можно вернуть в течение 45 дней после доставки.",
+  },
+  "Customers can speak instead of typing.": {
+    uz: "Mijozlar yozish o'rniga gapirishi mumkin.",
+    ru: "Клиенты могут говорить, а не печатать.",
+  },
+  "Hi James — I've pushed your refund through today.": {
+    uz: "Salom, James — pulingizni bugun qaytarib berishni tasdiqladim.",
+    ru: "Здравствуйте, Джеймс! Я оформил ваш возврат сегодня.",
+  },
+  "See what AI handled, claim what needs a person, and keep internal notes on every thread.": {
+    uz: "AI nimani hal qilganini ko'ring, odam kerak bo'lgan suhbatlarni o'z zimmangizga oling va har bir suhbatda ichki izohlar qoldiring.",
+    ru: "Смотрите, что закрыл ИИ, забирайте диалоги, где нужен человек, и оставляйте внутренние заметки в каждом треде.",
+  },
+  "Route by topic, confidence, and urgency — with an audit trail on every automated decision.": {
+    uz: "Mavzu, ishonch darajasi va shoshilinchlik bo'yicha yo'naltiring — har bir avtomatik qaror bo'yicha audit izi bilan.",
+    ru: "Маршрутизация по теме, уверенности и срочности — с аудит-следом по каждому автоматическому решению.",
+  },
+  "Answer sent": {
+    uz: "Javob yuborildi",
+    ru: "Ответ отправлен",
+  },
+  "Passed to your team": {
+    uz: "Jamoangizga uzatildi",
+    ru: "Передано вашей команде",
+  },
+  "Your threshold: 80%": {
+    uz: "Sizning chegarangiz: 80%",
+    ru: "Ваш порог: 80%",
+  },
+  "You decide how sure it has to be.": {
+    uz: "Qanchalik ishonchli bo'lishi kerakligini siz belgilaysiz.",
+    ru: "Вы решаете, насколько он должен быть уверен.",
+  },
+  "If Osonflow isn't sure enough, it doesn't guess. Below your threshold, the chat goes to a person instead.": {
+    uz: "Osonflow yetarlicha ishonchli bo'lmasa, taxmin qilmaydi. Chegaradan past bo'lganda suhbat odamga o'tadi.",
+    ru: "Если Osonflow недостаточно уверен, он не гадает. Ниже вашего порога диалог уходит к человеку.",
+  },
+  "Still have a question?": {
+    uz: "Savolingiz qoldimi?",
+    ru: "Остались вопросы?",
+  },
+  "Ask the assistant in the live demo — it answers from the same help content.": {
+    uz: "Jonli demodagi yordamchidan so'rang — u xuddi shu yordam materiallari asosida javob beradi.",
+    ru: "Спросите ассистента в живом демо — он отвечает по тем же справочным материалам.",
+  },
+  "Try the live demo": {
+    uz: "Jonli demoni sinab ko'ring",
+    ru: "Попробовать живое демо",
+  },
+  "Voice quality": {
+    uz: "Ovoz sifati",
+    ru: "Качество голоса",
+  },
 }

@@ -14,19 +14,73 @@ import {
   InputOTPGroup,
   InputOTPSlot,
 } from "@workspace/ui/components/input-otp"
-import { Spinner } from "@workspace/ui/components/spinner"
-import Link from "next/link"
+import {
+  ArrowRightIcon,
+  KeyRoundIcon,
+  LockKeyholeIcon,
+  MailCheckIcon,
+  ShieldCheckIcon,
+} from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useState } from "react"
 
 import { finalizeAuthSession } from "@/modules/auth/lib/finalize-auth"
 import { AuthDivider } from "./auth-divider"
+import {
+  AuthErrors,
+  AuthModeSwitch,
+  AuthPasswordInput,
+  Busy,
+  ResendCodeButton,
+} from "./auth-fields"
 import { AuthFormHeader } from "./auth-form-header"
 import { AuthSocialButtons } from "./auth-social-buttons"
 
-type SignInStep = "credentials" | "mfa" | "forgot" | "reset-code" | "new-password"
+type SignInStep =
+  | "credentials"
+  | "mfa"
+  | "forgot"
+  | "reset-code"
+  | "new-password"
+type CodeChannel = "totp" | "phone" | "email"
 
 const otpSlots = Array.from({ length: 6 }, (_, index) => index)
+
+const CodeInput = ({
+  id,
+  value,
+  onChange,
+  onComplete,
+  invalid,
+  disabled,
+}: {
+  id: string
+  value: string
+  onChange: (value: string) => void
+  onComplete: (value: string) => void
+  invalid: boolean
+  disabled: boolean
+}) => (
+  <InputOTP
+    aria-invalid={invalid || undefined}
+    autoComplete="one-time-code"
+    autoFocus
+    disabled={disabled}
+    id={id}
+    inputMode="numeric"
+    maxLength={6}
+    onChange={onChange}
+    onComplete={onComplete}
+    pattern="^[0-9]+$"
+    value={value}
+  >
+    <InputOTPGroup className="w-full justify-between gap-2">
+      {otpSlots.map((index) => (
+        <InputOTPSlot className="auth-otp-slot" index={index} key={index} />
+      ))}
+    </InputOTPGroup>
+  </InputOTP>
+)
 
 export const CustomSignInForm = () => {
   const { signIn, errors, fetchStatus } = useSignIn()
@@ -35,6 +89,7 @@ export const CustomSignInForm = () => {
   const redirectUrl = searchParams.get("redirect_url") ?? "/analytics"
 
   const [step, setStep] = useState<SignInStep>("credentials")
+  const [codeChannel, setCodeChannel] = useState<CodeChannel>("email")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [mfaCode, setMfaCode] = useState("")
@@ -48,21 +103,35 @@ export const CustomSignInForm = () => {
     await finalizeAuthSession(signIn, router, redirectUrl)
   }
 
+  const sendMfaCode = async (channel: CodeChannel) => {
+    if (!signIn || channel === "totp") return
+    return channel === "phone"
+      ? signIn.mfa.sendPhoneCode()
+      : signIn.mfa.sendEmailCode()
+  }
+
   const handleCredentials = async (event: React.FormEvent) => {
     event.preventDefault()
-    if (!signIn) return
+    if (!signIn || isLoading) return
 
-    await signIn.password({ emailAddress: email, password })
+    const { error } = await signIn.password({ emailAddress: email, password })
+    if (error) return
 
-    if (signIn.status === "needs_second_factor" || signIn.status === "needs_client_trust") {
-      const hasPhone = signIn.supportedSecondFactors?.some(
-        (factor) => factor.strategy === "phone_code"
+    if (
+      signIn.status === "needs_second_factor" ||
+      signIn.status === "needs_client_trust"
+    ) {
+      const factors = signIn.supportedSecondFactors ?? []
+      const channel: CodeChannel = factors.some(
+        (factor) => factor.strategy === "totp"
       )
-      if (hasPhone) {
-        await signIn.mfa.sendPhoneCode()
-      } else {
-        await signIn.mfa.sendEmailCode()
-      }
+        ? "totp"
+        : factors.some((factor) => factor.strategy === "phone_code")
+          ? "phone"
+          : "email"
+
+      setCodeChannel(channel)
+      await sendMfaCode(channel)
       setStep("mfa")
       return
     }
@@ -70,22 +139,19 @@ export const CustomSignInForm = () => {
     await completeSignIn()
   }
 
-  const handleMfa = async (event: React.FormEvent) => {
-    event.preventDefault()
-    if (!signIn) return
+  const verifyMfa = async (code: string) => {
+    if (!signIn || isLoading || code.length < 6) return
 
-    const factors = signIn.supportedSecondFactors ?? []
-    const hasTotp = factors.some((factor) => factor.strategy === "totp")
+    const { error } =
+      codeChannel === "totp"
+        ? await signIn.mfa.verifyTOTP({ code })
+        : codeChannel === "phone"
+          ? await signIn.mfa.verifyPhoneCode({ code })
+          : await signIn.mfa.verifyEmailCode({ code })
 
-    if (hasTotp) {
-      await signIn.mfa.verifyTOTP({ code: mfaCode })
-    } else {
-      const hasPhone = factors.some((factor) => factor.strategy === "phone_code")
-      if (hasPhone) {
-        await signIn.mfa.verifyPhoneCode({ code: mfaCode })
-      } else {
-        await signIn.mfa.verifyEmailCode({ code: mfaCode })
-      }
+    if (error) {
+      setMfaCode("")
+      return
     }
 
     await completeSignIn()
@@ -93,73 +159,110 @@ export const CustomSignInForm = () => {
 
   const handleForgotPassword = async (event: React.FormEvent) => {
     event.preventDefault()
-    if (!signIn) return
+    if (!signIn || isLoading) return
 
-    await signIn.create({ identifier: email })
-    await signIn.resetPasswordEmailCode.sendCode()
+    const created = await signIn.create({ identifier: email })
+    if (created.error) return
+
+    const sent = await signIn.resetPasswordEmailCode.sendCode()
+    if (sent.error) return
+
+    setResetCode("")
     setStep("reset-code")
   }
 
-  const handleVerifyResetCode = async (event: React.FormEvent) => {
-    event.preventDefault()
-    if (!signIn) return
+  const verifyResetCode = async (code: string) => {
+    if (!signIn || isLoading || code.length < 6) return
 
-    await signIn.resetPasswordEmailCode.verifyCode({ code: resetCode })
+    const { error } = await signIn.resetPasswordEmailCode.verifyCode({ code })
+
+    if (error) {
+      setResetCode("")
+      return
+    }
+
     setStep("new-password")
   }
 
   const handleNewPassword = async (event: React.FormEvent) => {
     event.preventDefault()
-    if (!signIn) return
+    if (!signIn || isLoading) return
 
-    await signIn.resetPasswordEmailCode.submitPassword({ password: newPassword })
+    const { error } = await signIn.resetPasswordEmailCode.submitPassword({
+      password: newPassword,
+    })
+    if (error) return
+
     await completeSignIn()
+  }
+
+  const backToSignIn = () => {
+    signIn?.reset()
+    setMfaCode("")
+    setResetCode("")
+    setNewPassword("")
+    setStep("credentials")
   }
 
   if (step === "mfa") {
     return (
-      <div className="auth-form-stack">
+      <div className="auth-step" key="mfa">
         <AuthFormHeader
-          eyebrow="Security check"
-          title="Verify it's you"
-          description="Enter the verification code we sent to continue signing in."
+          backLabel="Back to sign in"
+          description={
+            codeChannel === "totp"
+              ? "Open your authenticator app and enter the 6-digit code it shows for Osonflow."
+              : codeChannel === "phone"
+                ? "We texted a 6-digit code to the phone number on your account."
+                : "We emailed a 6-digit code to the address on your account."
+          }
+          icon={ShieldCheckIcon}
+          onBack={backToSignIn}
+          title="Confirm it's you"
         />
 
-        <form className="space-y-5" onSubmit={handleMfa}>
+        <form
+          className="space-y-6"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void verifyMfa(mfaCode)
+          }}
+        >
           <FieldGroup>
             <Field data-invalid={!!errors?.fields?.code}>
               <FieldLabel htmlFor="mfa-code">Verification code</FieldLabel>
-              <InputOTP
+              <CodeInput
+                disabled={isLoading}
                 id="mfa-code"
-                maxLength={6}
+                invalid={!!errors?.fields?.code}
                 onChange={setMfaCode}
+                onComplete={(code) => void verifyMfa(code)}
                 value={mfaCode}
-              >
-                <InputOTPGroup className="w-full justify-between">
-                  {otpSlots.map((index) => (
-                    <InputOTPSlot className="auth-otp-slot" index={index} key={index} />
-                  ))}
-                </InputOTPGroup>
-              </InputOTP>
-              <FieldError errors={errors?.fields?.code ? [errors.fields.code] : undefined} />
+              />
+              <FieldError
+                errors={errors?.fields?.code ? [errors.fields.code] : undefined}
+              />
             </Field>
           </FieldGroup>
 
-          <Button className="auth-primary-btn w-full" disabled={isLoading || mfaCode.length < 6} type="submit">
-            {isLoading ? <Spinner /> : "Verify and continue"}
+          <AuthErrors errors={errors?.global} />
+
+          <Button
+            className="auth-primary-btn w-full"
+            disabled={isLoading || mfaCode.length < 6}
+            type="submit"
+          >
+            {isLoading ? <Busy label="Checking…" /> : "Verify and sign in"}
           </Button>
 
-          <button
-            className="auth-link-muted w-full"
-            onClick={() => {
-              signIn?.reset()
-              setStep("credentials")
-              setMfaCode("")
-            }}
-            type="button"
-          >
-            Back to sign in
-          </button>
+          {codeChannel === "totp" ? null : (
+            <div className="flex justify-center">
+              <ResendCodeButton
+                disabled={isLoading}
+                onResend={() => sendMfaCode(codeChannel) ?? Promise.resolve()}
+              />
+            </div>
+          )}
         </form>
       </div>
     )
@@ -167,38 +270,51 @@ export const CustomSignInForm = () => {
 
   if (step === "forgot") {
     return (
-      <div className="auth-form-stack">
+      <div className="auth-step" key="forgot">
         <AuthFormHeader
-          eyebrow="Account recovery"
+          backLabel="Back to sign in"
+          description="Enter the email you sign in with and we'll send you a code to choose a new password."
+          icon={KeyRoundIcon}
+          onBack={backToSignIn}
           title="Reset your password"
-          description="We'll email you a code to choose a new password."
         />
 
-        <form className="space-y-5" onSubmit={handleForgotPassword}>
+        <form className="space-y-6" onSubmit={handleForgotPassword}>
           <FieldGroup>
             <Field data-invalid={!!errors?.fields?.identifier}>
               <FieldLabel htmlFor="reset-email">Email</FieldLabel>
               <Input
+                aria-invalid={!!errors?.fields?.identifier || undefined}
                 autoComplete="email"
+                autoFocus
                 className="auth-input"
                 id="reset-email"
+                inputMode="email"
                 onChange={(event) => setEmail(event.target.value)}
                 placeholder="you@company.com"
                 required
                 type="email"
                 value={email}
               />
-              <FieldError errors={errors?.fields?.identifier ? [errors.fields.identifier] : undefined} />
+              <FieldError
+                errors={
+                  errors?.fields?.identifier
+                    ? [errors.fields.identifier]
+                    : undefined
+                }
+              />
             </Field>
           </FieldGroup>
 
-          <Button className="auth-primary-btn w-full" disabled={isLoading || !email} type="submit">
-            {isLoading ? <Spinner /> : "Send reset code"}
-          </Button>
+          <AuthErrors errors={errors?.global} />
 
-          <button className="auth-link-muted w-full" onClick={() => setStep("credentials")} type="button">
-            Back to sign in
-          </button>
+          <Button
+            className="auth-primary-btn w-full"
+            disabled={isLoading || !email}
+            type="submit"
+          >
+            {isLoading ? <Busy label="Sending…" /> : "Send reset code"}
+          </Button>
         </form>
       </div>
     )
@@ -206,40 +322,73 @@ export const CustomSignInForm = () => {
 
   if (step === "reset-code") {
     return (
-      <div className="auth-form-stack">
+      <div className="auth-step" key="reset-code">
         <AuthFormHeader
-          eyebrow="Check your inbox"
-          title="Enter your reset code"
-          description={
-            <>
-              We sent a 6-digit code to <span className="font-medium text-[var(--auth-ink)]">{email}</span>.
-            </>
-          }
+          backLabel="Back"
+          description="Enter the 6-digit code we just sent. It can take a minute to arrive — check your spam folder too."
+          icon={MailCheckIcon}
+          onBack={() => {
+            signIn?.reset()
+            setStep("forgot")
+          }}
+          title="Check your email"
         />
 
-        <form className="space-y-5" onSubmit={handleVerifyResetCode}>
+        <p className="auth-email-chip">
+          <span className="truncate font-medium">{email}</span>
+          <button
+            onClick={() => {
+              signIn?.reset()
+              setStep("forgot")
+            }}
+            type="button"
+          >
+            Change
+          </button>
+        </p>
+
+        <form
+          className="space-y-6"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void verifyResetCode(resetCode)
+          }}
+        >
           <FieldGroup>
             <Field data-invalid={!!errors?.fields?.code}>
               <FieldLabel htmlFor="reset-code">Reset code</FieldLabel>
-              <InputOTP
+              <CodeInput
+                disabled={isLoading}
                 id="reset-code"
-                maxLength={6}
+                invalid={!!errors?.fields?.code}
                 onChange={setResetCode}
+                onComplete={(code) => void verifyResetCode(code)}
                 value={resetCode}
-              >
-                <InputOTPGroup className="w-full justify-between">
-                  {otpSlots.map((index) => (
-                    <InputOTPSlot className="auth-otp-slot" index={index} key={index} />
-                  ))}
-                </InputOTPGroup>
-              </InputOTP>
-              <FieldError errors={errors?.fields?.code ? [errors.fields.code] : undefined} />
+              />
+              <FieldError
+                errors={errors?.fields?.code ? [errors.fields.code] : undefined}
+              />
             </Field>
           </FieldGroup>
 
-          <Button className="auth-primary-btn w-full" disabled={isLoading || resetCode.length < 6} type="submit">
-            {isLoading ? <Spinner /> : "Continue"}
+          <AuthErrors errors={errors?.global} />
+
+          <Button
+            className="auth-primary-btn w-full"
+            disabled={isLoading || resetCode.length < 6}
+            type="submit"
+          >
+            {isLoading ? <Busy label="Checking…" /> : "Continue"}
           </Button>
+
+          <div className="flex justify-center">
+            <ResendCodeButton
+              disabled={isLoading}
+              onResend={() =>
+                signIn?.resetPasswordEmailCode.sendCode() ?? Promise.resolve()
+              }
+            />
+          </div>
         </form>
       </div>
     )
@@ -247,33 +396,46 @@ export const CustomSignInForm = () => {
 
   if (step === "new-password") {
     return (
-      <div className="auth-form-stack">
+      <div className="auth-step" key="new-password">
         <AuthFormHeader
-          eyebrow="Almost there"
+          description="Pick something you haven't used here before. You'll be signed in straight away."
+          icon={LockKeyholeIcon}
           title="Choose a new password"
-          description="Use at least 8 characters with a mix of letters and numbers."
         />
 
-        <form className="space-y-5" onSubmit={handleNewPassword}>
+        <form className="space-y-6" onSubmit={handleNewPassword}>
           <FieldGroup>
             <Field data-invalid={!!errors?.fields?.password}>
               <FieldLabel htmlFor="new-password">New password</FieldLabel>
-              <Input
+              <AuthPasswordInput
+                aria-invalid={!!errors?.fields?.password || undefined}
                 autoComplete="new-password"
-                className="auth-input"
+                autoFocus
                 id="new-password"
                 minLength={8}
                 onChange={(event) => setNewPassword(event.target.value)}
+                placeholder="At least 8 characters"
                 required
-                type="password"
                 value={newPassword}
               />
-              <FieldError errors={errors?.fields?.password ? [errors.fields.password] : undefined} />
+              <FieldError
+                errors={
+                  errors?.fields?.password
+                    ? [errors.fields.password]
+                    : undefined
+                }
+              />
             </Field>
           </FieldGroup>
 
-          <Button className="auth-primary-btn w-full" disabled={isLoading || newPassword.length < 8} type="submit">
-            {isLoading ? <Spinner /> : "Update password"}
+          <AuthErrors errors={errors?.global} />
+
+          <Button
+            className="auth-primary-btn w-full"
+            disabled={isLoading || newPassword.length < 8}
+            type="submit"
+          >
+            {isLoading ? <Busy label="Saving…" /> : "Save and sign in"}
           </Button>
         </form>
       </div>
@@ -281,71 +443,90 @@ export const CustomSignInForm = () => {
   }
 
   return (
-    <div className="auth-form-stack">
+    <div className="auth-step" key="credentials">
+      <AuthModeSwitch mode="sign-in" />
+
       <AuthFormHeader
-        eyebrow="Welcome back"
-        title="Sign in to Osonflow"
-        description="Pick up where you left off — inbox, AI, and analytics in one workspace."
+        description="Sign in to reply to customers, teach your assistant and see how it's doing."
+        title="Welcome back"
       />
 
       <AuthSocialButtons mode="sign-in" redirectUrl={redirectUrl} />
       <AuthDivider />
 
-      <form className="space-y-5" onSubmit={handleCredentials}>
+      <form className="space-y-6" onSubmit={handleCredentials}>
         <FieldGroup>
           <Field data-invalid={!!errors?.fields?.identifier}>
             <FieldLabel htmlFor="email">Email</FieldLabel>
             <Input
-              autoComplete="email"
+              aria-invalid={!!errors?.fields?.identifier || undefined}
+              autoComplete="username"
               className="auth-input"
               id="email"
+              inputMode="email"
               onChange={(event) => setEmail(event.target.value)}
               placeholder="you@company.com"
               required
               type="email"
               value={email}
             />
-            <FieldError errors={errors?.fields?.identifier ? [errors.fields.identifier] : undefined} />
+            <FieldError
+              errors={
+                errors?.fields?.identifier
+                  ? [errors.fields.identifier]
+                  : undefined
+              }
+            />
           </Field>
 
           <Field data-invalid={!!errors?.fields?.password}>
             <div className="flex items-center justify-between gap-3">
               <FieldLabel htmlFor="password">Password</FieldLabel>
-              <button className="auth-link text-xs" onClick={() => setStep("forgot")} type="button">
+              <button
+                className="auth-link text-[0.84rem]"
+                onClick={() => {
+                  signIn?.reset()
+                  setStep("forgot")
+                }}
+                type="button"
+              >
                 Forgot password?
               </button>
             </div>
-            <Input
+            <AuthPasswordInput
+              aria-invalid={!!errors?.fields?.password || undefined}
               autoComplete="current-password"
-              className="auth-input"
               id="password"
               onChange={(event) => setPassword(event.target.value)}
-              placeholder="••••••••"
+              placeholder="Your password"
               required
-              type="password"
               value={password}
             />
-            <FieldError errors={errors?.fields?.password ? [errors.fields.password] : undefined} />
+            <FieldError
+              errors={
+                errors?.fields?.password ? [errors.fields.password] : undefined
+              }
+            />
           </Field>
         </FieldGroup>
 
-        {errors?.global?.map((error) => (
-          <p className="auth-error" key={error.message}>
-            {error.message}
-          </p>
-        ))}
+        <AuthErrors errors={errors?.global} />
 
-        <Button className="auth-primary-btn w-full" disabled={isLoading} type="submit">
-          {isLoading ? <Spinner /> : "Sign in"}
+        <Button
+          className="auth-primary-btn w-full"
+          disabled={isLoading}
+          type="submit"
+        >
+          {isLoading ? (
+            <Busy label="Signing in…" />
+          ) : (
+            <>
+              Sign in
+              <ArrowRightIcon aria-hidden className="auth-arrow size-4" />
+            </>
+          )}
         </Button>
       </form>
-
-      <p className="text-center text-sm text-[var(--auth-ink-soft)]">
-        Don&apos;t have an account?{" "}
-        <Link className="auth-link" href="/sign-up">
-          Create one
-        </Link>
-      </p>
     </div>
   )
 }

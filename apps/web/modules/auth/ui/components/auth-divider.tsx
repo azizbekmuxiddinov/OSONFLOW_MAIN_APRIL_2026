@@ -1,4 +1,8 @@
-export const AuthDivider = ({ label = "or continue with email" }: { label?: string }) => {
+export const AuthDivider = ({
+  label = "or use your email",
+}: {
+  label?: string
+}) => {
   return (
     <div className="auth-divider" role="separator">
       <span className="auth-divider__line" />

@@ -220,9 +220,8 @@ html.mo-on .japandi-landing .mo-host:not(.mo-in) .mo-word {
 /* ============================================================
    6 · CARDS — cursor spotlight + depth lift
    ============================================================ */
-.japandi-landing .tilt,
+.japandi-landing .tile,
 .japandi-landing .plan,
-.japandi-landing .vcard,
 .japandi-landing .opsmetric,
 .japandi-landing .xaside__card {
   position: relative;
@@ -241,17 +240,18 @@ html.mo-on .japandi-landing .mo-host:not(.mo-in) .mo-word {
     rgba(165, 168, 247, .16), transparent 62%);
 }
 .japandi-landing .mo-spot:hover::after { opacity: 1; }
-.japandi-landing .plan:hover,
-.japandi-landing .vcard:hover,
 .japandi-landing .opsmetric:hover { box-shadow: 0 26px 60px -32px rgba(0, 0, 0, .35); }
+.japandi-landing .tile--ink.mo-spot::after {
+  background: radial-gradient(300px circle at var(--mo-px, 50%) var(--mo-py, 50%),
+    rgba(129, 140, 248, .22), transparent 62%);
+}
 
 /* ============================================================
    7 · NUMBERS — stable width + arrival pop
    ============================================================ */
 .japandi-landing [data-count],
 .japandi-landing .rmetric__num,
-.japandi-landing .signal__figure,
-.japandi-landing .stat__num {
+.japandi-landing .proof__num {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum" 1;
 }
@@ -269,42 +269,14 @@ html.mo-on .japandi-landing .mo-host:not(.mo-in) .mo-word {
 }
 
 /* ============================================================
-   8 · METHOD TRACK — line draws with scroll
+   8 · BENTO — the handoff gauges fill as the tile arrives
    ============================================================ */
-.japandi-landing .method__track { position: relative; }
-.japandi-landing .method__track::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: -1px;
-  height: 2px;
-  width: 100%;
-  transform: scaleX(var(--mo-p, 0));
-  transform-origin: 0 50%;
-  background: linear-gradient(90deg, var(--verdant-500), var(--verdant-300));
-  transition: transform .2s linear;
-}
-.japandi-landing .method__step { transition: background .4s var(--mo-soft); }
-.japandi-landing .method__step:hover { background: rgba(79, 70, 229, .05); }
-.japandi-landing .method__idx { transition: color .35s var(--mo-soft), transform .5s var(--mo-spring); }
-.japandi-landing .method__step:hover .method__idx { color: var(--verdant-500); transform: translateY(-2px); }
+.japandi-landing .gauge__track i { transform-origin: 0 50%; transition: transform 1.2s var(--mo-out) .35s; }
+html.mo-on .japandi-landing .tile:not(.mo-in) .gauge__track i { transform: scaleX(0); }
 
 /* ============================================================
    9 · PIPELINE — active step glow + view swap
    ============================================================ */
-.japandi-landing .pstep { position: relative; }
-.japandi-landing .pstep::before {
-  content: "";
-  position: absolute;
-  left: 0; top: 0; bottom: 0;
-  width: 2px;
-  background: var(--verdant-300);
-  transform: scaleY(0);
-  transform-origin: 50% 0;
-  transition: transform .45s var(--mo-out);
-}
-.japandi-landing .pstep.is-active::before { transform: scaleY(1); }
-.japandi-landing .pstep:hover { background: rgba(255, 255, 255, .03); }
 .japandi-landing .pstep.is-active .pstep__num { animation: moPop .5s var(--mo-spring); }
 .japandi-landing .pview__in { animation: moViewIn .55s var(--mo-out) both; }
 @keyframes moViewIn {
@@ -360,12 +332,8 @@ html.mo-on .japandi-landing .mo-host:not(.mo-in) .mo-word {
 /* ============================================================
    11 · MARQUEE — constant RTL loop (no scroll coupling)
    ============================================================ */
-.japandi-landing .int {
-  transition: transform .4s var(--mo-spring), filter .35s var(--mo-soft), opacity .35s var(--mo-soft);
-  filter: grayscale(1);
-  opacity: .62;
-}
-.japandi-landing .int:hover { transform: translateY(-4px) scale(1.12); filter: none; opacity: 1; }
+.japandi-landing .int { transition: transform .4s var(--mo-spring), box-shadow .4s var(--mo-out); }
+.japandi-landing .int:hover { transform: translateY(-4px); box-shadow: var(--elev-3); }
 
 /* ============================================================
    12 · ACCORDION — smoother open, arrow morph, row hover
@@ -398,16 +366,6 @@ html.mo-on .japandi-landing .mo-host:not(.mo-in) .mo-word {
 .japandi-landing .chip:hover { transform: translateY(-2px); box-shadow: 0 10px 20px -14px rgba(0, 0, 0, .5); }
 .japandi-landing .wsitem { transition: transform .3s var(--mo-out), background .25s; }
 .japandi-landing .wsitem:hover { transform: translateX(3px); }
-
-/* ============================================================
-   14 · MEDIA PANELS — gentle scroll parallax
-   ============================================================ */
-.japandi-landing .feature__media {
-  transform: translate3d(0, calc(var(--mo-par, 0) * -26px), 0);
-  will-change: transform;
-}
-.japandi-landing .feature__media .panel { transition: box-shadow .5s var(--mo-out), transform .5s var(--mo-out); }
-.japandi-landing .feature__media .panel:hover { box-shadow: 0 40px 80px -40px rgba(0, 0, 0, .45); }
 
 /* ============================================================
    15 · CASE STUDY SLOT / misc surfaces
@@ -483,6 +441,7 @@ html.mo-on body { animation: moPageIn .7s var(--mo-soft) both; }
   .japandi-landing .opschart__area,
   .japandi-landing .opsmetric__spark-fill,
   .japandi-landing .opschart__node { opacity: 1; transform: none; animation: none; }
+  .japandi-landing .gauge__track i { transform: none !important; }
   html.mo-on body { animation: none; }
 }
 

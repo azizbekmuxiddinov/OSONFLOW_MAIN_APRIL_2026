@@ -26,8 +26,7 @@
 
     /* ---------- 1 · split headlines into words ---------- */
     var SPLIT = [
-      ".hero__title", ".lede__title", ".method__title", ".signal__title",
-      ".site-end__title", ".tenancy__title", ".feature__copy h2", ".embed__copy h3"
+      ".hero__title", ".lede__title", ".proof__title", ".site-end__title"
     ].join(",");
 
     function splitHeadline(el) {
@@ -84,9 +83,8 @@
 
     /* ---------- 2 · stagger children of grids & lists ---------- */
     var GROUPS = [
-      ".plans", ".channels__grid", ".stat-band", ".method__track", ".signal__stats",
-      ".opsboard__rail", ".pipeline__steps", ".tenancy__flow", ".tenancy__sheet",
-      ".accordion", ".footer__grid", ".checks", ".opsintent__list"
+      ".plans", ".bento", ".proof__stats", ".opsboard__rail", ".pipeline__steps",
+      ".accordion", ".footer__grid", ".tile__list", ".opsintent__list"
     ].join(",");
 
     safe("groups", function () {
@@ -106,15 +104,6 @@
         targets.forEach(function (el) { el.classList.add("mo-in", "is-in"); });
         return;
       }
-      // directional hints for side-by-side feature blocks
-      $$(".feature").forEach(function (f) {
-        var copy = $(".feature__copy", f), media = $(".feature__media", f);
-        var flipped = f.classList.contains("feature--rev");
-        if (copy) copy.classList.add("mo-child", flipped ? "mo-from-right" : "mo-from-left");
-        if (media) media.classList.add("mo-child", flipped ? "mo-from-left" : "mo-from-right");
-      });
-      targets = $$("[data-reveal], .mo-child");
-
       var seen = new WeakMap();
       var io = new IntersectionObserver(function (entries) {
         entries.forEach(function (e) {
@@ -226,7 +215,7 @@
 
     /* ---------- 8 · cursor spotlight on cards ---------- */
     safe("spotlight", function () {
-      var cards = $$(".tilt, .plan, .vcard, .opsmetric, .xaside__card, .train, .pool, .acc");
+      var cards = $$(".tile, .plan, .opsmetric, .xaside__card, .train, .pool, .faq__help");
       cards.forEach(function (card) { card.classList.add("mo-spot"); });
       if (REDUCE || !FINE) return;
       cards.forEach(function (card) {
@@ -266,10 +255,8 @@
     safe("scroll", function () {
       var hero = $(".hero");
       var heroCopy = $(".hero__copy");
-      var track = $(".method__track");
       var nav = $("#nav");
       var progressFill = bar ? bar.querySelector("i") : null;
-      var medias = $$(".feature__media");
       var links = $$(".nav__menu a[href^='#']");
       var sections = links.map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); });
 
@@ -293,19 +280,6 @@
           hero.style.setProperty("--mo-hero-p", hp.toFixed(3));
           heroCopy.style.setProperty("--mo-hero-p", hp.toFixed(3));
         }
-
-        if (track) {
-          var tr = track.getBoundingClientRect();
-          var tp = clamp((vh * 0.9 - tr.top) / Math.max(1, tr.height + vh * 0.25), 0, 1);
-          track.style.setProperty("--mo-p", tp.toFixed(3));
-        }
-
-        medias.forEach(function (m) {
-          var r = m.getBoundingClientRect();
-          if (r.bottom < -200 || r.top > vh + 200) return;
-          var p = clamp((vh - r.top) / (vh + r.height), 0, 1);
-          m.style.setProperty("--mo-par", (p - 0.5).toFixed(3));
-        });
 
         if (nav) nav.classList.remove("mo-hide");
 
@@ -377,6 +351,71 @@
         });
       }, { rootMargin: "160px 0px" });
       blocks.forEach(function (b) { ro.observe(b); });
+    });
+
+    /* ---------- 13b · media: section imagery loads as it nears the viewport ---------- */
+    safe("media", function () {
+      var els = $$("[data-media]");
+      if (!("IntersectionObserver" in window)) {
+        els.forEach(function (el) { el.classList.add("mo-media"); });
+        return;
+      }
+      var mio = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          if (!e.isIntersecting) return;
+          e.target.classList.add("mo-media");
+          mio.unobserve(e.target);
+        });
+      }, { rootMargin: "900px 0px" });
+      els.forEach(function (el) { mio.observe(el); });
+    });
+
+    /* ---------- 13c · video: load near the viewport, repeat for as long as it is seen ---------- */
+    /* Visitors who asked for less motion, or to save data, keep the poster frame
+       and never download the video at all. Everyone else gets an endless loop:
+       it pauses only while scrolled out of view, and anything else that stops it
+       (a background tab, an OS interruption, a dropped loop) restarts it. */
+    safe("video", function () {
+      var vids = $$("video[data-lazy-video]");
+      var saveData = navigator.connection && navigator.connection.saveData;
+      if (!vids.length || REDUCE || saveData || !("IntersectionObserver" in window)) return;
+      var loaded = typeof WeakSet === "function" ? new WeakSet() : null;
+      if (!loaded) return;
+      function resume(v) {
+        if (!v.__moInView || !loaded.has(v) || document.visibilityState !== "visible" || !v.paused) return;
+        if (v.ended) v.currentTime = 0;
+        var playing = v.play();
+        if (playing && playing.catch) playing.catch(function () {});
+      }
+      vids.forEach(function (v) {
+        v.muted = true;
+        v.loop = true;
+        v.addEventListener("playing", function () { v.classList.add("is-playing"); });
+        v.addEventListener("ended", function () { resume(v); });
+        v.addEventListener("pause", function () {
+          window.setTimeout(function () { resume(v); }, 300);
+        });
+      });
+      document.addEventListener("visibilitychange", function () {
+        vids.forEach(resume);
+      });
+      var vio = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          var v = e.target;
+          v.__moInView = e.isIntersecting;
+          if (!e.isIntersecting) {
+            if (loaded.has(v)) v.pause();
+            return;
+          }
+          if (!loaded.has(v)) {
+            $$("source[data-src]", v).forEach(function (s) { s.src = s.getAttribute("data-src"); });
+            v.load();
+            loaded.add(v);
+          }
+          resume(v);
+        });
+      }, { rootMargin: "200px 0px" });
+      vids.forEach(function (v) { vio.observe(v); });
     });
 
     /* ---------- 13 · failsafe: nothing may ever stay hidden ---------- */

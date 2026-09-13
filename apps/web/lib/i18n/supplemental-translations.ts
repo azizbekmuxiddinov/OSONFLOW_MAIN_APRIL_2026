@@ -2715,4 +2715,273 @@ export const supplementalTranslations: Record<string, TranslationValue> = {
     uz: "eskalatsiya qilindi",
     ru: "эскалировано",
   },
+  // Sign in, create account and recovery.
+  "Terms": {
+    uz: "Shartlar",
+    ru: "Условия",
+  },
+  "Legal": {
+    uz: "Huquqiy ma'lumot",
+    ru: "Правовая информация",
+  },
+  "What your assistant does": {
+    uz: "Yordamchingiz nima qiladi",
+    ru: "Что делает ваш ассистент",
+  },
+  "Your website, Telegram, WhatsApp and Instagram": {
+    uz: "Saytingiz, Telegram, WhatsApp va Instagram",
+    ru: "Ваш сайт, Telegram, WhatsApp и Instagram",
+  },
+  "Behind the scenes": {
+    uz: "Parda ortida",
+    ru: "За кулисами",
+  },
+  "Looking up the order…": {
+    uz: "Buyurtma qidirilmoqda…",
+    ru: "Ищем заказ…",
+  },
+  "Order found": {
+    uz: "Buyurtma topildi",
+    ru: "Заказ найден",
+  },
+  "Shipped today, arrives tomorrow": {
+    uz: "Bugun jo'natildi, ertaga yetib boradi",
+    ru: "Отправлен сегодня, доставка завтра",
+  },
+  "Your assistant": {
+    uz: "Yordamchingiz",
+    ru: "Ваш ассистент",
+  },
+  "Every customer answered, in their own language.": {
+    uz: "Har bir mijozga o'z tilida javob.",
+    ru: "Каждый клиент получает ответ на своём языке.",
+  },
+  "Your assistant replies day and night, checks the tools you already use, and brings in your team when a person is needed.": {
+    uz: "Yordamchingiz kechayu kunduz javob beradi, siz foydalanadigan vositalarni tekshiradi va inson kerak bo'lganda jamoangizni jalb qiladi.",
+    ru: "Ваш ассистент отвечает днём и ночью, проверяет данные в ваших привычных инструментах и подключает команду, когда нужен человек.",
+  },
+  "Back": {
+    uz: "Orqaga",
+    ru: "Назад",
+  },
+  "Back to sign in": {
+    uz: "Kirishga qaytish",
+    ru: "Вернуться ко входу",
+  },
+  "or use your email": {
+    uz: "yoki email orqali",
+    ru: "или по email",
+  },
+  "Continue with Google": {
+    uz: "Google orqali davom etish",
+    ru: "Продолжить с Google",
+  },
+  "Hide password": {
+    uz: "Parolni yashirish",
+    ru: "Скрыть пароль",
+  },
+  "Show password": {
+    uz: "Parolni ko'rsatish",
+    ru: "Показать пароль",
+  },
+  "Use at least 8 characters": {
+    uz: "Kamida 8 ta belgi kiriting",
+    ru: "Используйте не менее 8 символов",
+  },
+  "Add a number to make it stronger": {
+    uz: "Kuchliroq bo'lishi uchun raqam qo'shing",
+    ru: "Добавьте цифру, чтобы пароль был надёжнее",
+  },
+  "Good password": {
+    uz: "Yaxshi parol",
+    ru: "Хороший пароль",
+  },
+  "Strong password": {
+    uz: "Kuchli parol",
+    ru: "Надёжный пароль",
+  },
+  "Resend code": {
+    uz: "Kodni qayta yuborish",
+    ru: "Отправить код ещё раз",
+  },
+  "Account": {
+    uz: "Hisob",
+    ru: "Аккаунт",
+  },
+  "Create account": {
+    uz: "Hisob yaratish",
+    ru: "Создать аккаунт",
+  },
+  "Loading": {
+    uz: "Yuklanmoqda",
+    ru: "Загрузка",
+  },
+  "Confirm it's you": {
+    uz: "Bu siz ekanligingizni tasdiqlang",
+    ru: "Подтвердите, что это вы",
+  },
+  "Open your authenticator app and enter the 6-digit code it shows for Osonflow.": {
+    uz: "Autentifikator ilovangizni oching va Osonflow uchun ko'rsatilgan 6 xonali kodni kiriting.",
+    ru: "Откройте приложение-аутентификатор и введите 6-значный код для Osonflow.",
+  },
+  "We texted a 6-digit code to the phone number on your account.": {
+    uz: "Hisobingizdagi telefon raqamiga 6 xonali kod yubordik.",
+    ru: "Мы отправили 6-значный код на номер телефона вашего аккаунта.",
+  },
+  "We emailed a 6-digit code to the address on your account.": {
+    uz: "Hisobingizdagi email manziliga 6 xonali kod yubordik.",
+    ru: "Мы отправили 6-значный код на email вашего аккаунта.",
+  },
+  "Verification code": {
+    uz: "Tasdiqlash kodi",
+    ru: "Код подтверждения",
+  },
+  "Checking…": {
+    uz: "Tekshirilmoqda…",
+    ru: "Проверяем…",
+  },
+  "Verify and sign in": {
+    uz: "Tasdiqlash va kirish",
+    ru: "Подтвердить и войти",
+  },
+  "Reset your password": {
+    uz: "Parolni tiklash",
+    ru: "Сброс пароля",
+  },
+  "Enter the email you sign in with and we'll send you a code to choose a new password.": {
+    uz: "Kirishda foydalanadigan emailingizni kiriting — yangi parol tanlash uchun kod yuboramiz.",
+    ru: "Введите email, с которым входите, и мы пришлём код для нового пароля.",
+  },
+  "Email": {
+    uz: "Email",
+    ru: "Email",
+  },
+  "Sending…": {
+    uz: "Yuborilmoqda…",
+    ru: "Отправляем…",
+  },
+  "Send reset code": {
+    uz: "Tiklash kodini yuborish",
+    ru: "Отправить код",
+  },
+  "Check your email": {
+    uz: "Emailingizni tekshiring",
+    ru: "Проверьте почту",
+  },
+  "Enter the 6-digit code we just sent. It can take a minute to arrive — check your spam folder too.": {
+    uz: "Hozirgina yuborgan 6 xonali kodni kiriting. U bir daqiqada kelishi mumkin — spam jildini ham tekshiring.",
+    ru: "Введите 6-значный код, который мы только что отправили. Он может прийти в течение минуты — проверьте и папку «Спам».",
+  },
+  "Change": {
+    uz: "O'zgartirish",
+    ru: "Изменить",
+  },
+  "Reset code": {
+    uz: "Tiklash kodi",
+    ru: "Код сброса",
+  },
+  "Continue": {
+    uz: "Davom etish",
+    ru: "Продолжить",
+  },
+  "Choose a new password": {
+    uz: "Yangi parol tanlang",
+    ru: "Придумайте новый пароль",
+  },
+  "Pick something you haven't used here before. You'll be signed in straight away.": {
+    uz: "Bu yerda avval ishlatmagan parolni tanlang. Shundan so'ng darhol tizimga kirasiz.",
+    ru: "Выберите пароль, который вы здесь ещё не использовали. После этого вы сразу войдёте.",
+  },
+  "New password": {
+    uz: "Yangi parol",
+    ru: "Новый пароль",
+  },
+  "At least 8 characters": {
+    uz: "Kamida 8 ta belgi",
+    ru: "Не менее 8 символов",
+  },
+  "Saving…": {
+    uz: "Saqlanmoqda…",
+    ru: "Сохраняем…",
+  },
+  "Save and sign in": {
+    uz: "Saqlash va kirish",
+    ru: "Сохранить и войти",
+  },
+  "Welcome back": {
+    uz: "Xush kelibsiz",
+    ru: "С возвращением",
+  },
+  "Sign in to reply to customers, teach your assistant and see how it's doing.": {
+    uz: "Mijozlarga javob berish, yordamchingizni o'rgatish va natijalarni ko'rish uchun kiring.",
+    ru: "Войдите, чтобы отвечать клиентам, обучать ассистента и следить за результатами.",
+  },
+  "Password": {
+    uz: "Parol",
+    ru: "Пароль",
+  },
+  "Forgot password?": {
+    uz: "Parolni unutdingizmi?",
+    ru: "Забыли пароль?",
+  },
+  "Your password": {
+    uz: "Parolingiz",
+    ru: "Ваш пароль",
+  },
+  "Signing in…": {
+    uz: "Kirilmoqda…",
+    ru: "Входим…",
+  },
+  "You already have an account": {
+    uz: "Sizda allaqachon hisob bor",
+    ru: "У вас уже есть аккаунт",
+  },
+  "This email already has an Osonflow account. Sign in to pick up where you left off.": {
+    uz: "Bu email bilan Osonflow hisobi allaqachon mavjud. To'xtagan joyingizdan davom etish uchun kiring.",
+    ru: "С этим email уже есть аккаунт Osonflow. Войдите, чтобы продолжить с того места, где остановились.",
+  },
+  "Go to sign in": {
+    uz: "Kirishga o'tish",
+    ru: "Перейти ко входу",
+  },
+  "Create my account": {
+    uz: "Hisobimni yaratish",
+    ru: "Создать мой аккаунт",
+  },
+  "Create your account": {
+    uz: "Hisobingizni yarating",
+    ru: "Создайте аккаунт",
+  },
+  "Set up an AI assistant that answers your customers in minutes. No credit card needed.": {
+    uz: "Mijozlaringizga javob beradigan AI yordamchini bir necha daqiqada sozlang. Bank kartasi talab qilinmaydi.",
+    ru: "Настройте AI-ассистента, который отвечает вашим клиентам, за несколько минут. Банковская карта не нужна.",
+  },
+  "First name": {
+    uz: "Ism",
+    ru: "Имя",
+  },
+  "Last name": {
+    uz: "Familiya",
+    ru: "Фамилия",
+  },
+  "Work email": {
+    uz: "Ish emailingiz",
+    ru: "Рабочий email",
+  },
+  "Creating your account…": {
+    uz: "Hisobingiz yaratilmoqda…",
+    ru: "Создаём аккаунт…",
+  },
+  "By creating an account, you agree to our terms and privacy policy.": {
+    uz: "Hisob yaratish orqali foydalanish shartlari va maxfiylik siyosatiga rozilik bildirasiz.",
+    ru: "Создавая аккаунт, вы соглашаетесь с условиями использования и политикой конфиденциальности.",
+  },
+  "Signing you in…": {
+    uz: "Tizimga kirilmoqda…",
+    ru: "Выполняем вход…",
+  },
+  "This only takes a moment.": {
+    uz: "Bu bir lahza vaqt oladi.",
+    ru: "Это займёт всего мгновение.",
+  },
 }

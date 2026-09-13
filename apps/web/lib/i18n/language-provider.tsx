@@ -22,12 +22,8 @@ const I18N_ORIGINAL_HTML_ATTR = "data-i18n-original-html"
 const HEADLINE_SELECTORS = [
   ".hero__title",
   ".lede__title",
-  ".method__title",
-  ".signal__title",
+  ".proof__title",
   ".site-end__title",
-  ".tenancy__title",
-  ".feature__copy h2",
-  ".embed__copy h3",
 ].join(", ")
 
 type LanguageContextValue = {

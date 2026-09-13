@@ -1,7 +1,6 @@
 "use client"
 
-import { useSignIn } from "@clerk/nextjs"
-import { useSignUp } from "@clerk/nextjs"
+import { useSignIn, useSignUp } from "@clerk/nextjs"
 import { Button } from "@workspace/ui/components/button"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { useState } from "react"
@@ -17,7 +16,7 @@ const providers: Array<{
     strategy: "oauth_google",
     label: "Continue with Google",
     icon: (
-      <svg aria-hidden className="size-4" viewBox="0 0 24 24">
+      <svg aria-hidden className="size-[18px]" viewBox="0 0 24 24">
         <path
           d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
           fill="#4285F4"
@@ -44,10 +43,15 @@ type AuthSocialButtonsProps = {
   redirectUrl: string
 }
 
-export const AuthSocialButtons = ({ mode, redirectUrl }: AuthSocialButtonsProps) => {
+export const AuthSocialButtons = ({
+  mode,
+  redirectUrl,
+}: AuthSocialButtonsProps) => {
   const { signIn } = useSignIn()
   const { signUp } = useSignUp()
-  const [loadingStrategy, setLoadingStrategy] = useState<OAuthStrategy | null>(null)
+  const [loadingStrategy, setLoadingStrategy] = useState<OAuthStrategy | null>(
+    null
+  )
 
   const handleOAuth = async (strategy: OAuthStrategy) => {
     setLoadingStrategy(strategy)
@@ -58,19 +62,23 @@ export const AuthSocialButtons = ({ mode, redirectUrl }: AuthSocialButtonsProps)
       redirectCallbackUrl: "/sso-callback",
     }
 
-    if (mode === "sign-in") {
-      await signIn?.sso(params)
-    } else {
-      await signUp?.sso(params)
+    try {
+      if (mode === "sign-in") {
+        await signIn?.sso(params)
+      } else {
+        await signUp?.sso(params)
+      }
+    } finally {
+      // A successful start navigates away; this only runs if it did not.
+      setLoadingStrategy(null)
     }
-
-    setLoadingStrategy(null)
   }
 
   return (
     <div className="grid gap-2.5">
       {providers.map((provider) => (
         <Button
+          aria-busy={loadingStrategy === provider.strategy}
           className="auth-social-btn w-full"
           disabled={loadingStrategy !== null}
           key={provider.strategy}
