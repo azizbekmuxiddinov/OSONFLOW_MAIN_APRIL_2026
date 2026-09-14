@@ -1,3 +1,8 @@
+:root,
+.dark {
+  --font-sans: "Google Sans", sans-serif;
+}
+
 html {
   font-size: 17px;
   scroll-behavior: smooth;

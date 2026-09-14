@@ -1,6 +1,7 @@
 import { Chakra_Petch, Lora, Roboto_Mono } from "next/font/google"
 
 import "@workspace/ui/styles/globals.css"
+import "./widget-theme.css"
 import "./widget-chat.css"
 import { Providers } from "@/components/theme-provider"
 import { cn } from "@workspace/ui/lib/utils"

@@ -16,14 +16,11 @@ import {
   PaletteIcon,
   UserPlusIcon,
   WrenchIcon,
-  type LucideIcon,
 } from "lucide-react"
-import { motion } from "framer-motion"
 
 import Link from "next/link"
 
 import { usePathname } from "next/navigation"
-import * as React from "react"
 import { useCallback, useEffect } from "react"
 
 import {
@@ -42,6 +39,7 @@ import {
   useSidebar,
 } from "@workspace/ui/components/sidebar"
 
+import { cn } from "@workspace/ui/lib/utils"
 import { LanguageSwitcher } from "@/components/i18n/language-switcher"
 import { DashboardThemeToggle } from "./dashboard-theme-toggle"
 import { useMutation, useQuery } from "convex/react"
@@ -142,20 +140,6 @@ const userButtonAppearance = {
   },
 }
 
-/**
- * The tinted-glass thumb behind the active nav item. It is rendered only inside
- * the active item but shares one `layoutId`, so moving between pages morphs the
- * same pane from row to row instead of fading one out and another in.
- */
-const GlassNavThumb = () => (
-  <motion.span
-    aria-hidden
-    layoutId="dashboard-nav-thumb"
-    className="glass-nav-thumb glass-tint"
-    transition={{ type: "spring", stiffness: 520, damping: 42, mass: 0.9 }}
-  />
-)
-
 export const DashboardSidebar = () => {
   const pathname = usePathname()
   const { isMobile, setOpenMobile } = useSidebar()
@@ -248,49 +232,12 @@ export const DashboardSidebar = () => {
     }
   }, [clearUnreadForUrl, pathname])
 
-  const renderNavItem = (
-    item: { title: string; url: string; icon: LucideIcon },
-    badge?: React.ReactNode
-  ) => {
-    const active = isActive(item.url)
-
-    return (
-      <SidebarMenuItem className="relative" key={item.url}>
-        <SidebarMenuButton asChild tooltip={item.title} isActive={active}>
-          <Link href={item.url} onClick={() => clearUnreadForUrl(item.url)}>
-            {active ? <GlassNavThumb /> : null}
-            <item.icon className="size-4" />
-            <span>{item.title}</span>
-          </Link>
-        </SidebarMenuButton>
-        {badge}
-      </SidebarMenuItem>
-    )
-  }
-
-  const unreadBadge = (url: string) => {
-    const count = getUnreadCount(url)
-    if (count <= 0) {
-      return null
-    }
-
-    return (
-      <SidebarMenuBadge className="bg-rose-500 text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.35),0_6px_14px_-6px_rgb(244_63_94/0.8)]">
-        {count > 99 ? "99+" : count}
-      </SidebarMenuBadge>
-    )
-  }
-
   return (
-    <Sidebar collapsible="icon" variant="floating">
+    <Sidebar collapsible="icon">
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              size="lg"
-              className="glass glass-interactive group-data-[collapsible=icon]:border-0 group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:bg-none group-data-[collapsible=icon]:shadow-none"
-            >
+            <SidebarMenuButton asChild size="lg">
               <OrganizationSwitcher
                 hidePersonal
                 skipInvitationScreen
@@ -306,57 +253,132 @@ export const DashboardSidebar = () => {
         </SidebarMenu>
       </SidebarHeader>
 
-      <SidebarContent className="gap-0">
+      <SidebarContent>
         {/* Getting started — stays in place after setup, because the map of
             what each page is for is useful long after the checklist is done. */}
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {renderNavItem(
-                { title: "Getting started", url: "/start", icon: CompassIcon },
-                onboardingStatus && !onboardingStatus.isSetupComplete ? (
-                  <SidebarMenuBadge className="bg-primary/15 text-primary peer-data-active/menu-button:bg-white/25 peer-data-active/menu-button:text-sidebar-primary-foreground">
+              <SidebarMenuItem className="relative">
+                <SidebarMenuButton
+                  asChild
+                  tooltip="Getting started"
+                  isActive={isActive("/start")}
+                  className={cn(
+                    isActive("/start") &&
+                      "bg-sidebar-primary! text-sidebar-primary-foreground!"
+                  )}
+                >
+                  <Link href="/start">
+                    <CompassIcon className="size-4" />
+                    <span>Getting started</span>
+                  </Link>
+                </SidebarMenuButton>
+                {onboardingStatus && !onboardingStatus.isSetupComplete ? (
+                  <SidebarMenuBadge className="bg-primary/15 text-primary peer-data-active/menu-button:bg-white/20 peer-data-active/menu-button:text-sidebar-primary-foreground">
                     {onboardingStatus.completedCount}/
                     {onboardingStatus.totalCount}
                   </SidebarMenuBadge>
-                ) : null
-              )}
+                ) : null}
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
 
+        {/* Customer Support */}
         <SidebarGroup>
           <SidebarGroupLabel>Every day</SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu className="gap-0.5">
-              {customerSupportItems.map((item) =>
-                renderNavItem(item, unreadBadge(item.url))
-              )}
+            <SidebarMenu>
+              {customerSupportItems.map((item) => (
+                <SidebarMenuItem className="relative" key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    tooltip={item.title}
+                    isActive={isActive(item.url)}
+                    className={cn(
+                      isActive(item.url) &&
+                        "bg-sidebar-primary! text-sidebar-primary-foreground!"
+                    )}
+                  >
+                    <Link
+                      href={item.url}
+                      onClick={() => clearUnreadForUrl(item.url)}
+                    >
+                      <item.icon className="size-4" />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                  {getUnreadCount(item.url) > 0 ? (
+                    <SidebarMenuBadge className="bg-rose-500 text-white peer-data-active/menu-button:bg-white/20 peer-data-active/menu-button:text-sidebar-primary-foreground">
+                      {getUnreadCount(item.url) > 99
+                        ? "99+"
+                        : getUnreadCount(item.url)}
+                    </SidebarMenuBadge>
+                  ) : null}
+                </SidebarMenuItem>
+              ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
 
+        {/* Configuration */}
         <SidebarGroup>
           <SidebarGroupLabel>Set up once</SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu className="gap-0.5">
-              {configurationItems.map((item) => renderNavItem(item))}
+            <SidebarMenu>
+              {configurationItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    tooltip={item.title}
+                    isActive={isActive(item.url)}
+                    className={cn(
+                      isActive(item.url) &&
+                        "bg-sidebar-primary! text-sidebar-primary-foreground!"
+                    )}
+                  >
+                    <Link href={item.url}>
+                      <item.icon className="size-4" />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
 
+        {/* Billing */}
         <SidebarGroup>
           <SidebarGroupLabel>Account</SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu className="gap-0.5">
-              {accountsItem.map((item) => renderNavItem(item))}
+            <SidebarMenu>
+              {accountsItem.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    tooltip={item.title}
+                    isActive={isActive(item.url)}
+                    className={cn(
+                      isActive(item.url) &&
+                        "bg-sidebar-primary! text-sidebar-primary-foreground!"
+                    )}
+                  >
+                    <Link href={item.url}>
+                      <item.icon className="size-4" />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
 
       <SidebarFooter>
-        <SidebarMenu className="glass rounded-[1.25rem] p-1 group-data-[collapsible=icon]:rounded-none group-data-[collapsible=icon]:border-0 group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:bg-none group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:shadow-none group-data-[collapsible=icon]:[backdrop-filter:none] group-data-[collapsible=icon]:[-webkit-backdrop-filter:none]">
+        <SidebarMenu>
           <SidebarMenuItem>
             <LanguageSwitcher compact surface="sidebar" />
           </SidebarMenuItem>
