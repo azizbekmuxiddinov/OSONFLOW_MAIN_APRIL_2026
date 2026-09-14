@@ -1190,7 +1190,7 @@ const NOTIFICATION_SOUND_PATH = "/sounds/notification.mp3"
       border-radius: ${WIDGET_CONTAINER_OPEN_RADIUS};
       overflow: hidden;
       isolation: isolate;
-      background: #ffffff;
+      background: transparent;
       box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
       display: none;
       opacity: 0;
@@ -1576,7 +1576,10 @@ const NOTIFICATION_SOUND_PATH = "/sounds/notification.mp3"
       : state === "open"
         ? "1"
         : "0"
-    container.style.background = "#ffffff"
+    // Transparent, not white: the iframe is its own compositing layer, so the
+    // rounded clip anti-aliases its edge and any solid fill here bleeds through
+    // as a light hairline around the corners.
+    container.style.background = "transparent"
     container.style.transform = finalTransform
     container.style.filter = finalFilter
     container.style.borderRadius = WIDGET_CONTAINER_OPEN_RADIUS
