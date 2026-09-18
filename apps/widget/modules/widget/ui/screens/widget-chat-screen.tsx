@@ -430,8 +430,15 @@ export const WidgetChatScreen = () => {
     // so the answer can be read as it is produced.
     { initialNumItems: 10, stream: true }
   )
+  // Tool calls and their results are dropped before grouping. The server
+  // already leaves them out of the saved page, but a reply that is still
+  // streaming carries them, and a bubble takes its key from the first message
+  // in its group — so with them left in, a reply that searched first is keyed
+  // on the tool call while it streams and on its text once it is saved, and the
+  // bubble remounts and types itself out a second time.
   const uiMessages = useMemo(
-    () => toUIMessages(messages.results ?? []),
+    () =>
+      toUIMessages((messages.results ?? []).filter((message) => !message.tool)),
     [messages.results]
   )
   const attachmentsByMessageId = useMemo(() => {

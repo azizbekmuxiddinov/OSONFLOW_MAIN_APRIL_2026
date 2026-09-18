@@ -62,6 +62,11 @@ import { Form, FormField } from "@workspace/ui/components/form"
 import { z } from "zod"
 import { useForm } from "react-hook-form"
 import { ConversationStatusButton } from "../components/conversation-status-button"
+import { ConversationPriorityMenu } from "../components/conversation-priority"
+import {
+  type RecordedVoiceMessage,
+  VoiceMessageRecorder,
+} from "../components/voice-message-recorder"
 import { useConversationContactDocked } from "../hooks/use-conversation-contact-docked"
 import { useSetAtom } from "jotai"
 import { openConversationIdAtom } from "@/modules/dashboard/atoms"
@@ -215,8 +220,10 @@ export const ConversationIdView = ({
     api.private.attachments.generateUploadUrl
   )
   const attachUploadedImage = useAction(api.private.attachments.attach)
+  const attachVoice = useAction(api.private.attachments.attachVoice)
   const removeAttachment = useMutation(api.private.attachments.remove)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false)
 
   const attachmentsByMessageId = useMemo(() => {
     const grouped = new Map<string, ChatMessageAttachment[]>()
@@ -425,6 +432,40 @@ export const ConversationIdView = ({
     }
   }
 
+  // Uploaded, verified and sent as its own message, the same path an image
+  // takes; the backend then delivers it to Telegram as a voice note.
+  const handleSendVoice = async ({
+    file,
+    durationSeconds,
+  }: RecordedVoiceMessage) => {
+    const { uploadUrl } = await generateAttachmentUploadUrl({ conversationId })
+    const uploadResponse = await fetch(uploadUrl, {
+      method: "POST",
+      headers: { "Content-Type": file.type },
+      body: file,
+    })
+
+    if (!uploadResponse.ok) {
+      throw new Error("Voice upload failed")
+    }
+
+    const { storageId } = (await uploadResponse.json()) as {
+      storageId: Id<"_storage">
+    }
+    const attachment = await attachVoice({
+      conversationId,
+      storageId,
+      durationSeconds,
+    })
+
+    await createMessage({
+      conversationId,
+      prompt: "",
+      attachmentIds: [attachment.id as Id<"chatAttachments">],
+    })
+    setOperatorScrollSignal((current) => current + 1)
+  }
+
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
   const updateConversationStatus = useMutation(
     api.private.conversations.updateStatus
@@ -602,6 +643,9 @@ export const ConversationIdView = ({
       : `Assigned: ${conversation.assignedToName ?? "Operator"}`
   const instagramProfilePic =
     conversation.contactSession.metadata?.instagramProfilePic
+  // Voice notes are only offered where the customer can play them as one.
+  const canSendVoice =
+    conversation.contactSession.metadata?.platform === "Telegram"
   const secondaryIdentity =
     conversation.contactSession.metadata?.platform === "Instagram" &&
     conversation.contactSession.metadata?.instagramUsername
@@ -711,6 +755,10 @@ export const ConversationIdView = ({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          <ConversationPriorityMenu
+            conversationId={conversationId}
+            priority={conversation.priority}
+          />
           {!!conversation && (
             <ConversationStatusButton
               status={conversation?.status}
@@ -970,45 +1018,56 @@ export const ConversationIdView = ({
 
             <AIInputToolbar className="bg-muted/10">
               <AIInputTools>
-                <input
-                  accept={ATTACHMENT_FILE_INPUT_ACCEPT}
-                  className="sr-only"
-                  multiple
-                  onChange={(event) => {
-                    acceptDroppedImages(Array.from(event.target.files ?? []))
-                    // Reset so picking the same file twice still fires.
-                    event.target.value = ""
-                  }}
-                  ref={fileInputRef}
-                  tabIndex={-1}
-                  type="file"
-                />
-                <AIInputButton
-                  aria-label="Attach an image"
-                  disabled={isConversationResolved || !attachments.canAttachMore}
-                  onClick={() => fileInputRef.current?.click()}
-                  title="Attach an image"
-                >
-                  <ImagePlusIcon />
-                </AIInputButton>
-                <AIInputButton
-                  onClick={() => setIsSavedRepliesDialogOpen(true)}
-                  disabled={conversation?.status === "resolved"}
-                  size="default"
-                >
-                  Templates
-                </AIInputButton>
-                <AIInputButton
-                  onClick={handleEnhanceResponse}
-                  disabled={
-                    conversation?.status === "resolved" ||
-                    isEnhancing ||
-                    !hasDraftText
-                  }
-                >
-                  <Wand2Icon />
-                  {isEnhancing ? "Enhancing..." : "Enhance"}
-                </AIInputButton>
+                {isRecordingVoice ? null : (
+                  <>
+                    <input
+                      accept={ATTACHMENT_FILE_INPUT_ACCEPT}
+                      className="sr-only"
+                      multiple
+                      onChange={(event) => {
+                        acceptDroppedImages(Array.from(event.target.files ?? []))
+                        // Reset so picking the same file twice still fires.
+                        event.target.value = ""
+                      }}
+                      ref={fileInputRef}
+                      tabIndex={-1}
+                      type="file"
+                    />
+                    <AIInputButton
+                      aria-label="Attach an image"
+                      disabled={isConversationResolved || !attachments.canAttachMore}
+                      onClick={() => fileInputRef.current?.click()}
+                      title="Attach an image"
+                    >
+                      <ImagePlusIcon />
+                    </AIInputButton>
+                    <AIInputButton
+                      onClick={() => setIsSavedRepliesDialogOpen(true)}
+                      disabled={conversation?.status === "resolved"}
+                      size="default"
+                    >
+                      Templates
+                    </AIInputButton>
+                    <AIInputButton
+                      onClick={handleEnhanceResponse}
+                      disabled={
+                        conversation?.status === "resolved" ||
+                        isEnhancing ||
+                        !hasDraftText
+                      }
+                    >
+                      <Wand2Icon />
+                      {isEnhancing ? "Enhancing..." : "Enhance"}
+                    </AIInputButton>
+                  </>
+                )}
+                {canSendVoice ? (
+                  <VoiceMessageRecorder
+                    disabled={isConversationResolved}
+                    onRecordingChange={setIsRecordingVoice}
+                    onSend={handleSendVoice}
+                  />
+                ) : null}
               </AIInputTools>
               <AIInputSubmit
                 disabled={

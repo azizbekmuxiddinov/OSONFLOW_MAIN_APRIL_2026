@@ -201,6 +201,7 @@ export const create = mutation({
       {
         conversationId: args.conversationId,
         text: args.prompt,
+        ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
       }
     )
 

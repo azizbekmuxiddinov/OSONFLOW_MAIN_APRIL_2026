@@ -99,6 +99,61 @@ export const attach = action({
 })
 
 /**
+ * Turns a recorded voice message into an attachment. Voice is only offered
+ * where the other side can play it as a voice note, which today is Telegram.
+ */
+export const attachVoice = action({
+  args: {
+    conversationId: v.id("conversations"),
+    storageId: v.id("_storage"),
+    durationSeconds: v.number(),
+  },
+  handler: async (ctx, args): Promise<PublicChatAttachment> => {
+    const { identity, orgId } = await requireOrganizationIdentity(ctx)
+    const conversation = await ctx.runQuery(
+      internal.system.chatAttachments.getConversationContext,
+      { conversationId: args.conversationId }
+    )
+
+    if (!conversation || conversation.organizationId !== orgId) {
+      throw notFound()
+    }
+
+    if (conversation.status === "resolved") {
+      throw new ConvexError({
+        code: "BAD_REQUEST",
+        message: "Conversation resolved",
+      })
+    }
+
+    const telegramContact = await ctx.runQuery(
+      (internal as any).system.telegram.getTelegramContactByConversationId,
+      { conversationId: args.conversationId }
+    )
+
+    if (!telegramContact) {
+      throw new ConvexError({
+        code: "BAD_REQUEST",
+        message: "Voice messages can only be sent to Telegram conversations.",
+      })
+    }
+
+    return await finalizeAttachmentUpload(ctx, {
+      organizationId: orgId,
+      conversationId: args.conversationId,
+      threadId: conversation.threadId,
+      storageId: args.storageId,
+      policy: OPERATOR_IMAGE_UPLOAD_POLICY,
+      source: "operator",
+      operatorId: identity.subject,
+      filename: "voice",
+      kind: "voice",
+      durationSeconds: args.durationSeconds,
+    })
+  },
+})
+
+/**
  * Deletes an attachment for the whole organization — an operator's own draft, or
  * an image a visitor should not have sent. The blob goes with it, so the serving
  * URL stops working everywhere the moment this runs.

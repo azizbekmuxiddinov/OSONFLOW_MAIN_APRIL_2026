@@ -1750,6 +1750,62 @@ const translations: Record<string, TranslationValue> = {
     uz: "Kanal bo'yicha vidjet trafiki",
     ru: "Трафик виджета по каналам",
   },
+  "Urgent": {
+    uz: "Shoshilinch",
+    ru: "Срочный",
+  },
+  "Medium": {
+    uz: "O'rtacha",
+    ru: "Средний",
+  },
+  "Low": {
+    uz: "Past",
+    ru: "Низкий",
+  },
+  "No priority": {
+    uz: "Ustuvorliksiz",
+    ru: "Без приоритета",
+  },
+  "Set priority": {
+    uz: "Ustuvorlikni belgilash",
+    ru: "Задать приоритет",
+  },
+  "Failed to update priority": {
+    uz: "Ustuvorlikni yangilab bo'lmadi",
+    ru: "Не удалось обновить приоритет",
+  },
+  "Record a voice message": {
+    uz: "Ovozli xabar yozib olish",
+    ru: "Записать голосовое сообщение",
+  },
+  "Cancel recording": {
+    uz: "Yozishni bekor qilish",
+    ru: "Отменить запись",
+  },
+  "Send voice message": {
+    uz: "Ovozli xabarni yuborish",
+    ru: "Отправить голосовое сообщение",
+  },
+  "Failed to send the voice message": {
+    uz: "Ovozli xabarni yuborib bo'lmadi",
+    ru: "Не удалось отправить голосовое сообщение",
+  },
+  "This browser can't record voice messages": {
+    uz: "Bu brauzer ovozli xabar yozib ololmaydi",
+    ru: "Этот браузер не может записывать голосовые сообщения",
+  },
+  "Microphone access was blocked": {
+    uz: "Mikrofonga ruxsat berilmadi",
+    ru: "Доступ к микрофону заблокирован",
+  },
+  "Play voice message": {
+    uz: "Ovozli xabarni tinglash",
+    ru: "Воспроизвести голосовое сообщение",
+  },
+  "Pause voice message": {
+    uz: "Ovozli xabarni to'xtatish",
+    ru: "Приостановить голосовое сообщение",
+  },
 }
 
 export function normalizeTranslatableText(value: string) {

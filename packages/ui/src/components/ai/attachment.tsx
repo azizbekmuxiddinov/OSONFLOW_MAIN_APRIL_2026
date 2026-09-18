@@ -1,7 +1,14 @@
 "use client"
 
-import { AlertCircleIcon, Loader2Icon, XIcon, ZoomInIcon } from "lucide-react"
-import { useCallback, useEffect, useState } from "react"
+import {
+  AlertCircleIcon,
+  Loader2Icon,
+  PauseIcon,
+  PlayIcon,
+  XIcon,
+  ZoomInIcon,
+} from "lucide-react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 
 import type { ChatAttachmentDraft } from "@workspace/ui/hooks/use-chat-image-attachments"
@@ -16,6 +23,8 @@ export type ChatMessageAttachment = {
   size: number
   width?: number
   height?: number
+  /** Set on voice messages, from the length measured while recording. */
+  durationSeconds?: number
   /** Present on server-sent attachments; absent on optimistic previews. */
   createdAt?: number
   source?: "contact" | "operator"
@@ -92,6 +101,116 @@ const AttachmentLightbox = ({
   )
 }
 
+/* ── voice messages ─────────────────────────────────────────────────────── */
+
+const isVoiceAttachment = (attachment: ChatMessageAttachment) =>
+  attachment.mediaType.startsWith("audio/")
+
+const formatPlaybackTime = (seconds: number) => {
+  const whole = Math.max(0, Math.floor(seconds))
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`
+}
+
+/**
+ * A voice message as a compact player. Colors come from `currentColor`, so it
+ * reads correctly on both the light and the accent-colored bubble.
+ */
+const VoiceAttachmentPlayer = ({
+  attachment,
+}: {
+  attachment: ChatMessageAttachment
+}) => {
+  const audioRef = useRef<HTMLAudioElement>(null)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [currentTime, setCurrentTime] = useState(0)
+  // Ogg files often report an infinite duration until fully read, so the length
+  // measured while recording is preferred.
+  const [mediaDuration, setMediaDuration] = useState<number | null>(null)
+  const duration = attachment.durationSeconds || mediaDuration || 0
+  const progress = duration > 0 ? Math.min(1, currentTime / duration) : 0
+
+  const togglePlayback = () => {
+    const audio = audioRef.current
+
+    if (!audio) {
+      return
+    }
+
+    if (audio.paused) {
+      void audio.play()
+    } else {
+      audio.pause()
+    }
+  }
+
+  const seekTo = (event: React.MouseEvent<HTMLDivElement>) => {
+    const audio = audioRef.current
+
+    if (!audio || duration <= 0) {
+      return
+    }
+
+    const bounds = event.currentTarget.getBoundingClientRect()
+    const ratio = (event.clientX - bounds.left) / bounds.width
+    audio.currentTime = Math.min(duration, Math.max(0, ratio * duration))
+    setCurrentTime(audio.currentTime)
+  }
+
+  return (
+    <div className="flex w-56 max-w-full items-center gap-2.5 py-0.5">
+      <button
+        aria-label={isPlaying ? "Pause voice message" : "Play voice message"}
+        className="flex size-8 shrink-0 items-center justify-center rounded-full bg-current/15 transition-colors hover:bg-current/25"
+        onClick={togglePlayback}
+        type="button"
+      >
+        {isPlaying ? (
+          <PauseIcon className="size-3.5 fill-current" />
+        ) : (
+          <PlayIcon className="ml-0.5 size-3.5 fill-current" />
+        )}
+      </button>
+      <div
+        aria-label="Seek"
+        className="relative h-1.5 min-w-0 flex-1 cursor-pointer rounded-full bg-current/20"
+        onClick={seekTo}
+        role="presentation"
+      >
+        <div
+          className="absolute inset-y-0 left-0 rounded-full bg-current"
+          style={{ width: `${progress * 100}%` }}
+        />
+      </div>
+      <span className="shrink-0 text-[11px] tabular-nums opacity-75">
+        {formatPlaybackTime(
+          isPlaying || currentTime > 0 ? currentTime : duration
+        )}
+      </span>
+      <audio
+        onEnded={() => {
+          setIsPlaying(false)
+          setCurrentTime(0)
+        }}
+        onLoadedMetadata={(event) => {
+          const value = event.currentTarget.duration
+
+          if (Number.isFinite(value) && value > 0) {
+            setMediaDuration(value)
+          }
+        }}
+        onPause={() => setIsPlaying(false)}
+        onPlay={() => setIsPlaying(true)}
+        onTimeUpdate={(event) =>
+          setCurrentTime(event.currentTarget.currentTime)
+        }
+        preload="metadata"
+        ref={audioRef}
+        src={attachment.url}
+      />
+    </div>
+  )
+}
+
 /* ── message attachments ────────────────────────────────────────────────── */
 
 export type AIMessageAttachmentsProps = {
@@ -119,60 +238,69 @@ export const AIMessageAttachments = ({
     return null
   }
 
-  const isSingle = attachments.length === 1
+  const voiceAttachments = attachments.filter(isVoiceAttachment)
+  const images = attachments.filter(
+    (attachment) => !isVoiceAttachment(attachment)
+  )
+  const isSingle = images.length === 1
 
   return (
     <>
-      <div
-        className={cn(
-          "grid gap-1.5",
-          isSingle ? "grid-cols-1" : "grid-cols-2",
-          className
-        )}
-        style={isSingle ? { maxWidth: SINGLE_IMAGE_MAX_WIDTH } : undefined}
-      >
-        {attachments.map((attachment) => (
-          <div
-            className="group/attachment relative overflow-hidden rounded-xl bg-black/5 dark:bg-white/8"
-            key={attachment.id}
-            style={{
-              aspectRatio: isSingle ? aspectRatioFor(attachment) : "1 / 1",
-            }}
-          >
-            <button
-              aria-label={`Open ${attachment.filename}`}
-              className="block size-full cursor-zoom-in"
-              onClick={() => setPreview(attachment)}
-              type="button"
+      {voiceAttachments.map((attachment) => (
+        <VoiceAttachmentPlayer attachment={attachment} key={attachment.id} />
+      ))}
+      {images.length > 0 ? (
+        <div
+          className={cn(
+            "grid gap-1.5",
+            isSingle ? "grid-cols-1" : "grid-cols-2",
+            className
+          )}
+          style={isSingle ? { maxWidth: SINGLE_IMAGE_MAX_WIDTH } : undefined}
+        >
+          {images.map((attachment) => (
+            <div
+              className="group/attachment relative overflow-hidden rounded-xl bg-black/5 dark:bg-white/8"
+              key={attachment.id}
+              style={{
+                aspectRatio: isSingle ? aspectRatioFor(attachment) : "1 / 1",
+              }}
             >
-                      <img
-                alt={attachment.filename}
-                className="size-full object-cover transition-transform duration-300 group-hover/attachment:scale-[1.02]"
-                decoding="async"
-                draggable={false}
-                height={attachment.height}
-                loading="lazy"
-                src={attachment.url}
-                width={attachment.width}
-              />
-              <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-opacity duration-200 group-hover/attachment:bg-black/20 group-hover/attachment:opacity-100">
-                <ZoomInIcon className="size-5 text-white drop-shadow" />
-              </span>
-            </button>
-
-            {onRemove ? (
               <button
-                aria-label={`Delete ${attachment.filename}`}
-                className="absolute top-1.5 right-1.5 flex size-6 items-center justify-center rounded-full bg-black/55 text-white opacity-0 transition-opacity hover:bg-black/75 focus-visible:opacity-100 group-hover/attachment:opacity-100"
-                onClick={() => onRemove(attachment.id)}
+                aria-label={`Open ${attachment.filename}`}
+                className="block size-full cursor-zoom-in"
+                onClick={() => setPreview(attachment)}
                 type="button"
               >
-                <XIcon className="size-3.5" />
+                        <img
+                  alt={attachment.filename}
+                  className="size-full object-cover transition-transform duration-300 group-hover/attachment:scale-[1.02]"
+                  decoding="async"
+                  draggable={false}
+                  height={attachment.height}
+                  loading="lazy"
+                  src={attachment.url}
+                  width={attachment.width}
+                />
+                <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-opacity duration-200 group-hover/attachment:bg-black/20 group-hover/attachment:opacity-100">
+                  <ZoomInIcon className="size-5 text-white drop-shadow" />
+                </span>
               </button>
-            ) : null}
-          </div>
-        ))}
-      </div>
+
+              {onRemove ? (
+                <button
+                  aria-label={`Delete ${attachment.filename}`}
+                  className="absolute top-1.5 right-1.5 flex size-6 items-center justify-center rounded-full bg-black/55 text-white opacity-0 transition-opacity hover:bg-black/75 focus-visible:opacity-100 group-hover/attachment:opacity-100"
+                  onClick={() => onRemove(attachment.id)}
+                  type="button"
+                >
+                  <XIcon className="size-3.5" />
+                </button>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       {preview ? (
         <AttachmentLightbox

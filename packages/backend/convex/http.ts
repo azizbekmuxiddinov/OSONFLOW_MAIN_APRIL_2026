@@ -624,22 +624,80 @@ http.route({
       return new Response("Not found", { status: 404 })
     }
 
-    return new Response(blob, {
-      status: 200,
-      headers: {
-        "Content-Type": attachment.mediaType,
-        // The URL names one immutable blob, so it can be cached hard. `private`
-        // keeps shared proxies from holding a copy of someone's conversation.
-        "Cache-Control": "private, max-age=31536000, immutable",
-        "Content-Disposition": `inline; filename="${attachment.filename}"`,
-        "Content-Security-Policy": "default-src 'none'; sandbox",
-        "Cross-Origin-Resource-Policy": "cross-origin",
-        "X-Content-Type-Options": "nosniff",
-        "Referrer-Policy": "no-referrer",
-      },
-    })
+    const headers: Record<string, string> = {
+      "Content-Type": attachment.mediaType,
+      // The URL names one immutable blob, so it can be cached hard. `private`
+      // keeps shared proxies from holding a copy of someone's conversation.
+      "Cache-Control": "private, max-age=31536000, immutable",
+      "Content-Disposition": `inline; filename="${attachment.filename}"`,
+      "Content-Security-Policy": "default-src 'none'; sandbox",
+      "Cross-Origin-Resource-Policy": "cross-origin",
+      "X-Content-Type-Options": "nosniff",
+      "Referrer-Policy": "no-referrer",
+      // Safari only plays audio from a server that answers byte ranges, and
+      // every browser needs them to seek within a voice message.
+      "Accept-Ranges": "bytes",
+    }
+
+    const range = parseByteRange(request.headers.get("range"), blob.size)
+
+    if (range === "unsatisfiable") {
+      return new Response(null, {
+        status: 416,
+        headers: { ...headers, "Content-Range": `bytes */${blob.size}` },
+      })
+    }
+
+    if (range) {
+      return new Response(blob.slice(range.start, range.end + 1), {
+        status: 206,
+        headers: {
+          ...headers,
+          "Content-Range": `bytes ${range.start}-${range.end}/${blob.size}`,
+          "Content-Length": String(range.end - range.start + 1),
+        },
+      })
+    }
+
+    return new Response(blob, { status: 200, headers })
   }),
 })
+
+/**
+ * Reads a single `bytes=` range. Anything this does not understand — several
+ * ranges, other units — is treated as no range at all, and the whole file is
+ * sent, which every client accepts.
+ */
+function parseByteRange(
+  header: string | null,
+  size: number
+): { start: number; end: number } | "unsatisfiable" | null {
+  const match = header?.match(/^bytes=(\d*)-(\d*)$/)
+
+  if (!match || (!match[1] && !match[2])) {
+    return null
+  }
+
+  if (!match[1]) {
+    // "bytes=-500" is the last 500 bytes.
+    const suffixLength = Number(match[2])
+
+    if (suffixLength === 0) {
+      return "unsatisfiable"
+    }
+
+    return { start: Math.max(0, size - suffixLength), end: size - 1 }
+  }
+
+  const start = Number(match[1])
+  const end = match[2] ? Math.min(Number(match[2]), size - 1) : size - 1
+
+  if (start >= size || end < start) {
+    return "unsatisfiable"
+  }
+
+  return { start, end }
+}
 
 async function validateRequest(req: Request): Promise<WebhookEvent | null> {
   const payloadString = await req.text()

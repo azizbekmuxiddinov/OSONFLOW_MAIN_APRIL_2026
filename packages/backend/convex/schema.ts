@@ -1,4 +1,5 @@
 import { defineSchema, defineTable } from "convex/server"
+import { conversationPriorityValidator } from "./lib/conversationPriority"
 import { v } from "convex/values"
 
 const defaultSuggestionsValidator = v.object({
@@ -483,6 +484,8 @@ export default defineSchema({
     size: v.number(),
     width: v.optional(v.number()),
     height: v.optional(v.number()),
+    /** Length of a voice message, as measured while it was recorded. */
+    durationSeconds: v.optional(v.number()),
     accessKey: v.string(),
     createdAt: v.number(),
   })
@@ -713,6 +716,8 @@ export default defineSchema({
     ),
     /** The workflow that was live when the conversation started. */
     workflowId: v.optional(v.id("workflows")),
+    /** Set by an operator to triage the inbox; unset means not yet triaged. */
+    priority: v.optional(v.union(conversationPriorityValidator, v.null())),
   })
     .index("by_organization_id", ["organizationId"])
     .index("by_organization_id_and_source", ["organizationId", "source"])

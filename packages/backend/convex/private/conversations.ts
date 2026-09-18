@@ -19,6 +19,7 @@ import {
   getLatestTextAgentMessage,
 } from "../lib/agentMessageText"
 import { paginateArray } from "../lib/paginateArray"
+import { conversationPriorityValidator } from "../lib/conversationPriority"
 
 const assignmentFilterValidator = v.union(
   v.literal("all"),
@@ -525,6 +526,30 @@ export const updateAssignment = mutation({
   },
 })
 
+export const updatePriority = mutation({
+  args: {
+    conversationId: v.id("conversations"),
+    /** null clears the priority. */
+    priority: v.union(conversationPriorityValidator, v.null()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const { orgId } = await requireOrganizationIdentity(ctx)
+    const conversation = await ctx.db.get(args.conversationId)
+
+    if (!conversation || conversation.organizationId !== orgId) {
+      throw new ConvexError({
+        code: "NOT_FOUND",
+        message: "Conversation not found",
+      })
+    }
+
+    await ctx.db.patch(args.conversationId, { priority: args.priority })
+
+    return null
+  },
+})
+
 export const getMany = query({
   args: {
     paginationOpts: paginationOptsValidator,
@@ -540,6 +565,10 @@ export const getMany = query({
     /** Which surface started the conversation; "all" mixes both. */
     sourceFilter: v.optional(
       v.union(v.literal("all"), v.literal("workflow"), v.literal("widget"))
+    ),
+    /** "prioritized" keeps only conversations an operator gave a priority. */
+    priorityFilter: v.optional(
+      v.union(v.literal("all"), v.literal("prioritized"))
     ),
   },
   handler: async (ctx, args) => {
@@ -649,6 +678,7 @@ export const getMany = query({
               ? "assigned to me"
               : undefined,
             conversation.status,
+            conversation.priority,
           ]
 
           const fieldMatch = searchableFields.some((value) =>
@@ -698,6 +728,10 @@ export const getMany = query({
 
     const filteredConversations = validConversations.filter((conversation) => {
       if (assignmentFilter === "unassigned" && conversation.assignedToId) {
+        return false
+      }
+
+      if (args.priorityFilter === "prioritized" && !conversation.priority) {
         return false
       }
 

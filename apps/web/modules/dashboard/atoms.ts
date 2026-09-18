@@ -3,6 +3,7 @@ import { atomWithStorage } from "jotai/utils";
 import { Doc, Id } from "@workspace/backend/_generated/dataModel";
 import {
   ASSIGNMENT_FILTER_KEY,
+  PRIORITY_FILTER_KEY,
   SOURCE_FILTER_KEY,
   STATUS_FILTER_KEY,
 } from "./constants";
@@ -23,6 +24,14 @@ export type SourceFilter = "all" | "workflow" | "widget";
 
 export const sourceFilterAtom = atomWithStorage<SourceFilter>(
   SOURCE_FILTER_KEY,
+  "all"
+);
+
+/** "prioritized" narrows the inbox to conversations an operator gave a priority. */
+export type PriorityFilter = "all" | "prioritized";
+
+export const priorityFilterAtom = atomWithStorage<PriorityFilter>(
+  PRIORITY_FILTER_KEY,
   "all"
 );
 

@@ -155,6 +155,64 @@ const sendTelegramMessage = async ({
 
   return body.result
 }
+/**
+ * The Bot API method and form field that deliver a file of this type the way
+ * the recipient expects: audio as a voice note, a GIF as an animation, and any
+ * other image as a photo.
+ */
+const telegramFileMethodFor = (mediaType: string) => {
+  if (mediaType.startsWith("audio/")) {
+    return { method: "sendVoice", field: "voice" } as const
+  }
+
+  if (mediaType === "image/gif") {
+    return { method: "sendAnimation", field: "animation" } as const
+  }
+
+  return { method: "sendPhoto", field: "photo" } as const
+}
+
+const sendTelegramFile = async ({
+  botToken,
+  chatId,
+  file,
+  filename,
+  mediaType,
+  durationSeconds,
+}: {
+  botToken: string
+  chatId: string
+  file: Blob
+  filename: string
+  mediaType: string
+  durationSeconds?: number
+}) => {
+  const { method, field } = telegramFileMethodFor(mediaType)
+  const form = new FormData()
+
+  form.append("chat_id", chatId)
+  form.append(field, new Blob([file], { type: mediaType }), filename)
+
+  if (method === "sendVoice" && durationSeconds) {
+    form.append("duration", String(Math.round(durationSeconds)))
+  }
+
+  const response = await fetch(telegramApiUrl(botToken, method), {
+    method: "POST",
+    body: form,
+  })
+  const body = (await response.json()) as TelegramSendMessageResponse
+
+  if (!response.ok || !body.ok) {
+    throw new ConvexError({
+      code: "BAD_REQUEST",
+      message: `Telegram ${method} failed: ${body.description || response.statusText}`,
+    })
+  }
+
+  return body.result
+}
+
 export const upsertIntegration = internalMutation({
   args: {
     organizationId: v.string(),
@@ -682,6 +740,8 @@ export const sendConversationMessage: any = internalAction({
   args: {
     conversationId: v.id("conversations"),
     text: v.string(),
+    /** Files the operator sent with the message: images and voice notes. */
+    attachmentIds: v.optional(v.array(v.id("chatAttachments"))),
   },
   handler: async (ctx, args) => {
     const telegramContact = await ctx.runQuery(
@@ -706,11 +766,39 @@ export const sendConversationMessage: any = internalAction({
       return { sent: false, reason: "integration_disabled" }
     }
 
-    await sendTelegramMessage({
-      botToken: integration.botToken,
-      chatId: telegramContact.chatId,
-      text: args.text,
-    })
+    // A voice note or picture on its own is a whole message, and Telegram
+    // rejects an empty text send.
+    if (args.text.trim()) {
+      await sendTelegramMessage({
+        botToken: integration.botToken,
+        chatId: telegramContact.chatId,
+        text: args.text,
+      })
+    }
+
+    const attachments = args.attachmentIds?.length
+      ? await ctx.runQuery(internal.system.chatAttachments.getForDelivery, {
+          conversationId: args.conversationId,
+          attachmentIds: args.attachmentIds,
+        })
+      : []
+
+    for (const attachment of attachments) {
+      const file = await ctx.storage.get(attachment.storageId)
+
+      if (!file) {
+        continue
+      }
+
+      await sendTelegramFile({
+        botToken: integration.botToken,
+        chatId: telegramContact.chatId,
+        file,
+        filename: attachment.filename,
+        mediaType: attachment.mediaType,
+        durationSeconds: attachment.durationSeconds,
+      })
+    }
 
     return { sent: true }
   },

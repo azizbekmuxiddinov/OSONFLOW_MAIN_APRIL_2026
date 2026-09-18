@@ -20,7 +20,12 @@ import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuRadioGroup,
+  ContextMenuRadioItem,
   ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@workspace/ui/components/context-menu"
 import { useInfiniteScroll } from "@workspace/ui/hooks/use-infinite-scroll"
@@ -49,6 +54,7 @@ import {
   XIcon,
   InboxIcon,
   BotIcon,
+  FlagIcon,
   WorkflowIcon,
 } from "lucide-react"
 import { useConvex, useMutation, usePaginatedQuery } from "convex/react"
@@ -58,10 +64,18 @@ import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import {
   assignmentFilterAtom,
+  priorityFilterAtom,
   sourceFilterAtom,
   statusFilterAtom,
 } from "../../atoms"
 import { downloadConversationExport } from "../lib/conversation-export"
+import {
+  CONVERSATION_PRIORITIES,
+  ConversationPriorityBadge,
+  NO_PRIORITY_VALUE,
+  parsePriorityValue,
+  useUpdateConversationPriority,
+} from "./conversation-priority"
 
 type CombinedFilterValue =
   | "all"
@@ -72,6 +86,7 @@ type CombinedFilterValue =
   | "unassigned"
   | "workflow"
   | "widget"
+  | "prioritized"
 
 const FILTER_OPTIONS: {
   label: string
@@ -98,6 +113,7 @@ const FILTER_OPTIONS: {
   { label: "Unassigned", value: "unassigned", icon: XIcon },
   { label: "Workflow", value: "workflow", icon: WorkflowIcon },
   { label: "Assistant", value: "widget", icon: BotIcon },
+  { label: "Priority", value: "prioritized", icon: FlagIcon },
 ]
 
 const STATUS_ACCENT: Record<string, string> = {
@@ -149,6 +165,7 @@ export const ConversationsPanel = () => {
   const { userId } = useAuth()
   const convex = useConvex()
   const deleteConversation = useMutation(api.private.conversations.remove)
+  const updatePriority = useUpdateConversationPriority()
 
   const statusFilter = useAtomValue(statusFilterAtom)
   const setStatusFilter = useSetAtom(statusFilterAtom)
@@ -156,13 +173,17 @@ export const ConversationsPanel = () => {
   const setAssignmentFilter = useSetAtom(assignmentFilterAtom)
   const sourceFilter = useAtomValue(sourceFilterAtom)
   const setSourceFilter = useSetAtom(sourceFilterAtom)
+  const priorityFilter = useAtomValue(priorityFilterAtom)
+  const setPriorityFilter = useSetAtom(priorityFilterAtom)
 
   const combinedFilterValue: CombinedFilterValue =
-    sourceFilter !== "all"
-      ? sourceFilter
-      : assignmentFilter !== "all"
-        ? assignmentFilter
-        : statusFilter
+    priorityFilter !== "all"
+      ? priorityFilter
+      : sourceFilter !== "all"
+        ? sourceFilter
+        : assignmentFilter !== "all"
+          ? assignmentFilter
+          : statusFilter
 
   const [searchQuery, setSearchQuery] = useState("")
   const [conversationToDelete, setConversationToDelete] = useState<{
@@ -184,6 +205,7 @@ export const ConversationsPanel = () => {
       status: statusFilter === "all" ? undefined : statusFilter,
       assignmentFilter,
       sourceFilter,
+      priorityFilter,
       searchQuery: normalizedSearchQuery || undefined,
     },
     { initialNumItems: 10 }
@@ -229,8 +251,18 @@ export const ConversationsPanel = () => {
   }, [])
 
   const handleFilterChange = (value: CombinedFilterValue) => {
-    // The chips are one row but three dimensions, so picking one clears the
+    // The chips are one row but four dimensions, so picking one clears the
     // others rather than silently combining into an empty result.
+    if (value === "prioritized") {
+      setPriorityFilter(value)
+      setSourceFilter("all")
+      setAssignmentFilter("all")
+      setStatusFilter("all")
+      return
+    }
+
+    setPriorityFilter("all")
+
     if (value === "workflow" || value === "widget") {
       setSourceFilter(value)
       setAssignmentFilter("all")
@@ -426,6 +458,8 @@ export const ConversationsPanel = () => {
                     setSearchQuery("")
                     setAssignmentFilter("all")
                     setStatusFilter("all")
+                    setSourceFilter("all")
+                    setPriorityFilter("all")
                   }}
                   size="sm"
                   type="button"
@@ -512,11 +546,16 @@ export const ConversationsPanel = () => {
                             </span>
                           </div>
 
-                          {/* Assignment badge */}
-                          {(!!conversation.assignedToId ||
+                          {/* Priority, unread and assignment badges */}
+                          {(!!conversation.priority ||
+                            !!conversation.assignedToId ||
                             showOperatorUnreadBadge ||
                             showVisitorUnreadBadge) && (
                             <div className="mt-0.5">
+                              <ConversationPriorityBadge
+                                className="mr-1 align-middle"
+                                priority={conversation.priority}
+                              />
                               {showOperatorUnreadBadge && (
                                 <Badge
                                   className="h-3.5 bg-amber-500 px-1 text-[10px] leading-none whitespace-nowrap text-black hover:bg-amber-500"
@@ -580,6 +619,44 @@ export const ConversationsPanel = () => {
                       </Link>
                     </ContextMenuTrigger>
                     <ContextMenuContent className="w-48">
+                      <ContextMenuSub>
+                        <ContextMenuSubTrigger>
+                          <FlagIcon className="size-4" />
+                          <span>Priority</span>
+                        </ContextMenuSubTrigger>
+                        <ContextMenuSubContent className="w-40">
+                          <ContextMenuRadioGroup
+                            onValueChange={(value) =>
+                              void updatePriority(
+                                conversation._id,
+                                parsePriorityValue(value)
+                              )
+                            }
+                            value={conversation.priority ?? NO_PRIORITY_VALUE}
+                          >
+                            {CONVERSATION_PRIORITIES.map((option) => (
+                              <ContextMenuRadioItem
+                                key={option.value}
+                                value={option.value}
+                              >
+                                <FlagIcon
+                                  className={cn(
+                                    "size-3.5",
+                                    option.iconClassName
+                                  )}
+                                />
+                                {option.label}
+                              </ContextMenuRadioItem>
+                            ))}
+                            <ContextMenuSeparator />
+                            <ContextMenuRadioItem value={NO_PRIORITY_VALUE}>
+                              <FlagIcon className="size-3.5 text-muted-foreground" />
+                              No priority
+                            </ContextMenuRadioItem>
+                          </ContextMenuRadioGroup>
+                        </ContextMenuSubContent>
+                      </ContextMenuSub>
+                      <ContextMenuSeparator />
                       <ContextMenuItem
                         disabled={
                           downloadingConversationId === conversation._id

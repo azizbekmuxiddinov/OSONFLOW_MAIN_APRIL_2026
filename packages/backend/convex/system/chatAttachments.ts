@@ -117,6 +117,7 @@ export const record = internalMutation({
     size: v.number(),
     width: v.optional(v.number()),
     height: v.optional(v.number()),
+    durationSeconds: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     // Convex storage ids carry no tenant information, so a blob that some other
@@ -200,6 +201,12 @@ export const record = internalMutation({
       size: args.size,
       width,
       height,
+      durationSeconds:
+        args.durationSeconds !== undefined &&
+        Number.isFinite(args.durationSeconds) &&
+        args.durationSeconds > 0
+          ? Math.min(3600, Math.round(args.durationSeconds))
+          : undefined,
       accessKey: createAttachmentAccessKey(),
       createdAt: now,
     })
@@ -308,6 +315,42 @@ export const bindToMessage = internalMutation({
     }
 
     return attachments.length
+  },
+})
+
+/**
+ * What a channel integration needs to deliver the files of a message that was
+ * just sent. Only attachments already bound to a message in this conversation
+ * are returned, so an id from anywhere else simply yields nothing.
+ */
+export const getForDelivery = internalQuery({
+  args: {
+    conversationId: v.id("conversations"),
+    attachmentIds: v.array(v.id("chatAttachments")),
+  },
+  handler: async (ctx, args) => {
+    const deliverable = []
+
+    for (const attachmentId of args.attachmentIds) {
+      const attachment = await ctx.db.get(attachmentId)
+
+      if (
+        !attachment ||
+        attachment.conversationId !== args.conversationId ||
+        attachment.messageId === undefined
+      ) {
+        continue
+      }
+
+      deliverable.push({
+        storageId: attachment.storageId,
+        mediaType: attachment.mediaType,
+        filename: attachment.filename,
+        durationSeconds: attachment.durationSeconds,
+      })
+    }
+
+    return deliverable
   },
 })
 

@@ -7,6 +7,7 @@ import {
   type ImageUploadPolicy,
   type PublicChatAttachment,
   sniffImageMediaType,
+  sniffVoiceMediaType,
 } from "./chatAttachments"
 
 /**
@@ -31,6 +32,8 @@ export const finalizeAttachmentUpload = async (
     filename,
     width,
     height,
+    kind = "image",
+    durationSeconds,
   }: {
     organizationId: string
     conversationId: Id<"conversations">
@@ -43,6 +46,9 @@ export const finalizeAttachmentUpload = async (
     filename?: string
     width?: number
     height?: number
+    /** A voice message is sniffed as audio instead of as an image. */
+    kind?: "image" | "voice"
+    durationSeconds?: number
   }
 ): Promise<PublicChatAttachment> => {
   const reject = async (message: string): Promise<never> => {
@@ -72,7 +78,9 @@ export const finalizeAttachmentUpload = async (
 
   if (metadata.size > policy.maxSizeBytes) {
     return await reject(
-      `Images must be ${policy.maxSizeMb}MB or smaller.`
+      kind === "voice"
+        ? `Voice messages must be ${policy.maxSizeMb}MB or smaller.`
+        : `Images must be ${policy.maxSizeMb}MB or smaller.`
     )
   }
 
@@ -88,10 +96,15 @@ export const finalizeAttachmentUpload = async (
   // Only the header is needed to identify the format, so a large upload is not
   // pulled into memory just to be rejected.
   const header = await blob.slice(0, 32).arrayBuffer()
-  const mediaType = sniffImageMediaType(header)
+  const mediaType =
+    kind === "voice" ? sniffVoiceMediaType(header) : sniffImageMediaType(header)
 
   if (!mediaType) {
-    return await reject("Only JPEG, PNG, WebP and GIF images can be attached.")
+    return await reject(
+      kind === "voice"
+        ? "Voice messages must be Ogg or M4A audio."
+        : "Only JPEG, PNG, WebP and GIF images can be attached."
+    )
   }
 
   return await ctx.runMutation(internal.system.chatAttachments.record, {
@@ -107,6 +120,7 @@ export const finalizeAttachmentUpload = async (
     size: metadata.size,
     width,
     height,
+    durationSeconds,
   })
 }
 

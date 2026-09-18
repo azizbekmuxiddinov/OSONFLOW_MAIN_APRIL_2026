@@ -154,6 +154,34 @@ export const sniffImageMediaType = (
   return null
 }
 
+/** The audio formats Telegram will show as a voice note rather than a file. */
+type AllowedVoiceMediaType = "audio/ogg" | "audio/mp4"
+
+/**
+ * The voice-message counterpart of `sniffImageMediaType`: Ogg (the Opus
+ * recordings Chrome, Edge and Firefox produce) or an MP4 audio file (Safari's).
+ */
+export const sniffVoiceMediaType = (
+  input: ArrayBuffer | Uint8Array
+): AllowedVoiceMediaType | null => {
+  const bytes =
+    input instanceof Uint8Array ? input : new Uint8Array(input.slice(0, 32))
+
+  if (bytes.length < 12) {
+    return null
+  }
+
+  if (asciiAt(bytes, 0, 4) === "OggS") {
+    return "audio/ogg"
+  }
+
+  if (asciiAt(bytes, 4, 4) === "ftyp") {
+    return "audio/mp4"
+  }
+
+  return null
+}
+
 /**
  * Strips directories and control characters so the name can go into a
  * `Content-Disposition` header without smuggling a second header line.
@@ -168,6 +196,8 @@ export const sanitizeAttachmentFilename = (
       "image/png": "png",
       "image/webp": "webp",
       "image/gif": "gif",
+      "audio/ogg": "ogg",
+      "audio/mp4": "m4a",
     }[mediaType] ?? "img"
 
   const base = (filename ?? "")
@@ -179,7 +209,7 @@ export const sanitizeAttachmentFilename = (
     .slice(0, 80)
 
   if (!base || base === "." || base === "..") {
-    return `image.${extension}`
+    return `${mediaType.startsWith("audio/") ? "voice" : "image"}.${extension}`
   }
 
   return /\.[a-z0-9]{2,5}$/i.test(base) ? base : `${base}.${extension}`
@@ -212,6 +242,7 @@ export type PublicChatAttachment = {
   size: number
   width?: number
   height?: number
+  durationSeconds?: number
   source: "contact" | "operator"
   createdAt: number
 }
@@ -244,6 +275,7 @@ export const toPublicAttachment = (
   size: attachment.size,
   width: attachment.width,
   height: attachment.height,
+  durationSeconds: attachment.durationSeconds,
   source: attachment.source,
   createdAt: attachment.createdAt,
 })
