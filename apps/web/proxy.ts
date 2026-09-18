@@ -11,12 +11,14 @@ import {
 
 const isMarketingRoute = createRouteMatcher([
   "/",
+  "/docs(.*)",
   "/privacy(.*)",
   "/terms(.*)",
 ])
 
 const isPublicRoute = createRouteMatcher([
   "/",
+  "/docs(.*)",
   "/privacy(.*)",
   "/terms(.*)",
   "/sign-in(.*)",
@@ -55,6 +57,7 @@ const isAppRoute = createRouteMatcher([
   "/create-organization(.*)",
   "/customer-memory(.*)",
   "/customization(.*)",
+  "/developers(.*)",
   "/files(.*)",
   "/integrations(.*)",
   "/leads(.*)",

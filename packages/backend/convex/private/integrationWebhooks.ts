@@ -1,6 +1,7 @@
 import { requireOrganizationIdentity } from "../lib/organizationIdentity"
 import { ConvexError, v } from "convex/values";
-import { mutation, query } from "../_generated/server";
+import { mutation, query, type MutationCtx } from "../_generated/server";
+import type { Id } from "../_generated/dataModel";
 import { OutboundUrlError, assertSafeOutboundUrl } from "../lib/outboundUrl";
 
 const webhookEventTypeValidator = v.union(
@@ -26,14 +27,39 @@ const webhookProviderConfigValidator = v.object({
     whatsappRecipientPhone: v.optional(v.string()),
 });
 
-type WebhookProvider = "webhook" | "discord" | "telegram" | "whatsapp";
+export type WebhookProvider = "webhook" | "discord" | "telegram" | "whatsapp";
 
-type WebhookProviderConfig = {
+export type WebhookProviderConfig = {
     telegramBotToken?: string;
     telegramChatId?: string;
     whatsappAccessToken?: string;
     whatsappPhoneNumberId?: string;
     whatsappRecipientPhone?: string;
+};
+
+type WebhookEventType =
+    | "contact_session.created"
+    | "conversation.created"
+    | "conversation.status_changed"
+    | "message.received"
+    | "message.sent";
+
+export type WebhookCreateArgs = {
+    url?: string;
+    description?: string;
+    provider?: WebhookProvider;
+    providerConfig?: WebhookProviderConfig;
+    eventTypes: WebhookEventType[];
+};
+
+export type WebhookUpdateArgs = {
+    webhookId: Id<"integrationWebhooks">;
+    url?: string;
+    description?: string;
+    provider?: WebhookProvider;
+    providerConfig?: WebhookProviderConfig;
+    isEnabled?: boolean;
+    eventTypes?: WebhookEventType[];
 };
 
 const DELIVERY_HISTORY_DELETE_BATCH_SIZE = 200;
@@ -60,7 +86,7 @@ const inferProviderFromUrl = (url?: string): WebhookProvider => {
     return "webhook";
 };
 
-const getEffectiveProvider = (provider?: string, url?: string): WebhookProvider => {
+export const getEffectiveProvider = (provider?: string, url?: string): WebhookProvider => {
     // Legacy Slack destinations now behave like plain webhooks.
     if (provider === "slack") {
         return "webhook";
@@ -228,7 +254,7 @@ const getAuthContext = async (
     };
 };
 
-const getOwnedWebhook = async (ctx: any, webhookId: any, organizationId: string) => {
+export const getOwnedWebhook = async (ctx: any, webhookId: any, organizationId: string) => {
     const webhook = await ctx.db.get(webhookId);
 
     if (!webhook) {
@@ -299,6 +325,49 @@ export const getDashboard = query({
     },
 });
 
+export const createWebhookForOrganization = async (
+    ctx: MutationCtx,
+    organizationId: string,
+    actorId: string | undefined,
+    args: WebhookCreateArgs,
+) => {
+    if (args.eventTypes.length === 0) {
+        throw new ConvexError({
+            code: "BAD_REQUEST",
+            message: "At least one event type must be selected",
+        });
+    }
+
+    const now = Date.now();
+    const provider = (args.provider ?? "webhook") as WebhookProvider;
+    const providerConfig = normalizeProviderConfig(args.providerConfig);
+    ensureProviderConfigRequirements(provider, providerConfig);
+    const normalizedUrl = resolveTargetUrl({
+        provider,
+        url: args.url,
+        providerConfig,
+    });
+    const signingSecret = createSigningSecret();
+
+    const webhookId = await ctx.db.insert("integrationWebhooks", {
+        organizationId,
+        url: normalizedUrl,
+        description: args.description?.trim() ? args.description.trim() : undefined,
+        provider,
+        providerConfig,
+        signingSecret,
+        isEnabled: true,
+        eventTypes: args.eventTypes,
+        createdBy: actorId,
+        updatedAt: now,
+    });
+
+    return {
+        webhookId,
+        signingSecret,
+    };
+};
+
 export const createWebhook = mutation({
     args: {
         url: v.optional(v.string()),
@@ -310,43 +379,92 @@ export const createWebhook = mutation({
     handler: async (ctx, args) => {
         const { organizationId, actorId } = await getAuthContext(ctx);
 
-        if (args.eventTypes.length === 0) {
-            throw new ConvexError({
-                code: "BAD_REQUEST",
-                message: "At least one event type must be selected",
-            });
-        }
-
-        const now = Date.now();
-        const provider = (args.provider ?? "webhook") as WebhookProvider;
-        const providerConfig = normalizeProviderConfig(args.providerConfig);
-        ensureProviderConfigRequirements(provider, providerConfig);
-        const normalizedUrl = resolveTargetUrl({
-            provider,
-            url: args.url,
-            providerConfig,
-        });
-        const signingSecret = createSigningSecret();
-
-        const webhookId = await ctx.db.insert("integrationWebhooks", {
-            organizationId,
-            url: normalizedUrl,
-            description: args.description?.trim() ? args.description.trim() : undefined,
-            provider,
-            providerConfig,
-            signingSecret,
-            isEnabled: true,
-            eventTypes: args.eventTypes,
-            createdBy: actorId,
-            updatedAt: now,
-        });
-
-        return {
-            webhookId,
-            signingSecret,
-        };
+        return await createWebhookForOrganization(ctx, organizationId, actorId, args);
     },
 });
+
+export const updateWebhookForOrganization = async (
+    ctx: MutationCtx,
+    organizationId: string,
+    args: WebhookUpdateArgs,
+) => {
+    const webhook = await getOwnedWebhook(ctx, args.webhookId, organizationId);
+
+    if (args.eventTypes && args.eventTypes.length === 0) {
+        throw new ConvexError({
+            code: "BAD_REQUEST",
+            message: "At least one event type must be selected",
+        });
+    }
+
+    const patch: {
+        url?: string;
+        description?: string;
+        provider?: WebhookProvider;
+        providerConfig?: WebhookProviderConfig;
+        isEnabled?: boolean;
+        eventTypes?: Array<
+            "contact_session.created" |
+            "conversation.created" |
+            "conversation.status_changed" |
+            "message.received" |
+            "message.sent"
+        >;
+        updatedAt: number;
+    } = {
+        updatedAt: Date.now(),
+    };
+
+    const existingProvider = getEffectiveProvider(webhook.provider, webhook.url);
+    const nextProvider = (args.provider ?? existingProvider) as WebhookProvider;
+    const existingProviderConfig =
+        (webhook.providerConfig as WebhookProviderConfig | undefined) ?? undefined;
+    const incomingProviderConfig = normalizeProviderConfig(args.providerConfig);
+    const nextProviderConfig =
+        args.providerConfig === undefined
+            ? existingProviderConfig
+            : {
+                  ...existingProviderConfig,
+                  ...incomingProviderConfig,
+              };
+    const shouldUpdateTarget =
+        args.url !== undefined ||
+        args.provider !== undefined ||
+        args.providerConfig !== undefined;
+
+    ensureProviderConfigRequirements(nextProvider, nextProviderConfig);
+
+    if (shouldUpdateTarget) {
+        patch.url = resolveTargetUrl({
+            provider: nextProvider,
+            url: args.url,
+            providerConfig: nextProviderConfig,
+            existingUrl: webhook.url,
+        });
+    }
+
+    if (args.description !== undefined) {
+        patch.description = normalizeOptionalString(args.description);
+    }
+
+    if (args.provider !== undefined) {
+        patch.provider = nextProvider;
+    }
+
+    if (args.providerConfig !== undefined) {
+        patch.providerConfig = nextProviderConfig;
+    }
+
+    if (args.isEnabled !== undefined) {
+        patch.isEnabled = args.isEnabled;
+    }
+
+    if (args.eventTypes !== undefined) {
+        patch.eventTypes = args.eventTypes;
+    }
+
+    await ctx.db.patch(args.webhookId, patch);
+};
 
 export const updateWebhook = mutation({
     args: {
@@ -361,84 +479,28 @@ export const updateWebhook = mutation({
     handler: async (ctx, args) => {
         const { organizationId } = await getAuthContext(ctx);
 
-        const webhook = await getOwnedWebhook(ctx, args.webhookId, organizationId);
-
-        if (args.eventTypes && args.eventTypes.length === 0) {
-            throw new ConvexError({
-                code: "BAD_REQUEST",
-                message: "At least one event type must be selected",
-            });
-        }
-
-        const patch: {
-            url?: string;
-            description?: string;
-            provider?: WebhookProvider;
-            providerConfig?: WebhookProviderConfig;
-            isEnabled?: boolean;
-            eventTypes?: Array<
-                "contact_session.created" |
-                "conversation.created" |
-                "conversation.status_changed" |
-                "message.received" |
-                "message.sent"
-            >;
-            updatedAt: number;
-        } = {
-            updatedAt: Date.now(),
-        };
-
-        const existingProvider = getEffectiveProvider(webhook.provider, webhook.url);
-        const nextProvider = (args.provider ?? existingProvider) as WebhookProvider;
-        const existingProviderConfig =
-            (webhook.providerConfig as WebhookProviderConfig | undefined) ?? undefined;
-        const incomingProviderConfig = normalizeProviderConfig(args.providerConfig);
-        const nextProviderConfig =
-            args.providerConfig === undefined
-                ? existingProviderConfig
-                : {
-                      ...existingProviderConfig,
-                      ...incomingProviderConfig,
-                  };
-        const shouldUpdateTarget =
-            args.url !== undefined ||
-            args.provider !== undefined ||
-            args.providerConfig !== undefined;
-
-        ensureProviderConfigRequirements(nextProvider, nextProviderConfig);
-
-        if (shouldUpdateTarget) {
-            patch.url = resolveTargetUrl({
-                provider: nextProvider,
-                url: args.url,
-                providerConfig: nextProviderConfig,
-                existingUrl: webhook.url,
-            });
-        }
-
-        if (args.description !== undefined) {
-            patch.description = normalizeOptionalString(args.description);
-        }
-
-        if (args.provider !== undefined) {
-            patch.provider = nextProvider;
-        }
-
-        if (args.providerConfig !== undefined) {
-            patch.providerConfig = nextProviderConfig;
-        }
-
-        if (args.isEnabled !== undefined) {
-            patch.isEnabled = args.isEnabled;
-        }
-
-        if (args.eventTypes !== undefined) {
-            patch.eventTypes = args.eventTypes;
-        }
-
-        await ctx.db.patch(args.webhookId, patch);
+        return await updateWebhookForOrganization(ctx, organizationId, args);
     },
 });
+
+export const rotateSigningSecretForOrganization = async (
+    ctx: MutationCtx,
+    organizationId: string,
+    args: { webhookId: Id<"integrationWebhooks"> },
+) => {
+    await getOwnedWebhook(ctx, args.webhookId, organizationId);
+
+    const signingSecret = createSigningSecret();
+
+    await ctx.db.patch(args.webhookId, {
+        signingSecret,
+        updatedAt: Date.now(),
+    });
+
+    return {
+        signingSecret,
+    };
+};
 
 export const rotateSigningSecret = mutation({
     args: {
@@ -447,18 +509,7 @@ export const rotateSigningSecret = mutation({
     handler: async (ctx, args) => {
         const { organizationId } = await getAuthContext(ctx);
 
-        await getOwnedWebhook(ctx, args.webhookId, organizationId);
-
-        const signingSecret = createSigningSecret();
-
-        await ctx.db.patch(args.webhookId, {
-            signingSecret,
-            updatedAt: Date.now(),
-        });
-
-        return {
-            signingSecret,
-        };
+        return await rotateSigningSecretForOrganization(ctx, organizationId, args);
     },
 });
 
@@ -503,6 +554,16 @@ export const clearDeliveryHistory = mutation({
     },
 });
 
+export const removeWebhookForOrganization = async (
+    ctx: MutationCtx,
+    organizationId: string,
+    args: { webhookId: Id<"integrationWebhooks"> },
+) => {
+    await getOwnedWebhook(ctx, args.webhookId, organizationId);
+
+    await ctx.db.delete(args.webhookId);
+};
+
 export const removeWebhook = mutation({
     args: {
         webhookId: v.id("integrationWebhooks"),
@@ -510,8 +571,6 @@ export const removeWebhook = mutation({
     handler: async (ctx, args) => {
         const { organizationId } = await getAuthContext(ctx);
 
-        await getOwnedWebhook(ctx, args.webhookId, organizationId);
-
-        await ctx.db.delete(args.webhookId);
+        return await removeWebhookForOrganization(ctx, organizationId, args);
     },
 });

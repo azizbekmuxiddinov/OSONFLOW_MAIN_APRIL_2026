@@ -7,9 +7,9 @@ import type { Id } from "../_generated/dataModel"
 import { enforceRateLimit } from "../lib/rateLimits"
 import { ANONYMOUS_EMAIL_DOMAIN } from "../lib/contactSessionIdentity"
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
-const NAME_MAX_LENGTH = 40
-const EMAIL_MAX_LENGTH = 50
+export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
+export const NAME_MAX_LENGTH = 40
+export const EMAIL_MAX_LENGTH = 50
 const DNS_QUERY_URL = "https://cloudflare-dns.com/dns-query"
 const DNS_TYPE_A = 1
 const DNS_TYPE_AAAA = 28
@@ -56,7 +56,7 @@ const contactSessionMetadataValidator = v.optional(
   })
 )
 
-const normalizeContactDetails = ({
+export const normalizeContactDetails = ({
   email,
   name,
 }: {

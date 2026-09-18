@@ -1,6 +1,7 @@
 import { getOrganizationIdFromIdentity } from "../lib/organizationIdentity"
 import { ConvexError, v } from "convex/values"
-import { mutation, query, action } from "../_generated/server"
+import { mutation, query, action, type MutationCtx } from "../_generated/server"
+import type { Id } from "../_generated/dataModel"
 import { components, internal } from "../_generated/api"
 import { supportAgent } from "../system/ai/agents/supportAgent"
 import { paginationOptsValidator } from "convex/server"
@@ -70,6 +71,165 @@ export const enhanceResponse = action({
   },
 })
 
+/**
+ * Sends a message from a person on the team: the inbox, or the developer API
+ * replying on someone's behalf. Hands the conversation to people, delivers the
+ * reply on whichever channel the customer wrote from, and tells webhooks.
+ */
+export const sendOperatorMessageForOrganization = async (
+  ctx: MutationCtx,
+  {
+    organizationId,
+    conversationId,
+    prompt,
+    attachmentIds = [],
+    operator,
+  }: {
+    organizationId: string
+    conversationId: Id<"conversations">
+    prompt: string
+    attachmentIds?: Id<"chatAttachments">[]
+    operator: {
+      id: string
+      /** Shown as the assignee in the inbox. */
+      name: string
+      /** Stored on the message itself; the inbox has always used the family name. */
+      agentName?: string
+    }
+  }
+) => {
+  const conversation = await ctx.db.get(conversationId)
+
+  if (!conversation) {
+    throw new ConvexError({
+      code: "NOT_FOUND",
+      message: "Conversation not found",
+    })
+  }
+
+  if (conversation.organizationId !== organizationId) {
+    throw new ConvexError({
+      code: "UNAUTHORIZED",
+      message: "Invalid Organization ID",
+    })
+  }
+
+  if (conversation.status === "resolved") {
+    throw new ConvexError({
+      code: "BAD_REQUEST",
+      message: "Conversation resolved",
+    })
+  }
+
+  if (!prompt.trim() && attachmentIds.length === 0) {
+    throw new ConvexError({
+      code: "BAD_REQUEST",
+      message: "Message is required",
+    })
+  }
+
+  if (attachmentIds.length > OPERATOR_IMAGE_UPLOAD_POLICY.maxPerMessage) {
+    throw new ConvexError({
+      code: "BAD_REQUEST",
+      message: `You can attach up to ${OPERATOR_IMAGE_UPLOAD_POLICY.maxPerMessage} images per message.`,
+    })
+  }
+
+  const now = Date.now()
+
+  const savedMessage = await saveMessage(ctx, components.agent, {
+    threadId: conversation.threadId,
+    agentName: operator.agentName,
+    message: {
+      role: "assistant",
+      content: prompt,
+    },
+  })
+
+  if (attachmentIds.length > 0) {
+    // Binding is what makes the uploads visible in the transcript, and it
+    // re-checks that every id was uploaded by this operator for this
+    // conversation and has not already been sent.
+    await ctx.runMutation(internal.system.chatAttachments.bindToMessage, {
+      conversationId,
+      attachmentIds,
+      messageId: savedMessage.messageId,
+      source: "operator",
+      operatorId: operator.id,
+    })
+  }
+
+  await ctx.db.patch(conversationId, {
+    status:
+      conversation.status === "unresolved" ? "escalated" : conversation.status,
+    assignedToId: conversation.assignedToId ?? operator.id,
+    assignedToName: conversation.assignedToName ?? operator.name,
+    assignedAt: conversation.assignedAt ?? now,
+    escalatedAt:
+      conversation.status === "unresolved"
+        ? (conversation.escalatedAt ?? now)
+        : conversation.escalatedAt,
+    operatorLastReadAt: now,
+    firstHumanResponseAt: conversation.firstHumanResponseAt ?? now,
+    lastOperatorMessageAt: now,
+    unreadForContactCount: (conversation.unreadForContactCount ?? 0) + 1,
+    unreadForOperatorCount: 0,
+  })
+
+  await ctx.runMutation(
+    (internal as any).system.integrationWebhooks.dispatchEvent,
+    {
+      organizationId,
+      eventType: "message.sent",
+      payload: {
+        conversationId,
+        threadId: conversation.threadId,
+        prompt,
+        operator: operator.agentName,
+        attachmentCount: attachmentIds.length,
+      },
+    }
+  )
+
+  await ctx.scheduler.runAfter(
+    0,
+    (internal as any).system.telegram.sendConversationMessage,
+    {
+      conversationId,
+      text: prompt,
+      ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
+    }
+  )
+
+  await ctx.scheduler.runAfter(
+    0,
+    (internal as any).system.instagram.sendConversationMessage,
+    {
+      conversationId,
+      text: prompt,
+    }
+  )
+
+  await ctx.scheduler.runAfter(
+    0,
+    (internal as any).system.whatsapp.sendConversationMessage,
+    {
+      conversationId,
+      text: prompt,
+    }
+  )
+
+  await ctx.scheduler.runAfter(
+    0,
+    (internal as any).system.intelligence.analyzeChatConversation,
+    {
+      conversationId,
+    }
+  )
+
+  return { messageId: savedMessage.messageId }
+}
+
 export const create = mutation({
   args: {
     prompt: v.string(),
@@ -95,141 +255,18 @@ export const create = mutation({
       })
     }
 
-    const conversation = await ctx.db.get(args.conversationId)
-
-    if (!conversation) {
-      throw new ConvexError({
-        code: "NOT_FOUND",
-        message: "Conversation not found",
-      })
-    }
-
-    if (conversation.organizationId !== orgId) {
-      throw new ConvexError({
-        code: "UNAUTHORIZED",
-        message: "Invalid Organization ID",
-      })
-    }
-
-    if (conversation.status === "resolved") {
-      throw new ConvexError({
-        code: "BAD_REQUEST",
-        message: "Conversation resolved",
-      })
-    }
-
-    const attachmentIds = args.attachmentIds ?? []
-
-    if (!args.prompt.trim() && attachmentIds.length === 0) {
-      throw new ConvexError({
-        code: "BAD_REQUEST",
-        message: "Message is required",
-      })
-    }
-
-    if (attachmentIds.length > OPERATOR_IMAGE_UPLOAD_POLICY.maxPerMessage) {
-      throw new ConvexError({
-        code: "BAD_REQUEST",
-        message: `You can attach up to ${OPERATOR_IMAGE_UPLOAD_POLICY.maxPerMessage} images per message.`,
-      })
-    }
-
-    const now = Date.now()
-
-    const savedMessage = await saveMessage(ctx, components.agent, {
-      threadId: conversation.threadId,
-      agentName: identity.familyName,
-      message: {
-        role: "assistant",
-        content: args.prompt,
+    await sendOperatorMessageForOrganization(ctx, {
+      organizationId: orgId,
+      conversationId: args.conversationId,
+      prompt: args.prompt,
+      attachmentIds: args.attachmentIds,
+      operator: {
+        id: identity.subject,
+        name:
+          identity.name?.trim() ?? `Operator ${identity.subject.slice(0, 8)}`,
+        agentName: identity.familyName,
       },
     })
-
-    if (attachmentIds.length > 0) {
-      // Binding is what makes the uploads visible in the transcript, and it
-      // re-checks that every id was uploaded by this operator for this
-      // conversation and has not already been sent.
-      await ctx.runMutation(internal.system.chatAttachments.bindToMessage, {
-        conversationId: args.conversationId,
-        attachmentIds,
-        messageId: savedMessage.messageId,
-        source: "operator",
-        operatorId: identity.subject,
-      })
-    }
-
-    await ctx.db.patch(args.conversationId, {
-      status:
-        conversation.status === "unresolved"
-          ? "escalated"
-          : conversation.status,
-      assignedToId: conversation.assignedToId ?? identity.subject,
-      assignedToName:
-        conversation.assignedToName ??
-        identity.name?.trim() ??
-        `Operator ${identity.subject.slice(0, 8)}`,
-      assignedAt: conversation.assignedAt ?? now,
-      escalatedAt:
-        conversation.status === "unresolved"
-          ? (conversation.escalatedAt ?? now)
-          : conversation.escalatedAt,
-      operatorLastReadAt: now,
-      firstHumanResponseAt: conversation.firstHumanResponseAt ?? now,
-      lastOperatorMessageAt: now,
-      unreadForContactCount: (conversation.unreadForContactCount ?? 0) + 1,
-      unreadForOperatorCount: 0,
-    })
-
-    await ctx.runMutation(
-      (internal as any).system.integrationWebhooks.dispatchEvent,
-      {
-        organizationId: orgId,
-        eventType: "message.sent",
-        payload: {
-          conversationId: args.conversationId,
-          threadId: conversation.threadId,
-          prompt: args.prompt,
-          operator: identity.familyName,
-          attachmentCount: attachmentIds.length,
-        },
-      }
-    )
-
-    await ctx.scheduler.runAfter(
-      0,
-      (internal as any).system.telegram.sendConversationMessage,
-      {
-        conversationId: args.conversationId,
-        text: args.prompt,
-        ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
-      }
-    )
-
-    await ctx.scheduler.runAfter(
-      0,
-      (internal as any).system.instagram.sendConversationMessage,
-      {
-        conversationId: args.conversationId,
-        text: args.prompt,
-      }
-    )
-
-    await ctx.scheduler.runAfter(
-      0,
-      (internal as any).system.whatsapp.sendConversationMessage,
-      {
-        conversationId: args.conversationId,
-        text: args.prompt,
-      }
-    )
-
-    await ctx.scheduler.runAfter(
-      0,
-      (internal as any).system.intelligence.analyzeChatConversation,
-      {
-        conversationId: args.conversationId,
-      }
-    )
   },
 })
 

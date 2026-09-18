@@ -15,6 +15,7 @@ import {
   type MetaSignatureResult,
 } from "./lib/metaWebhook"
 import { timingSafeEqual } from "./lib/chatAttachments"
+import { developerApiHttpHandler } from "./lib/developerApi/server"
 
 const http = httpRouter()
 
@@ -697,6 +698,17 @@ function parseByteRange(
   }
 
   return { start, end }
+}
+
+// The developer API. One handler serves every method so that routing, auth,
+// limits and error shapes stay identical across endpoints; OPTIONS answers
+// browser preflights for keys that allow a website.
+for (const method of ["GET", "POST", "PATCH", "DELETE", "OPTIONS"] as const) {
+  http.route({
+    pathPrefix: "/v1/",
+    method,
+    handler: developerApiHttpHandler,
+  })
 }
 
 async function validateRequest(req: Request): Promise<WebhookEvent | null> {

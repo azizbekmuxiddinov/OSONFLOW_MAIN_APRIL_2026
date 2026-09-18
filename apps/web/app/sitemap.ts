@@ -10,6 +10,7 @@ import { marketingPath } from "@/lib/urls"
 // and no alternates to declare.
 const ROUTES = [
   { path: "/", changeFrequency: "weekly", priority: 1 },
+  { path: "/docs/api", changeFrequency: "monthly", priority: 0.6 },
   { path: "/privacy", changeFrequency: "yearly", priority: 0.3 },
   { path: "/terms", changeFrequency: "yearly", priority: 0.3 },
 ] as const satisfies ReadonlyArray<{

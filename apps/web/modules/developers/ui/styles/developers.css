@@ -1,0 +1,247 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Developer API — keys, usage, limits and the call log.
+
+   Builds on report.css and setup.css. Keys are ruled rows, not cards; the
+   usage chart is the leads page's column chart so the two read as one family;
+   status dots reuse the setup encoding (green live, empty ring off, red
+   error) and always carry a label.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+/* ── usage chart ───────────────────────────────────────────────────────── */
+
+.devapi-chart {
+  position: relative;
+  border-radius: 10px;
+  outline: none;
+}
+
+.devapi-chart:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 40%, transparent);
+}
+
+.devapi-bars {
+  display: grid;
+  grid-template-columns: repeat(30, minmax(0, 1fr));
+  align-items: end;
+  gap: 3px;
+  height: 8.5rem;
+  border-bottom: 1px solid var(--report-rule);
+}
+
+.devapi-bar-slot {
+  display: flex;
+  height: 100%;
+  align-items: flex-end;
+  justify-content: center;
+  cursor: default;
+}
+
+.devapi-bar {
+  width: 100%;
+  max-width: 24px;
+  min-height: 2px;
+  border-radius: 4px 4px 0 0;
+  background: color-mix(in srgb, var(--primary) 45%, transparent);
+  transform-origin: bottom center;
+  animation: devapi-bar-in 620ms var(--motion-smooth) backwards;
+  animation-delay: calc(var(--i) * 14ms);
+  transition: background-color 160ms var(--motion-snappy);
+}
+
+.devapi-bar[data-empty] {
+  background: var(--report-track);
+}
+
+.devapi-bar[data-today] {
+  background: var(--primary);
+}
+
+.devapi-chart[data-active] .devapi-bar {
+  background: color-mix(in srgb, var(--primary) 22%, transparent);
+}
+
+.devapi-chart[data-active] .devapi-bar[data-empty] {
+  background: var(--report-track);
+}
+
+.devapi-chart[data-active] .devapi-bar-slot[data-active] .devapi-bar {
+  background: var(--primary);
+}
+
+@keyframes devapi-bar-in {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+/* ── keys ──────────────────────────────────────────────────────────────── */
+
+.devapi-key {
+  border-bottom: 1px solid var(--report-rule);
+  transition: background-color 160ms var(--motion-snappy);
+}
+
+.devapi-key:first-child {
+  border-top: 1px solid var(--report-rule);
+}
+
+.devapi-key:hover,
+.devapi-key:focus-within {
+  background: color-mix(in srgb, var(--foreground) 3%, transparent);
+}
+
+.devapi-key[data-status="revoked"],
+.devapi-key[data-status="expired"] {
+  color: var(--muted-foreground);
+}
+
+.devapi-mono {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.8rem;
+  letter-spacing: -0.01em;
+}
+
+.devapi-scope {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.1rem 0.55rem;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  box-shadow: inset 0 0 0 1px var(--report-rule);
+}
+
+/* The one-time key reveal: the dark code surface, because it is a secret. */
+.devapi-secret {
+  border-radius: calc(var(--radius) - 4px);
+  background: #0c0e17;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.06),
+    0 18px 40px -22px rgb(10 12 30 / 0.7);
+}
+
+.devapi-secret code {
+  display: block;
+  overflow-x: auto;
+  padding: 1rem 1.1rem;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.82rem;
+  line-height: 1.6;
+  white-space: nowrap;
+  color: #e8eaf6;
+}
+
+/* ── scope picker ──────────────────────────────────────────────────────── */
+
+.devapi-scope-grid {
+  display: grid;
+  gap: 0.25rem 1.25rem;
+}
+
+@media (min-width: 640px) {
+  .devapi-scope-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.devapi-scope-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  border-radius: calc(var(--radius) - 8px);
+  padding: 0.45rem 0.4rem;
+  transition: background-color 160ms var(--motion-snappy);
+}
+
+.devapi-scope-option:hover {
+  background: color-mix(in srgb, var(--foreground) 4%, transparent);
+}
+
+/* ── limits ────────────────────────────────────────────────────────────── */
+
+.devapi-limit {
+  display: grid;
+  gap: 0.35rem 1.5rem;
+  border-bottom: 1px solid var(--report-rule);
+  padding-block: 1rem;
+}
+
+.devapi-limit:first-child {
+  border-top: 1px solid var(--report-rule);
+}
+
+@media (min-width: 768px) {
+  .devapi-limit {
+    grid-template-columns: minmax(0, 1fr) 13rem;
+    align-items: center;
+  }
+}
+
+.devapi-limit[data-changed] .devapi-limit-input {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 35%, transparent);
+}
+
+/* ── call log ──────────────────────────────────────────────────────────── */
+
+.devapi-call {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr) 3.25rem;
+  align-items: center;
+  gap: 0.75rem;
+  border-bottom: 1px solid var(--report-rule);
+  padding: 0.6rem 0.25rem;
+  font-size: 0.8rem;
+}
+
+@media (min-width: 768px) {
+  .devapi-call {
+    grid-template-columns: 6.5rem minmax(0, 1fr) 4rem 4.5rem 9rem;
+  }
+}
+
+.devapi-method {
+  display: inline-flex;
+  min-width: 3.5rem;
+  justify-content: center;
+  border-radius: 6px;
+  padding: 0.05rem 0.4rem;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 7%, transparent);
+}
+
+.devapi-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+/* Colour marks the outcome; the code beside it says which one. */
+.devapi-status::before {
+  content: "";
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+}
+
+.devapi-status[data-tone="ok"]::before {
+  background: var(--outcome-resolved);
+}
+
+.devapi-status[data-tone="client"]::before {
+  box-shadow: inset 0 0 0 2px var(--outcome-open);
+}
+
+.devapi-status[data-tone="server"]::before {
+  background: var(--setup-error);
+}

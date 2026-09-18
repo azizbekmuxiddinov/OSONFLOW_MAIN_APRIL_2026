@@ -92,9 +92,14 @@ function isInsideMotionWord(node: Node) {
   )
 }
 
+/** Code samples and identifiers opt out with the standard `translate="no"`. */
+function isTranslationOptedOut(node: Node) {
+  return node.parentElement?.closest('[translate="no"]') != null
+}
+
 function translateTextNode(node: Text, language: Language) {
   // Word-split headlines are handled as whole hosts — skip fragment nodes.
-  if (isInsideMotionWord(node)) {
+  if (isInsideMotionWord(node) || isTranslationOptedOut(node)) {
     return
   }
 
@@ -155,6 +160,12 @@ function translateSubtreeText(root: ParentNode, language: Language) {
 
   while (current) {
     const node = current as Text
+
+    if (isTranslationOptedOut(node)) {
+      current = walker.nextNode()
+      continue
+    }
+
     const currentValue = node.nodeValue ?? ""
     const storedOriginal = textNodeOriginals.get(node)
     const currentLooksTranslatable =

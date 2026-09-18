@@ -26,7 +26,10 @@ const getOrganizationId = async (ctx: QueryCtx) => {
   return organizationId
 }
 
-const hasActiveSubscription = async (ctx: QueryCtx, organizationId: string) => {
+export const hasActiveSubscription = async (
+  ctx: QueryCtx,
+  organizationId: string
+) => {
   const subscription = await ctx.db
     .query("subscriptions")
     .withIndex("by_organization_id", (q) =>

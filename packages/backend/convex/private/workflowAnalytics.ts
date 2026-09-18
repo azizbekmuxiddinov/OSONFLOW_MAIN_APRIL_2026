@@ -88,6 +88,113 @@ const loadSessions = async (
  * what keeps a component's steps — they run inside the caller's session — from
  * showing up as phantom heat on the wrong canvas.
  */
+export const getWorkflowNodeStatsForOrganization = async (
+  ctx: QueryCtx,
+  orgId: string,
+  args: { workflowId: Id<"workflows">; windowDays?: number }
+) => {
+  const workflow = await assertWorkflowAccess(ctx, args.workflowId, orgId)
+  const { days, cutoff } = getWindowCutoff(args.windowDays)
+  const now = Date.now()
+
+  const sessions = await loadSessions(ctx, args.workflowId, cutoff)
+
+  // Matched against the draft, not the published snapshot: the heatmap is
+  // drawn over the canvas the builder is showing, so a step that was added
+  // since the last publish should read as cold rather than go unmentioned.
+  const definition = workflow.definition as { nodes?: Array<{ id: string }> }
+  const knownNodeIds = new Set(
+    (definition.nodes ?? []).map((node) => node.id)
+  )
+
+  const entered = new Map<string, number>()
+  const reachedBy = new Map<string, number>()
+  const stoppedHere = new Map<string, number>()
+  const errors = new Map<string, number>()
+
+  let completed = 0
+  let abandoned = 0
+  let live = 0
+
+  for (const session of sessions) {
+    const outcome = getRunOutcome(session, now)
+
+    if (outcome === "completed") {
+      completed += 1
+    } else if (outcome === "abandoned") {
+      abandoned += 1
+    } else {
+      live += 1
+    }
+
+    const visits = (session.nodeVisits ?? {}) as Record<string, number>
+
+    for (const [nodeId, count] of Object.entries(visits)) {
+      if (!knownNodeIds.has(nodeId)) {
+        continue
+      }
+
+      entered.set(nodeId, (entered.get(nodeId) ?? 0) + count)
+      reachedBy.set(nodeId, (reachedBy.get(nodeId) ?? 0) + 1)
+    }
+
+    // Only a run that actually gave up marks its last step as a drop-off; a
+    // run still in flight has not dropped anything yet.
+    if (outcome === "abandoned" && session.lastNodeId) {
+      if (knownNodeIds.has(session.lastNodeId)) {
+        stoppedHere.set(
+          session.lastNodeId,
+          (stoppedHere.get(session.lastNodeId) ?? 0) + 1
+        )
+      }
+    }
+
+    // Best effort: the trace is a ring buffer, so errors older than the last
+    // 80 events of a long run are no longer visible here.
+    for (const event of (session.executionTrace ?? []) as TraceEvent[]) {
+      if (event.level !== "error" || !event.nodeId) {
+        continue
+      }
+
+      if (knownNodeIds.has(event.nodeId)) {
+        errors.set(event.nodeId, (errors.get(event.nodeId) ?? 0) + 1)
+      }
+    }
+  }
+
+  const totalRuns = sessions.length
+  const busiest = Math.max(0, ...entered.values())
+
+  const nodes = Array.from(knownNodeIds).map((nodeId) => {
+    const runsReached = reachedBy.get(nodeId) ?? 0
+
+    return {
+      nodeId,
+      /** Total entries, counting a step a loop passes through more than once. */
+      entered: entered.get(nodeId) ?? 0,
+      /** Distinct runs that got here at least once. */
+      runsReached,
+      stoppedHere: stoppedHere.get(nodeId) ?? 0,
+      errors: errors.get(nodeId) ?? 0,
+      /** Share of runs that reached this step, 0–1. */
+      reachRate: totalRuns === 0 ? 0 : runsReached / totalRuns,
+      /** Share of the busiest step's traffic, 0–1. Drives the canvas tint. */
+      heat: busiest === 0 ? 0 : (entered.get(nodeId) ?? 0) / busiest,
+    }
+  })
+
+  return {
+    windowDays: days,
+    totalRuns,
+    completed,
+    abandoned,
+    live,
+    /** True when older runs exist beyond what one query can read. */
+    truncated: sessions.length === SESSION_SCAN_LIMIT,
+    nodes,
+  }
+}
+
 export const getNodeStats = query({
   args: {
     workflowId: v.id("workflows"),
@@ -95,106 +202,7 @@ export const getNodeStats = query({
   },
   handler: async (ctx, args) => {
     const { orgId } = await requireOrganizationIdentity(ctx)
-    const workflow = await assertWorkflowAccess(ctx, args.workflowId, orgId)
-    const { days, cutoff } = getWindowCutoff(args.windowDays)
-    const now = Date.now()
-
-    const sessions = await loadSessions(ctx, args.workflowId, cutoff)
-
-    // Matched against the draft, not the published snapshot: the heatmap is
-    // drawn over the canvas the builder is showing, so a step that was added
-    // since the last publish should read as cold rather than go unmentioned.
-    const definition = workflow.definition as { nodes?: Array<{ id: string }> }
-    const knownNodeIds = new Set(
-      (definition.nodes ?? []).map((node) => node.id)
-    )
-
-    const entered = new Map<string, number>()
-    const reachedBy = new Map<string, number>()
-    const stoppedHere = new Map<string, number>()
-    const errors = new Map<string, number>()
-
-    let completed = 0
-    let abandoned = 0
-    let live = 0
-
-    for (const session of sessions) {
-      const outcome = getRunOutcome(session, now)
-
-      if (outcome === "completed") {
-        completed += 1
-      } else if (outcome === "abandoned") {
-        abandoned += 1
-      } else {
-        live += 1
-      }
-
-      const visits = (session.nodeVisits ?? {}) as Record<string, number>
-
-      for (const [nodeId, count] of Object.entries(visits)) {
-        if (!knownNodeIds.has(nodeId)) {
-          continue
-        }
-
-        entered.set(nodeId, (entered.get(nodeId) ?? 0) + count)
-        reachedBy.set(nodeId, (reachedBy.get(nodeId) ?? 0) + 1)
-      }
-
-      // Only a run that actually gave up marks its last step as a drop-off; a
-      // run still in flight has not dropped anything yet.
-      if (outcome === "abandoned" && session.lastNodeId) {
-        if (knownNodeIds.has(session.lastNodeId)) {
-          stoppedHere.set(
-            session.lastNodeId,
-            (stoppedHere.get(session.lastNodeId) ?? 0) + 1
-          )
-        }
-      }
-
-      // Best effort: the trace is a ring buffer, so errors older than the last
-      // 80 events of a long run are no longer visible here.
-      for (const event of (session.executionTrace ?? []) as TraceEvent[]) {
-        if (event.level !== "error" || !event.nodeId) {
-          continue
-        }
-
-        if (knownNodeIds.has(event.nodeId)) {
-          errors.set(event.nodeId, (errors.get(event.nodeId) ?? 0) + 1)
-        }
-      }
-    }
-
-    const totalRuns = sessions.length
-    const busiest = Math.max(0, ...entered.values())
-
-    const nodes = Array.from(knownNodeIds).map((nodeId) => {
-      const runsReached = reachedBy.get(nodeId) ?? 0
-
-      return {
-        nodeId,
-        /** Total entries, counting a step a loop passes through more than once. */
-        entered: entered.get(nodeId) ?? 0,
-        /** Distinct runs that got here at least once. */
-        runsReached,
-        stoppedHere: stoppedHere.get(nodeId) ?? 0,
-        errors: errors.get(nodeId) ?? 0,
-        /** Share of runs that reached this step, 0–1. */
-        reachRate: totalRuns === 0 ? 0 : runsReached / totalRuns,
-        /** Share of the busiest step's traffic, 0–1. Drives the canvas tint. */
-        heat: busiest === 0 ? 0 : (entered.get(nodeId) ?? 0) / busiest,
-      }
-    })
-
-    return {
-      windowDays: days,
-      totalRuns,
-      completed,
-      abandoned,
-      live,
-      /** True when older runs exist beyond what one query can read. */
-      truncated: sessions.length === SESSION_SCAN_LIMIT,
-      nodes,
-    }
+    return await getWorkflowNodeStatsForOrganization(ctx, orgId, args)
   },
 })
 
@@ -202,6 +210,63 @@ export const getNodeStats = query({
  * Recent runs of a workflow, newest first, for the replay picker. Returns only
  * what the list renders — the trace itself is fetched per run by `getSession`.
  */
+export const listWorkflowRunsForOrganization = async (
+  ctx: QueryCtx,
+  orgId: string,
+  args: {
+    workflowId: Id<"workflows">
+    windowDays?: number
+    outcome?: RunOutcome
+    limit?: number
+  }
+) => {
+  await assertWorkflowAccess(ctx, args.workflowId, orgId)
+  const { days, cutoff } = getWindowCutoff(args.windowDays)
+  const now = Date.now()
+  const limit = Math.max(1, Math.min(args.limit ?? 50, SESSION_SCAN_LIMIT))
+
+  const sessions = await loadSessions(ctx, args.workflowId, cutoff)
+
+  const matching = sessions.filter(
+    (session) =>
+      !args.outcome || getRunOutcome(session, now) === args.outcome
+  )
+
+  const rows = await Promise.all(
+    matching.slice(0, limit).map(async (session) => {
+      const contact = await ctx.db.get(session.contactSessionId)
+      const trace = (session.executionTrace ?? []) as TraceEvent[]
+      const visits = (session.nodeVisits ?? {}) as Record<string, number>
+
+      return {
+        id: session._id,
+        conversationId: session.conversationId,
+        outcome: getRunOutcome(session, now),
+        status: session.status,
+        startedAt: session.startedAt,
+        updatedAt: session.updatedAt,
+        endedAt: session.endedAt,
+        durationMs: (session.endedAt ?? session.updatedAt) - session.startedAt,
+        lastNodeId: session.lastNodeId ?? null,
+        /** Total steps taken, which survives the trace being truncated. */
+        stepCount: Object.values(visits).reduce(
+          (total, count) => total + count,
+          0
+        ),
+        errorCount: trace.filter((event) => event.level === "error").length,
+        contactName:
+          contact && contact.organizationId === orgId ? contact.name : "Visitor",
+      }
+    })
+  )
+
+  return {
+    windowDays: days,
+    runs: rows,
+    truncated: sessions.length === SESSION_SCAN_LIMIT,
+  }
+}
+
 export const listSessions = query({
   args: {
     workflowId: v.id("workflows"),
@@ -217,51 +282,7 @@ export const listSessions = query({
   },
   handler: async (ctx, args) => {
     const { orgId } = await requireOrganizationIdentity(ctx)
-    await assertWorkflowAccess(ctx, args.workflowId, orgId)
-    const { days, cutoff } = getWindowCutoff(args.windowDays)
-    const now = Date.now()
-    const limit = Math.max(1, Math.min(args.limit ?? 50, SESSION_SCAN_LIMIT))
-
-    const sessions = await loadSessions(ctx, args.workflowId, cutoff)
-
-    const matching = sessions.filter(
-      (session) =>
-        !args.outcome || getRunOutcome(session, now) === args.outcome
-    )
-
-    const rows = await Promise.all(
-      matching.slice(0, limit).map(async (session) => {
-        const contact = await ctx.db.get(session.contactSessionId)
-        const trace = (session.executionTrace ?? []) as TraceEvent[]
-        const visits = (session.nodeVisits ?? {}) as Record<string, number>
-
-        return {
-          id: session._id,
-          conversationId: session.conversationId,
-          outcome: getRunOutcome(session, now),
-          status: session.status,
-          startedAt: session.startedAt,
-          updatedAt: session.updatedAt,
-          endedAt: session.endedAt,
-          durationMs: (session.endedAt ?? session.updatedAt) - session.startedAt,
-          lastNodeId: session.lastNodeId ?? null,
-          /** Total steps taken, which survives the trace being truncated. */
-          stepCount: Object.values(visits).reduce(
-            (total, count) => total + count,
-            0
-          ),
-          errorCount: trace.filter((event) => event.level === "error").length,
-          contactName:
-            contact && contact.organizationId === orgId ? contact.name : "Visitor",
-        }
-      })
-    )
-
-    return {
-      windowDays: days,
-      runs: rows,
-      truncated: sessions.length === SESSION_SCAN_LIMIT,
-    }
+    return await listWorkflowRunsForOrganization(ctx, orgId, args)
   },
 })
 

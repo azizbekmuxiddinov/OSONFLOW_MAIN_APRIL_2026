@@ -1,6 +1,12 @@
 import { requireOrganizationIdentity } from "../lib/organizationIdentity"
 import { ConvexError, v } from "convex/values"
-import { internalMutation, mutation, query } from "../_generated/server"
+import {
+  internalMutation,
+  mutation,
+  query,
+  type MutationCtx,
+  type QueryCtx,
+} from "../_generated/server"
 import { Id } from "../_generated/dataModel"
 import { SUPPORT_AGENT_PROMPT } from "../system/ai/constants"
 import { enforceRateLimit } from "../lib/rateLimits"
@@ -330,7 +336,7 @@ type HomeCard = {
   articleIndex?: number
 }
 
-type WidgetSettingsSnapshot = {
+export type WidgetSettingsSnapshot = {
   greetMessage: string
   systemPrompt?: string
   enabledToolIds?: Id<"assistantTools">[]
@@ -909,7 +915,7 @@ const getPublishedSnapshot = (
   )
 }
 
-const getDraftSnapshot = (
+export const getDraftSnapshot = (
   widgetSettings: any | null
 ): WidgetSettingsSnapshot => {
   const publishedSnapshot = getPublishedSnapshot(widgetSettings)
@@ -932,7 +938,7 @@ const getAuthContext = async (
   }
 }
 
-const getWidgetSettingsByOrganizationId = async (
+export const getWidgetSettingsByOrganizationId = async (
   ctx: any,
   organizationId: string,
   agentId = DEFAULT_AGENT_ID
@@ -998,7 +1004,7 @@ const getAgentLimitForOrganization = async (
   return isPro ? PRO_AGENT_LIMIT : FREE_AGENT_LIMIT
 }
 
-const normalizeAgentId = (agentId?: string) =>
+export const normalizeAgentId = (agentId?: string) =>
   agentId?.trim() || DEFAULT_AGENT_ID
 
 const createAgentId = () =>
@@ -1103,7 +1109,7 @@ const assertToolsBelongToOrganization = async (
   }
 }
 
-const saveDraftForOrganization = async (
+export const saveDraftForOrganization = async (
   ctx: any,
   organizationId: string,
   agentId: string,
@@ -1306,59 +1312,154 @@ export const getUploadedImageUrl = mutation({
   },
 })
 
+export const publishDraftForOrganization = async (
+  ctx: MutationCtx,
+  organizationId: string,
+  actorId: string | undefined,
+  args: { agentId?: string }
+) => {
+  const agentId = normalizeAgentId(args.agentId)
+  const existingWidgetSettings = await getWidgetSettingsByOrganizationId(
+    ctx,
+    organizationId,
+    agentId
+  )
+
+  if (!existingWidgetSettings) {
+    throw new ConvexError({
+      code: "NOT_FOUND",
+      message: "Create and save a draft before publishing",
+    })
+  }
+
+  await ensureBaselineVersionRecord(
+    ctx,
+    organizationId,
+    agentId,
+    existingWidgetSettings,
+    actorId
+  )
+
+  const draftSnapshot = getDraftSnapshot(existingWidgetSettings)
+  const now = Date.now()
+  const nextVersion = (existingWidgetSettings.publishedVersion ?? 1) + 1
+
+  await ctx.db.patch(existingWidgetSettings._id, {
+    ...applyPublishedSnapshotPatch(draftSnapshot),
+    draft: draftSnapshot,
+    publishedVersion: nextVersion,
+    publishedAt: now,
+    publishedBy: actorId,
+    draftUpdatedAt: now,
+    draftUpdatedBy: actorId,
+  })
+
+  await insertVersionRecord(ctx, {
+    organizationId,
+    agentId,
+    version: nextVersion,
+    settings: draftSnapshot,
+    publishedAt: now,
+    publishedBy: actorId,
+    action: "publish",
+  })
+
+  return { publishedVersion: nextVersion }
+}
+
 export const publishDraft = mutation({
   args: agentScopedArgsValidator,
   handler: async (ctx, args) => {
     const { organizationId, actorId } = await getAuthContext(ctx)
-    const agentId = normalizeAgentId(args.agentId)
-    const existingWidgetSettings = await getWidgetSettingsByOrganizationId(
-      ctx,
-      organizationId,
-      agentId
-    )
-
-    if (!existingWidgetSettings) {
-      throw new ConvexError({
-        code: "NOT_FOUND",
-        message: "Create and save a draft before publishing",
-      })
-    }
-
-    await ensureBaselineVersionRecord(
-      ctx,
-      organizationId,
-      agentId,
-      existingWidgetSettings,
-      actorId
-    )
-
-    const draftSnapshot = getDraftSnapshot(existingWidgetSettings)
-    const now = Date.now()
-    const nextVersion = (existingWidgetSettings.publishedVersion ?? 1) + 1
-
-    await ctx.db.patch(existingWidgetSettings._id, {
-      ...applyPublishedSnapshotPatch(draftSnapshot),
-      draft: draftSnapshot,
-      publishedVersion: nextVersion,
-      publishedAt: now,
-      publishedBy: actorId,
-      draftUpdatedAt: now,
-      draftUpdatedBy: actorId,
-    })
-
-    await insertVersionRecord(ctx, {
-      organizationId,
-      agentId,
-      version: nextVersion,
-      settings: draftSnapshot,
-      publishedAt: now,
-      publishedBy: actorId,
-      action: "publish",
-    })
-
-    return { publishedVersion: nextVersion }
+    return await publishDraftForOrganization(ctx, organizationId, actorId, args)
   },
 })
+
+export const rollbackToVersionForOrganization = async (
+  ctx: MutationCtx,
+  organizationId: string,
+  actorId: string | undefined,
+  args: { agentId?: string; version: number }
+) => {
+  if (!Number.isInteger(args.version) || args.version <= 0) {
+    throw new ConvexError({
+      code: "INVALID_INPUT",
+      message: "Version must be a positive integer",
+    })
+  }
+
+  const agentId = normalizeAgentId(args.agentId)
+  const existingWidgetSettings = await getWidgetSettingsByOrganizationId(
+    ctx,
+    organizationId,
+    agentId
+  )
+
+  if (!existingWidgetSettings) {
+    throw new ConvexError({
+      code: "NOT_FOUND",
+      message: "No widget settings found to rollback",
+    })
+  }
+
+  await ensureBaselineVersionRecord(
+    ctx,
+    organizationId,
+    agentId,
+    existingWidgetSettings,
+    actorId
+  )
+
+  const targetVersion = await ctx.db
+    .query("widgetSettingsVersions")
+    .withIndex("by_organization_id_and_agent_id", (q: any) =>
+      q.eq("organizationId", organizationId).eq("agentId", agentId)
+    )
+    .collect()
+    .then((versions: any[]) =>
+      versions.find((version) => version.version === args.version)
+    )
+
+  if (!targetVersion) {
+    throw new ConvexError({
+      code: "NOT_FOUND",
+      message: `Version v${args.version} does not exist`,
+    })
+  }
+
+  const rollbackSnapshot = normalizeSnapshot(
+    targetVersion.settings,
+    getPublishedSnapshot(existingWidgetSettings)
+  )
+  const now = Date.now()
+  const nextVersion = (existingWidgetSettings.publishedVersion ?? 1) + 1
+
+  await ctx.db.patch(existingWidgetSettings._id, {
+    ...applyPublishedSnapshotPatch(rollbackSnapshot),
+    draft: rollbackSnapshot,
+    publishedVersion: nextVersion,
+    publishedAt: now,
+    publishedBy: actorId,
+    draftUpdatedAt: now,
+    draftUpdatedBy: actorId,
+  })
+
+  await insertVersionRecord(ctx, {
+    organizationId,
+    agentId,
+    version: nextVersion,
+    settings: rollbackSnapshot,
+    publishedAt: now,
+    publishedBy: actorId,
+    action: "rollback",
+    sourceVersion: args.version,
+  })
+
+  return {
+    publishedVersion: nextVersion,
+    rolledBackFromVersion: args.version,
+  }
+}
 
 export const rollbackToVersion = mutation({
   args: {
@@ -1366,140 +1467,143 @@ export const rollbackToVersion = mutation({
     version: v.number(),
   },
   handler: async (ctx, args) => {
-    if (!Number.isInteger(args.version) || args.version <= 0) {
-      throw new ConvexError({
-        code: "INVALID_INPUT",
-        message: "Version must be a positive integer",
-      })
-    }
-
     const { organizationId, actorId } = await getAuthContext(ctx)
-    const agentId = normalizeAgentId(args.agentId)
-    const existingWidgetSettings = await getWidgetSettingsByOrganizationId(
+    return await rollbackToVersionForOrganization(
       ctx,
       organizationId,
-      agentId
+      actorId,
+      args
     )
-
-    if (!existingWidgetSettings) {
-      throw new ConvexError({
-        code: "NOT_FOUND",
-        message: "No widget settings found to rollback",
-      })
-    }
-
-    await ensureBaselineVersionRecord(
-      ctx,
-      organizationId,
-      agentId,
-      existingWidgetSettings,
-      actorId
-    )
-
-    const targetVersion = await ctx.db
-      .query("widgetSettingsVersions")
-      .withIndex("by_organization_id_and_agent_id", (q: any) =>
-        q.eq("organizationId", organizationId).eq("agentId", agentId)
-      )
-      .collect()
-      .then((versions: any[]) =>
-        versions.find((version) => version.version === args.version)
-      )
-
-    if (!targetVersion) {
-      throw new ConvexError({
-        code: "NOT_FOUND",
-        message: `Version v${args.version} does not exist`,
-      })
-    }
-
-    const rollbackSnapshot = normalizeSnapshot(
-      targetVersion.settings,
-      getPublishedSnapshot(existingWidgetSettings)
-    )
-    const now = Date.now()
-    const nextVersion = (existingWidgetSettings.publishedVersion ?? 1) + 1
-
-    await ctx.db.patch(existingWidgetSettings._id, {
-      ...applyPublishedSnapshotPatch(rollbackSnapshot),
-      draft: rollbackSnapshot,
-      publishedVersion: nextVersion,
-      publishedAt: now,
-      publishedBy: actorId,
-      draftUpdatedAt: now,
-      draftUpdatedBy: actorId,
-    })
-
-    await insertVersionRecord(ctx, {
-      organizationId,
-      agentId,
-      version: nextVersion,
-      settings: rollbackSnapshot,
-      publishedAt: now,
-      publishedBy: actorId,
-      action: "rollback",
-      sourceVersion: args.version,
-    })
-
-    return {
-      publishedVersion: nextVersion,
-      rolledBackFromVersion: args.version,
-    }
   },
 })
+
+export const listAgentsForOrganization = async (
+  ctx: QueryCtx | MutationCtx,
+  organizationId: string
+) => {
+  const settingsRows = await listWidgetSettingsForOrganization(
+    ctx,
+    organizationId
+  )
+  const limit = await getAgentLimitForOrganization(ctx, organizationId)
+
+  const agents = settingsRows
+    .map((settings: any) => {
+      const agentId = settings.agentId ?? DEFAULT_AGENT_ID
+      return {
+        agentId,
+        name:
+          settings.name ??
+          settings.theme?.assistantName ??
+          (agentId === DEFAULT_AGENT_ID ? "Default agent" : "New agent"),
+        isDefault: settings.isDefault ?? agentId === DEFAULT_AGENT_ID,
+        publishedVersion: settings.publishedVersion ?? 1,
+        updatedAt:
+          settings.draftUpdatedAt ??
+          settings.publishedAt ??
+          settings._creationTime,
+      }
+    })
+    .sort((a: any, b: any) => {
+      if (a.isDefault) return -1
+      if (b.isDefault) return 1
+      return b.updatedAt - a.updatedAt
+    })
+
+  const effectiveAgentCount = Math.max(agents.length, 1)
+
+  return {
+    agents: agents.length
+      ? agents
+      : [
+          {
+            agentId: DEFAULT_AGENT_ID,
+            name: "Default agent",
+            isDefault: true,
+            publishedVersion: 1,
+            updatedAt: undefined,
+          },
+        ],
+    limit,
+    canCreateAgent: effectiveAgentCount < limit,
+  }
+}
 
 export const listAgents = query({
   args: {},
   handler: async (ctx) => {
     const { organizationId } = await getAuthContext(ctx)
-    const settingsRows = await listWidgetSettingsForOrganization(
-      ctx,
-      organizationId
-    )
-    const limit = await getAgentLimitForOrganization(ctx, organizationId)
-
-    const agents = settingsRows
-      .map((settings: any) => {
-        const agentId = settings.agentId ?? DEFAULT_AGENT_ID
-        return {
-          agentId,
-          name:
-            settings.name ??
-            settings.theme?.assistantName ??
-            (agentId === DEFAULT_AGENT_ID ? "Default agent" : "New agent"),
-          isDefault: settings.isDefault ?? agentId === DEFAULT_AGENT_ID,
-          publishedVersion: settings.publishedVersion ?? 1,
-          updatedAt:
-            settings.draftUpdatedAt ??
-            settings.publishedAt ??
-            settings._creationTime,
-        }
-      })
-      .sort((a: any, b: any) => {
-        if (a.isDefault) return -1
-        if (b.isDefault) return 1
-        return b.updatedAt - a.updatedAt
-      })
-
-    const effectiveAgentCount = Math.max(agents.length, 1)
-
-    return {
-      agents: agents.length
-        ? agents
-        : [
-            {
-              agentId: DEFAULT_AGENT_ID,
-              name: "Default agent",
-              isDefault: true,
-              publishedVersion: 1,
-              updatedAt: undefined,
-            },
-          ],
-      limit,
-      canCreateAgent: effectiveAgentCount < limit,
-    }
+    return await listAgentsForOrganization(ctx, organizationId)
   },
 })
+
+export const createAgentForOrganization = async (
+  ctx: MutationCtx,
+  organizationId: string,
+  actorId: string | undefined,
+  args: { name?: string }
+) => {
+  const existingAgents = await listWidgetSettingsForOrganization(
+    ctx,
+    organizationId
+  )
+  const limit = await getAgentLimitForOrganization(ctx, organizationId)
+
+  const effectiveAgentCount = Math.max(existingAgents.length, 1)
+
+  if (effectiveAgentCount >= limit) {
+    throw new ConvexError({
+      code: "LIMIT_REACHED",
+      message:
+        limit === FREE_AGENT_LIMIT
+          ? "Upgrade to Pro to create more agents."
+          : `You can create up to ${limit} agents on this plan.`,
+    })
+  }
+
+  const agentId = createAgentId()
+  const now = Date.now()
+  const initialPublished = createDefaultWidgetSettings()
+  const name = args.name?.trim() || `Agent ${effectiveAgentCount + 1}`
+
+  await ctx.db.insert("widgetSettings", {
+    organizationId,
+    agentId,
+    name,
+    isDefault: false,
+    ...applyPublishedSnapshotPatch({
+      ...initialPublished,
+      theme: {
+        ...initialPublished.theme,
+        assistantName: name,
+      },
+    }),
+    draft: {
+      ...initialPublished,
+      theme: {
+        ...initialPublished.theme,
+        assistantName: name,
+      },
+    },
+    publishedVersion: 1,
+    publishedAt: now,
+    publishedBy: actorId,
+    draftUpdatedAt: now,
+    draftUpdatedBy: actorId,
+  })
+
+  await insertVersionRecord(ctx, {
+    organizationId,
+    agentId,
+    version: 1,
+    settings: initialPublished,
+    publishedAt: now,
+    publishedBy: actorId,
+    action: "bootstrap",
+  })
+
+  return { agentId }
+}
 
 export const createAgent = mutation({
   args: {
@@ -1507,68 +1611,40 @@ export const createAgent = mutation({
   },
   handler: async (ctx, args) => {
     const { organizationId, actorId } = await getAuthContext(ctx)
-    const existingAgents = await listWidgetSettingsForOrganization(
-      ctx,
-      organizationId
-    )
-    const limit = await getAgentLimitForOrganization(ctx, organizationId)
-
-    const effectiveAgentCount = Math.max(existingAgents.length, 1)
-
-    if (effectiveAgentCount >= limit) {
-      throw new ConvexError({
-        code: "LIMIT_REACHED",
-        message:
-          limit === FREE_AGENT_LIMIT
-            ? "Upgrade to Pro to create more agents."
-            : `You can create up to ${limit} agents on this plan.`,
-      })
-    }
-
-    const agentId = createAgentId()
-    const now = Date.now()
-    const initialPublished = createDefaultWidgetSettings()
-    const name = args.name?.trim() || `Agent ${effectiveAgentCount + 1}`
-
-    await ctx.db.insert("widgetSettings", {
-      organizationId,
-      agentId,
-      name,
-      isDefault: false,
-      ...applyPublishedSnapshotPatch({
-        ...initialPublished,
-        theme: {
-          ...initialPublished.theme,
-          assistantName: name,
-        },
-      }),
-      draft: {
-        ...initialPublished,
-        theme: {
-          ...initialPublished.theme,
-          assistantName: name,
-        },
-      },
-      publishedVersion: 1,
-      publishedAt: now,
-      publishedBy: actorId,
-      draftUpdatedAt: now,
-      draftUpdatedBy: actorId,
-    })
-
-    await insertVersionRecord(ctx, {
-      organizationId,
-      agentId,
-      version: 1,
-      settings: initialPublished,
-      publishedAt: now,
-      publishedBy: actorId,
-      action: "bootstrap",
-    })
-
-    return { agentId }
+    return await createAgentForOrganization(ctx, organizationId, actorId, args)
   },
 })
+
+export const renameAgentForOrganization = async (
+  ctx: MutationCtx,
+  organizationId: string,
+  args: { agentId?: string; name: string }
+) => {
+  const agentId = normalizeAgentId(args.agentId)
+  const name = args.name.trim()
+
+  if (!name) {
+    throw new ConvexError({
+      code: "INVALID_INPUT",
+      message: "Agent name is required.",
+    })
+  }
+
+  const widgetSettings = await getWidgetSettingsByOrganizationId(
+    ctx,
+    organizationId,
+    agentId
+  )
+
+  if (!widgetSettings) {
+    throw new ConvexError({
+      code: "NOT_FOUND",
+      message: "Agent not found.",
+    })
+  }
+
+  await ctx.db.patch(widgetSettings._id, { agentId, name })
+}
 
 export const renameAgent = mutation({
   args: {
@@ -1577,99 +1653,84 @@ export const renameAgent = mutation({
   },
   handler: async (ctx, args) => {
     const { organizationId } = await getAuthContext(ctx)
-    const agentId = normalizeAgentId(args.agentId)
-    const name = args.name.trim()
-
-    if (!name) {
-      throw new ConvexError({
-        code: "INVALID_INPUT",
-        message: "Agent name is required.",
-      })
-    }
-
-    const widgetSettings = await getWidgetSettingsByOrganizationId(
-      ctx,
-      organizationId,
-      agentId
-    )
-
-    if (!widgetSettings) {
-      throw new ConvexError({
-        code: "NOT_FOUND",
-        message: "Agent not found.",
-      })
-    }
-
-    await ctx.db.patch(widgetSettings._id, { agentId, name })
+    return await renameAgentForOrganization(ctx, organizationId, args)
   },
 })
+
+export const getCustomizationStateForOrganization = async (
+  ctx: QueryCtx | MutationCtx,
+  organizationId: string,
+  args: { agentId?: string }
+) => {
+  const agentId = normalizeAgentId(args.agentId)
+  const widgetSettings = await getWidgetSettingsByOrganizationId(
+    ctx,
+    organizationId,
+    agentId
+  )
+
+  if (!widgetSettings) {
+    const defaults = createDefaultWidgetSettings()
+
+    return {
+      published: defaults,
+      draft: defaults,
+      agentId,
+      agentName: agentId === DEFAULT_AGENT_ID ? "Default agent" : "New agent",
+      publishedVersion: 1,
+      publishedAt: undefined,
+      draftUpdatedAt: undefined,
+      isDraftDifferentFromPublished: false,
+      versions: [] as Array<{
+        version: number
+        publishedAt: number
+        publishedBy?: string
+        action: VersionAction
+        sourceVersion?: number
+      }>,
+    }
+  }
+
+  const published = getPublishedSnapshot(widgetSettings)
+  const draft = getDraftSnapshot(widgetSettings)
+
+  const versionDocs = await ctx.db
+    .query("widgetSettingsVersions")
+    .withIndex("by_organization_id_and_agent_id", (q: any) =>
+      q.eq("organizationId", organizationId).eq("agentId", agentId)
+    )
+    .collect()
+
+  const versions = versionDocs
+    .sort((a: any, b: any) => b.version - a.version)
+    .slice(0, 20)
+    .map((versionDoc: any) => ({
+      version: versionDoc.version,
+      publishedAt: versionDoc.publishedAt,
+      publishedBy: versionDoc.publishedBy,
+      action: versionDoc.action as VersionAction,
+      sourceVersion: versionDoc.sourceVersion,
+    }))
+
+  return {
+    published,
+    draft,
+    agentId,
+    agentName: widgetSettings.name ?? "Default agent",
+    publishedVersion: widgetSettings.publishedVersion ?? 1,
+    publishedAt: widgetSettings.publishedAt ?? widgetSettings._creationTime,
+    draftUpdatedAt:
+      widgetSettings.draftUpdatedAt ?? widgetSettings._creationTime,
+    isDraftDifferentFromPublished:
+      JSON.stringify(draft) !== JSON.stringify(published),
+    versions,
+  }
+}
 
 export const getCustomizationState = query({
   args: agentScopedArgsValidator,
   handler: async (ctx, args) => {
     const { organizationId } = await getAuthContext(ctx)
-    const agentId = normalizeAgentId(args.agentId)
-    const widgetSettings = await getWidgetSettingsByOrganizationId(
-      ctx,
-      organizationId,
-      agentId
-    )
-
-    if (!widgetSettings) {
-      const defaults = createDefaultWidgetSettings()
-
-      return {
-        published: defaults,
-        draft: defaults,
-        agentId,
-        agentName: agentId === DEFAULT_AGENT_ID ? "Default agent" : "New agent",
-        publishedVersion: 1,
-        publishedAt: undefined,
-        draftUpdatedAt: undefined,
-        isDraftDifferentFromPublished: false,
-        versions: [] as Array<{
-          version: number
-          publishedAt: number
-          publishedBy?: string
-          action: VersionAction
-          sourceVersion?: number
-        }>,
-      }
-    }
-
-    const published = getPublishedSnapshot(widgetSettings)
-    const draft = getDraftSnapshot(widgetSettings)
-
-    const versionDocs = await ctx.db
-      .query("widgetSettingsVersions")
-      .withIndex("by_organization_id_and_agent_id", (q: any) =>
-        q.eq("organizationId", organizationId).eq("agentId", agentId)
-      )
-      .collect()
-
-    const versions = versionDocs
-      .sort((a: any, b: any) => b.version - a.version)
-      .slice(0, 20)
-      .map((versionDoc: any) => ({
-        version: versionDoc.version,
-        publishedAt: versionDoc.publishedAt,
-        publishedBy: versionDoc.publishedBy,
-        action: versionDoc.action as VersionAction,
-        sourceVersion: versionDoc.sourceVersion,
-      }))
-
-    return {
-      published,
-      draft,
-      agentId,
-      agentName: widgetSettings.name ?? "Default agent",
-      publishedVersion: widgetSettings.publishedVersion ?? 1,
-      publishedAt: widgetSettings.publishedAt ?? widgetSettings._creationTime,
-      draftUpdatedAt:
-        widgetSettings.draftUpdatedAt ?? widgetSettings._creationTime,
-      isDraftDifferentFromPublished:
-        JSON.stringify(draft) !== JSON.stringify(published),
-      versions,
-    }
+    return await getCustomizationStateForOrganization(ctx, organizationId, args)
   },
 })

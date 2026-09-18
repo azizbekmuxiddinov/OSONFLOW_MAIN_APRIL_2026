@@ -2984,4 +2984,301 @@ export const supplementalTranslations: Record<string, TranslationValue> = {
     uz: "Bu bir lahza vaqt oladi.",
     ru: "Это займёт всего мгновение.",
   },
+  // Developer API page
+  "Developer API": {
+    uz: "Dasturchilar uchun API",
+    ru: "API для разработчиков",
+  },
+  "Connect your own software to": {
+    uz: "O'z dasturlaringizni ulang:",
+    ru: "Подключите свои программы к",
+  },
+  "Create key": {
+    uz: "Kalit yaratish",
+    ru: "Создать ключ",
+  },
+  "Create your first key": {
+    uz: "Birinchi kalitni yarating",
+    ru: "Создайте первый ключ",
+  },
+  "Read the documentation": {
+    uz: "Hujjatlarni o'qish",
+    ru: "Читать документацию",
+  },
+  "Base URL": {
+    uz: "Asosiy URL",
+    ru: "Базовый URL",
+  },
+  "API access": {
+    uz: "API ruxsati",
+    ru: "Доступ к API",
+  },
+  "On. Keys below can be used.": {
+    uz: "Yoqilgan. Quyidagi kalitlardan foydalanish mumkin.",
+    ru: "Включён. Ключи ниже можно использовать.",
+  },
+  "Calls today": {
+    uz: "Bugungi so'rovlar",
+    ru: "Запросов сегодня",
+  },
+  "AI calls today": {
+    uz: "Bugungi AI so'rovlari",
+    ru: "AI-запросов сегодня",
+  },
+  "Failed today": {
+    uz: "Bugun muvaffaqiyatsiz",
+    ru: "Ошибок сегодня",
+  },
+  "Active keys": {
+    uz: "Faol kalitlar",
+    ru: "Активные ключи",
+  },
+  "Your keys": {
+    uz: "Kalitlaringiz",
+    ru: "Ваши ключи",
+  },
+  "Usage": {
+    uz: "Foydalanish",
+    ru: "Использование",
+  },
+  "Limits": {
+    uz: "Cheklovlar",
+    ru: "Лимиты",
+  },
+  "Recent calls": {
+    uz: "So'nggi so'rovlar",
+    ru: "Последние запросы",
+  },
+  "No keys yet": {
+    uz: "Hozircha kalitlar yo'q",
+    ru: "Ключей пока нет",
+  },
+  "Save limits": {
+    uz: "Cheklovlarni saqlash",
+    ru: "Сохранить лимиты",
+  },
+  "Discard": {
+    uz: "Bekor qilish",
+    ru: "Отменить",
+  },
+  "Limits take effect on the next call.": {
+    uz: "Cheklovlar keyingi so'rovdan kuchga kiradi.",
+    ru: "Лимиты начинают действовать со следующего запроса.",
+  },
+  "Keep the call log for": {
+    uz: "So'rovlar jurnalini saqlash muddati",
+    ru: "Хранить журнал запросов",
+  },
+  "All calls": {
+    uz: "Barcha so'rovlar",
+    ru: "Все запросы",
+  },
+  "Failed only": {
+    uz: "Faqat muvaffaqiyatsizlar",
+    ru: "Только ошибки",
+  },
+  "Create an API key": {
+    uz: "API kalitini yaratish",
+    ru: "Создать API-ключ",
+  },
+  "Edit key": {
+    uz: "Kalitni tahrirlash",
+    ru: "Изменить ключ",
+  },
+  "Stops working": {
+    uz: "Amal qilish muddati",
+    ru: "Перестаёт работать",
+  },
+  "What can it do?": {
+    uz: "U nima qila oladi?",
+    ru: "Что он может делать?",
+  },
+  "Limits and restrictions for this key": {
+    uz: "Ushbu kalit uchun cheklovlar",
+    ru: "Лимиты и ограничения для этого ключа",
+  },
+  "Tighter limits": {
+    uz: "Qattiqroq cheklovlar",
+    ru: "Более строгие лимиты",
+  },
+  "Websites allowed to use it from a browser": {
+    uz: "Brauzerdan foydalanishga ruxsat berilgan saytlar",
+    ru: "Сайты, которым разрешено использовать его из браузера",
+  },
+  "Only from these IP addresses": {
+    uz: "Faqat shu IP manzillardan",
+    ru: "Только с этих IP-адресов",
+  },
+  "Save changes": {
+    uz: "O'zgarishlarni saqlash",
+    ru: "Сохранить изменения",
+  },
+  "Copy your new key": {
+    uz: "Yangi kalitni nusxalang",
+    ru: "Скопируйте новый ключ",
+  },
+  "Copy key": {
+    uz: "Kalitni nusxalash",
+    ru: "Скопировать ключ",
+  },
+  "I've stored it": {
+    uz: "Saqlab qo'ydim",
+    ru: "Я сохранил его",
+  },
+  "Roll key": {
+    uz: "Kalitni yangilash",
+    ru: "Перевыпустить ключ",
+  },
+  "Revoke": {
+    uz: "Bekor qilish",
+    ru: "Отозвать",
+  },
+  "Remove from list": {
+    uz: "Ro'yxatdan olib tashlash",
+    ru: "Убрать из списка",
+  },
+  "Roll this key?": {
+    uz: "Bu kalit yangilansinmi?",
+    ru: "Перевыпустить этот ключ?",
+  },
+  "Revoke this key?": {
+    uz: "Bu kalit bekor qilinsinmi?",
+    ru: "Отозвать этот ключ?",
+  },
+  "Never": {
+    uz: "Hech qachon",
+    ru: "Никогда",
+  },
+  "After 30 days": {
+    uz: "30 kundan keyin",
+    ru: "Через 30 дней",
+  },
+  "After 90 days": {
+    uz: "90 kundan keyin",
+    ru: "Через 90 дней",
+  },
+  "After a year": {
+    uz: "Bir yildan keyin",
+    ru: "Через год",
+  },
+  "Full access": {
+    uz: "To'liq ruxsat",
+    ru: "Полный доступ",
+  },
+  "Chat only": {
+    uz: "Faqat chat",
+    ru: "Только чат",
+  },
+  "Requests per minute": {
+    uz: "Daqiqasiga so'rovlar",
+    ru: "Запросов в минуту",
+  },
+  "Requests per day": {
+    uz: "Kuniga so'rovlar",
+    ru: "Запросов в день",
+  },
+  "Changes per minute": {
+    uz: "Daqiqasiga o'zgarishlar",
+    ru: "Изменений в минуту",
+  },
+  "AI calls per minute": {
+    uz: "Daqiqasiga AI so'rovlari",
+    ru: "AI-запросов в минуту",
+  },
+  "AI calls per day": {
+    uz: "Kuniga AI so'rovlari",
+    ru: "AI-запросов в день",
+  },
+  "Knowledge imports per hour": {
+    uz: "Soatiga bilim importlari",
+    ru: "Импортов знаний в час",
+  },
+  "Largest page": {
+    uz: "Eng katta sahifa",
+    ru: "Максимальная страница",
+  },
+  "Longest message": {
+    uz: "Eng uzun xabar",
+    ru: "Максимальная длина сообщения",
+  },
+  "Largest request": {
+    uz: "Eng katta so'rov",
+    ru: "Максимальный размер запроса",
+  },
+  "Chat with the assistant": {
+    uz: "Assistent bilan suhbat",
+    ru: "Чат с ассистентом",
+  },
+  "Read conversations": {
+    uz: "Suhbatlarni o'qish",
+    ru: "Чтение диалогов",
+  },
+  "Manage conversations": {
+    uz: "Suhbatlarni boshqarish",
+    ru: "Управление диалогами",
+  },
+  "Read contacts": {
+    uz: "Kontaktlarni o'qish",
+    ru: "Чтение контактов",
+  },
+  "Manage contacts": {
+    uz: "Kontaktlarni boshqarish",
+    ru: "Управление контактами",
+  },
+  "Read the knowledge base": {
+    uz: "Bilim bazasini o'qish",
+    ru: "Чтение базы знаний",
+  },
+  "Manage the knowledge base": {
+    uz: "Bilim bazasini boshqarish",
+    ru: "Управление базой знаний",
+  },
+  "Read assistants": {
+    uz: "Assistentlarni o'qish",
+    ru: "Чтение ассистентов",
+  },
+  "Manage assistants": {
+    uz: "Assistentlarni boshqarish",
+    ru: "Управление ассистентами",
+  },
+  "Read tools": {
+    uz: "Vositalarni o'qish",
+    ru: "Чтение инструментов",
+  },
+  "Manage tools": {
+    uz: "Vositalarni boshqarish",
+    ru: "Управление инструментами",
+  },
+  "Read saved replies": {
+    uz: "Saqlangan javoblarni o'qish",
+    ru: "Чтение сохранённых ответов",
+  },
+  "Manage saved replies": {
+    uz: "Saqlangan javoblarni boshqarish",
+    ru: "Управление сохранёнными ответами",
+  },
+  "Read workflows": {
+    uz: "Workflowlarni o'qish",
+    ru: "Чтение workflow",
+  },
+  "Manage workflows": {
+    uz: "Workflowlarni boshqarish",
+    ru: "Управление workflow",
+  },
+  "Read webhooks": {
+    uz: "Webhooklarni o'qish",
+    ru: "Чтение вебхуков",
+  },
+  "Manage webhooks": {
+    uz: "Webhooklarni boshqarish",
+    ru: "Управление вебхуками",
+  },
+  "Read analytics": {
+    uz: "Analitikani o'qish",
+    ru: "Чтение аналитики",
+  },
+  "Read voice calls": {
+    uz: "Ovozli qo'ng'iroqlarni o'qish",
+    ru: "Чтение голосовых звонков",
+  },
 }

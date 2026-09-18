@@ -53,7 +53,7 @@ const getSearchSnippet = (
   return `${prefix}${value.slice(start, end)}${suffix}`
 }
 
-const withLinkedHandoffStatus = async (
+export const withLinkedHandoffStatus = async (
   ctx: QueryCtx,
   conversation: Doc<"aiVoiceConversations">,
   orgId: string

@@ -1,11 +1,11 @@
 import { getOrganizationIdFromIdentity } from "../lib/organizationIdentity"
 import { ConvexError, v } from "convex/values";
-import { action, mutation, query, QueryCtx } from "../_generated/server";
+import { action, mutation, query, type ActionCtx, type MutationCtx, type QueryCtx } from "../_generated/server";
 import { contentHashFromArrayBuffer, Entry, EntryId, guessMimeTypeFromContents, guessMimeTypeFromExtension, vEntryId } from "@convex-dev/rag"
 import { extractTextContent } from "../lib/extractTextContent";
 import rag, { getRagForOrganization } from "../system/ai/rag";
 import { Id } from "../_generated/dataModel"
-import { paginationOptsValidator } from "convex/server";
+import { paginationOptsValidator, type PaginationOptions } from "convex/server";
 import { internal } from "../_generated/api";
 import { generateText } from "ai";
 import { getOpenAIChatModelFromSecretValue } from "../lib/openai";
@@ -29,6 +29,81 @@ function guessMimeType(filename: string, bytes: ArrayBuffer): string {
         "application/octet-stream"
     )
 }
+
+const requireKnowledgeOrganizationId = async (ctx: {
+    auth: { getUserIdentity: () => Promise<unknown> };
+}) => {
+    const identity = await ctx.auth.getUserIdentity();
+
+    if (identity === null) {
+        throw new ConvexError({
+            code: "UNAUTHORIZED",
+            message: "Identity not found",
+        });
+    }
+
+    const orgId = getOrganizationIdFromIdentity(identity) as string;
+
+    if (!orgId) {
+        throw new ConvexError({
+            code: "UNAUTHORIZED",
+            message: "Organization not found",
+        });
+    }
+
+    return orgId;
+};
+
+/**
+ * The passages that best match a question, without asking a model to answer
+ * it — the developer API's knowledge search. Costs one embedding, not a chat
+ * completion.
+ */
+export const searchKnowledgeForOrganization = async (
+    ctx: ActionCtx,
+    orgId: string,
+    args: { query: string; limit: number },
+) => {
+    const openAIPlugin: any = await ctx.runQuery(
+        (internal as any).system.plugins.getByOrganizationIdAndService,
+        {
+            organizationId: orgId,
+            service: "openai_realtime",
+        },
+    );
+    const organizationRag = await getRagForOrganization(openAIPlugin?.secretValue);
+    const namespace = await organizationRag.getNamespace(ctx, {
+        namespace: orgId,
+    });
+
+    if (!namespace) {
+        return [];
+    }
+
+    const searchResult = await organizationRag.search(ctx, {
+        namespace: orgId,
+        query: args.query,
+        limit: args.limit,
+    });
+    const entriesById = new Map(
+        searchResult.entries.map((entry: any) => [entry.entryId, entry]),
+    );
+
+    return searchResult.results.map((result: any) => {
+        const entry: any = entriesById.get(result.entryId);
+        const metadata = entry?.metadata as EntryMetadata | undefined;
+
+        return {
+            entryId: result.entryId as string,
+            title: entry?.title || metadata?.filename || entry?.key || "Untitled source",
+            score: typeof result.score === "number" ? result.score : 0,
+            text: (result.content ?? [])
+                .map((chunk: any) => chunk.text)
+                .filter(Boolean)
+                .join("\n"),
+        };
+    });
+};
 
 const MAX_VIEWER_TEXT_LENGTH = 200_000;
 
@@ -262,69 +337,163 @@ async function scrapeWebsite(url: string): Promise<{
 }
 
 
+export const deleteKnowledgeEntryForOrganization = async (
+    ctx: MutationCtx,
+    orgId: string,
+    entryId: EntryId,
+) => {
+    const namespace = await rag.getNamespace(ctx, {
+        namespace: orgId,
+    });
+
+    if (!namespace) {
+        throw new ConvexError({
+            code: "UNAUTHORIZED",
+            message: "Invalid namespace",
+        });
+    }
+
+    const entry = await rag.getEntry(ctx, {
+        entryId,
+    })
+    if (!entry) {
+        throw new ConvexError({
+            code: "NOT_FOUND",
+            message: "Entry not found",
+        });
+    }
+
+    if (entry.metadata?.uploadedBy !== orgId) {
+        throw new ConvexError({
+            code: "UNAUTHORIZED",
+            message: "Invalid Organization ID",
+        });
+    }
+    if (entry.metadata?.storageId) {
+        await ctx.storage.delete(entry.metadata.storageId as Id<'_storage'>)
+    }
+
+    await rag.deleteAsync(ctx, {
+        entryId,
+    });
+
+    await ctx.runMutation((internal as any).system.ai.replyCache.clearForOrganization, {
+        organizationId: orgId,
+    });
+};
+
 export const deleteFile = mutation({
     args: {
         entryId: vEntryId,
     },
     handler: async (ctx, args): Promise<any> => {
-        const identity = await ctx.auth.getUserIdentity();
+        const orgId = await requireKnowledgeOrganizationId(ctx);
 
-        if (identity === null) {
-            throw new ConvexError({
-                code: "UNAUTHORIZED",
-                message: "Identity not found",
-            });
-        }
+        await deleteKnowledgeEntryForOrganization(ctx, orgId, args.entryId);
+    }
+})
 
-        const orgId = getOrganizationIdFromIdentity(identity) as string;
+type KnowledgeImportActor = {
+    organizationId: string;
+    /** Who added it: a dashboard user, or `api:<key id>` for the developer API. */
+    actorId: string;
+    /**
+     * The dashboard's per-user and per-organization import limits. The
+     * developer API admits its calls against the limits configured for its
+     * keys instead, so it passes false.
+     */
+    enforceDashboardRateLimits: boolean;
+};
 
-        if (!orgId) {
-            throw new ConvexError({
-                code: "UNAUTHORIZED",
-                message: "Organization not found",
-            });
-        }
+const requireActiveSubscription = async (ctx: ActionCtx, orgId: string) => {
+    const subscription = await ctx.runQuery(
+        internal.system.subscriptions.getByOrganizationId,
+        {
+            organizationId: orgId,
+        },
+    );
 
-        const namespace = await rag.getNamespace(ctx, {
-            namespace: orgId,
-        });
-
-        if (!namespace) {
-            throw new ConvexError({
-                code: "UNAUTHORIZED",
-                message: "Invalid namespace",
-            });
-        }
-
-        const entry = await rag.getEntry(ctx, {
-            entryId: args.entryId,
+    if (subscription?.status !== "active") {
+        throw new ConvexError({
+            code: "BAD_REQUEST",
+            message: "Missing subscription"
         })
-        if (!entry) {
-            throw new ConvexError({
-                code: "NOT_FOUND",
-                message: "Entry not found",
-            });
-        }
+    }
+};
 
-        if (entry.metadata?.uploadedBy !== orgId) {
-            throw new ConvexError({
-                code: "UNAUTHORIZED",
-                message: "Invalid Organization ID",
-            });
-        }
-        if (entry.metadata?.storageId) {
-            await ctx.storage.delete(entry.metadata.storageId as Id<'_storage'>)
-        }
+export const addKnowledgeFileForOrganization = async (
+    ctx: ActionCtx,
+    { organizationId: orgId, actorId, enforceDashboardRateLimits }: KnowledgeImportActor,
+    args: { filename: string; mimeType: string; bytes: ArrayBuffer; category?: string },
+) => {
+    await requireActiveSubscription(ctx, orgId);
 
-        await rag.deleteAsync(ctx, {
-            entryId: args.entryId
+    if (enforceDashboardRateLimits) {
+        await enforceRateLimit(ctx, "fileUploadByUser", {
+            key: `${orgId}:${actorId}`,
+            message: "Too many file uploads. Please wait before uploading more files.",
         });
+        await enforceRateLimit(ctx, "fileUploadByOrg", {
+            key: orgId,
+            message: "This organization is uploading too many files. Please try again shortly.",
+        });
+    }
 
+    const { bytes, filename, category } = args;
+    const mimeType = args.mimeType || guessMimeType(filename, bytes);
+    const blob = new Blob([bytes], { type: mimeType });
+
+    const storageId = await ctx.storage.store(blob);
+    await ctx.runMutation((internal as any).system.storageObjects.claim, {
+        storageId,
+        organizationId: orgId,
+        uploadedBy: actorId,
+        purpose: "knowledge_base_file",
+    });
+    const text = await extractTextContent(ctx, {
+        storageId,
+        filename,
+        bytes,
+        mimeType,
+    });
+
+
+    const { entryId, created } = await rag.add(ctx, {
+        // SUPER IMPORTANT: What search space to add this to. You cannot search across namespaces,
+        // If not added, it will be considered global (we do not want this)
+        namespace: orgId,
+        text,
+        key: filename,
+        title: filename,
+        metadata: {
+            storageId,
+            uploadedBy: orgId, //import for deletion
+            filename,
+            category: category ?? null,
+            sourceType: "file",
+        } as EntryMetadata,
+        contentHash: await contentHashFromArrayBuffer(bytes) // to avoid reinserting if the file content hasn't changed
+    });
+
+
+    if (!created) {
+        console.debug("entry already exists, skipping upload metadata");
+        await ctx.storage.delete(storageId);
+        await ctx.runMutation((internal as any).system.storageObjects.release, {
+            storageId,
+        });
+    } else {
         await ctx.runMutation((internal as any).system.ai.replyCache.clearForOrganization, {
             organizationId: orgId,
         });
     }
-})
+
+    return {
+        url: await ctx.storage.getUrl(storageId),
+        entryId,
+        created,
+    };
+};
 
 export const addFile = action({
     args: {
@@ -352,84 +521,158 @@ export const addFile = action({
             });
         }
 
-        const subscription = await ctx.runQuery(
-            internal.system.subscriptions.getByOrganizationId,
+        const { url, entryId } = await addKnowledgeFileForOrganization(
+            ctx,
             {
                 organizationId: orgId,
+                actorId: identity.subject,
+                enforceDashboardRateLimits: true,
             },
+            args,
         );
 
-        if (subscription?.status !== "active") {
-            throw new ConvexError({
-                code: "BAD_REQUEST",
-                message: "Missing subscription"
-            })
-        }
-
-        await enforceRateLimit(ctx, "fileUploadByUser", {
-            key: `${orgId}:${identity.subject}`,
-            message: "Too many file uploads. Please wait before uploading more files.",
-        });
-        await enforceRateLimit(ctx, "fileUploadByOrg", {
-            key: orgId,
-            message: "This organization is uploading too many files. Please try again shortly.",
-        });
-
-        const { bytes, filename, category } = args;
-        const mimeType = args.mimeType || guessMimeType(filename, bytes);
-        const blob = new Blob([bytes], { type: mimeType });
-
-        const storageId = await ctx.storage.store(blob);
-        await ctx.runMutation((internal as any).system.storageObjects.claim, {
-            storageId,
-            organizationId: orgId,
-            uploadedBy: identity.subject,
-            purpose: "knowledge_base_file",
-        });
-        const text = await extractTextContent(ctx, {
-            storageId,
-            filename,
-            bytes,
-            mimeType,
-        });
-
-
-        const { entryId, created } = await rag.add(ctx, {
-            // SUPER IMPORTANT: What search space to add this to. You cannot search across namespaces,
-            // If not added, it will be considered global (we do not want this)
-            namespace: orgId,
-            text,
-            key: filename,
-            title: filename,
-            metadata: {
-                storageId,
-                uploadedBy: orgId, //import for deletion
-                filename,
-                category: category ?? null,
-                sourceType: "file",
-            } as EntryMetadata,
-            contentHash: await contentHashFromArrayBuffer(bytes) // to avoid reinserting if the file content hasn't changed
-        });
-
-
-        if (!created) {
-            console.debug("entry already exists, skipping upload metadata");
-            await ctx.storage.delete(storageId);
-            await ctx.runMutation((internal as any).system.storageObjects.release, {
-                storageId,
-            });
-        } else {
-            await ctx.runMutation((internal as any).system.ai.replyCache.clearForOrganization, {
-                organizationId: orgId,
-            });
-        }
-
-        return {
-            url: await ctx.storage.getUrl(storageId),
-            entryId,
-        };
+        return { url, entryId };
     },
 });
+
+export const addKnowledgeWebsiteForOrganization = async (
+    ctx: ActionCtx,
+    { organizationId: orgId, actorId, enforceDashboardRateLimits }: KnowledgeImportActor,
+    args: { url: string; title?: string; category?: string },
+) => {
+    await requireActiveSubscription(ctx, orgId);
+
+    if (enforceDashboardRateLimits) {
+        await enforceRateLimit(ctx, "websiteScrapeByUser", {
+            key: `${orgId}:${actorId}`,
+            message: "Too many website imports. Please wait before adding more URLs.",
+        });
+        await enforceRateLimit(ctx, "websiteScrapeByOrg", {
+            key: orgId,
+            message: "This organization is importing too many websites. Please try again shortly.",
+        });
+    }
+
+    const scraped = await scrapeWebsite(args.url);
+    const providedTitle = args.title?.trim();
+    const entryTitle = providedTitle || scraped.title;
+    const sanitizedBaseFilename = entryTitle
+        .replaceAll(/[^a-zA-Z0-9-_ ]/g, "")
+        .trim()
+        .replaceAll(/\s+/g, "-")
+        .slice(0, 80) || "scraped-page";
+    const storageFilename = `${sanitizedBaseFilename}.txt`;
+    const storageBlob = new Blob([scraped.text], { type: "text/plain" });
+    const storageId = await ctx.storage.store(storageBlob);
+    await ctx.runMutation((internal as any).system.storageObjects.claim, {
+        storageId,
+        organizationId: orgId,
+        uploadedBy: actorId,
+        purpose: "knowledge_base_website",
+    });
+
+    const textBytes = new TextEncoder().encode(scraped.text);
+    const textBuffer = textBytes.buffer.slice(
+        textBytes.byteOffset,
+        textBytes.byteOffset + textBytes.byteLength
+    );
+
+    const { entryId, created } = await rag.add(ctx, {
+        namespace: orgId,
+        text: scraped.text,
+        key: entryTitle,
+        title: entryTitle,
+        metadata: {
+            storageId,
+            uploadedBy: orgId,
+            filename: storageFilename,
+            category: args.category ?? null,
+            sourceUrl: scraped.normalizedUrl,
+            sourceType: "website",
+        } as EntryMetadata,
+        contentHash: await contentHashFromArrayBuffer(textBuffer),
+    });
+
+    if (!created) {
+        console.debug("website entry already exists, skipping upload metadata");
+        await ctx.storage.delete(storageId);
+        await ctx.runMutation((internal as any).system.storageObjects.release, {
+            storageId,
+        });
+    } else {
+        await ctx.runMutation((internal as any).system.ai.replyCache.clearForOrganization, {
+            organizationId: orgId,
+        });
+    }
+
+    return {
+        entryId,
+        created,
+        sourceUrl: scraped.normalizedUrl,
+        url: await ctx.storage.getUrl(storageId),
+    };
+};
+
+/**
+ * Adds text written by the caller — the developer API's documents. Stored as
+ * a `.txt` file so the knowledge viewer can show it like any other upload.
+ */
+export const addKnowledgeTextForOrganization = async (
+    ctx: ActionCtx,
+    { organizationId: orgId, actorId }: KnowledgeImportActor,
+    args: { title: string; text: string; category?: string },
+) => {
+    await requireActiveSubscription(ctx, orgId);
+
+    const entryTitle = args.title.trim();
+    const sanitizedBaseFilename = entryTitle
+        .replaceAll(/[^a-zA-Z0-9-_ ]/g, "")
+        .trim()
+        .replaceAll(/\s+/g, "-")
+        .slice(0, 80) || "document";
+    const filename = `${sanitizedBaseFilename}.txt`;
+    const storageId = await ctx.storage.store(new Blob([args.text], { type: "text/plain" }));
+    await ctx.runMutation((internal as any).system.storageObjects.claim, {
+        storageId,
+        organizationId: orgId,
+        uploadedBy: actorId,
+        purpose: "knowledge_base_file",
+    });
+
+    const textBytes = new TextEncoder().encode(args.text);
+    const textBuffer = textBytes.buffer.slice(
+        textBytes.byteOffset,
+        textBytes.byteOffset + textBytes.byteLength
+    );
+
+    const { entryId, created } = await rag.add(ctx, {
+        namespace: orgId,
+        text: args.text,
+        key: entryTitle,
+        title: entryTitle,
+        metadata: {
+            storageId,
+            uploadedBy: orgId,
+            filename,
+            category: args.category ?? null,
+            sourceType: "file",
+        } as EntryMetadata,
+        contentHash: await contentHashFromArrayBuffer(textBuffer),
+    });
+
+    if (!created) {
+        await ctx.storage.delete(storageId);
+        await ctx.runMutation((internal as any).system.storageObjects.release, {
+            storageId,
+        });
+    } else {
+        await ctx.runMutation((internal as any).system.ai.replyCache.clearForOrganization, {
+            organizationId: orgId,
+        });
+    }
+
+    return { entryId, created };
+};
 
 export const addWebsite = action({
     args: {
@@ -456,89 +699,47 @@ export const addWebsite = action({
             });
         }
 
-        const subscription = await ctx.runQuery(
-            internal.system.subscriptions.getByOrganizationId,
+        return await addKnowledgeWebsiteForOrganization(
+            ctx,
             {
                 organizationId: orgId,
+                actorId: identity.subject,
+                enforceDashboardRateLimits: true,
             },
+            args,
         );
-
-        if (subscription?.status !== "active") {
-            throw new ConvexError({
-                code: "BAD_REQUEST",
-                message: "Missing subscription"
-            })
-        }
-
-        await enforceRateLimit(ctx, "websiteScrapeByUser", {
-            key: `${orgId}:${identity.subject}`,
-            message: "Too many website imports. Please wait before adding more URLs.",
-        });
-        await enforceRateLimit(ctx, "websiteScrapeByOrg", {
-            key: orgId,
-            message: "This organization is importing too many websites. Please try again shortly.",
-        });
-
-        const scraped = await scrapeWebsite(args.url);
-        const providedTitle = args.title?.trim();
-        const entryTitle = providedTitle || scraped.title;
-        const sanitizedBaseFilename = entryTitle
-            .replaceAll(/[^a-zA-Z0-9-_ ]/g, "")
-            .trim()
-            .replaceAll(/\s+/g, "-")
-            .slice(0, 80) || "scraped-page";
-        const storageFilename = `${sanitizedBaseFilename}.txt`;
-        const storageBlob = new Blob([scraped.text], { type: "text/plain" });
-        const storageId = await ctx.storage.store(storageBlob);
-        await ctx.runMutation((internal as any).system.storageObjects.claim, {
-            storageId,
-            organizationId: orgId,
-            uploadedBy: identity.subject,
-            purpose: "knowledge_base_website",
-        });
-
-        const textBytes = new TextEncoder().encode(scraped.text);
-        const textBuffer = textBytes.buffer.slice(
-            textBytes.byteOffset,
-            textBytes.byteOffset + textBytes.byteLength
-        );
-
-        const { entryId, created } = await rag.add(ctx, {
-            namespace: orgId,
-            text: scraped.text,
-            key: entryTitle,
-            title: entryTitle,
-            metadata: {
-                storageId,
-                uploadedBy: orgId,
-                filename: storageFilename,
-                category: args.category ?? null,
-                sourceUrl: scraped.normalizedUrl,
-                sourceType: "website",
-            } as EntryMetadata,
-            contentHash: await contentHashFromArrayBuffer(textBuffer),
-        });
-
-        if (!created) {
-            console.debug("website entry already exists, skipping upload metadata");
-            await ctx.storage.delete(storageId);
-            await ctx.runMutation((internal as any).system.storageObjects.release, {
-                storageId,
-            });
-        } else {
-            await ctx.runMutation((internal as any).system.ai.replyCache.clearForOrganization, {
-                organizationId: orgId,
-            });
-        }
-
-        return {
-            entryId,
-            created,
-            sourceUrl: scraped.normalizedUrl,
-            url: await ctx.storage.getUrl(storageId),
-        };
     },
 });
+
+export const listKnowledgeForOrganization = async (
+    ctx: QueryCtx,
+    orgId: string,
+    args: { category?: string; paginationOpts: PaginationOptions },
+) => {
+    const namespace = await rag.getNamespace(ctx, {
+        namespace: orgId,
+    });
+
+    if (!namespace) {
+        return { page: [], isDone: true, continueCursor: "" };
+    }
+    const results = await rag.list(ctx, {
+        namespaceId: namespace.namespaceId,
+        paginationOpts: args.paginationOpts,
+    });
+
+    const files = await Promise.all(
+        results.page.map((entry) => convertEntryToPublicFile(ctx, entry))
+    );
+    const filteredFiles = args.category
+        ? files.filter((file) => file.category === args.category)
+        : files;
+    return {
+        page: filteredFiles,
+        isDone: results.isDone,
+        continueCursor: results.continueCursor,
+    };
+};
 
 export const list = query({
     args: {
@@ -546,46 +747,9 @@ export const list = query({
         paginationOpts: paginationOptsValidator,
     },
     handler: async (ctx, args) => {
-        const identity = await ctx.auth.getUserIdentity();
+        const orgId = await requireKnowledgeOrganizationId(ctx);
 
-        if (identity === null) {
-            throw new ConvexError({
-                code: "UNAUTHORIZED",
-                message: "Identity not found",
-            });
-        }
-
-        const orgId = getOrganizationIdFromIdentity(identity) as string;
-
-        if (!orgId) {
-            throw new ConvexError({
-                code: "UNAUTHORIZED",
-                message: "Organization not found",
-            });
-        }
-        const namespace = await rag.getNamespace(ctx, {
-            namespace: orgId,
-        });
-
-        if (!namespace) {
-            return { page: [], isDone: true, continueCursor: "" };
-        }
-        const results = await rag.list(ctx, {
-            namespaceId: namespace.namespaceId,
-            paginationOpts: args.paginationOpts,
-        });
-
-        const files = await Promise.all(
-            results.page.map((entry) => convertEntryToPublicFile(ctx, entry))
-        );
-        const filteredFiles = args.category
-            ? files.filter((file) => file.category === args.category)
-            : files;
-        return {
-            page: filteredFiles,
-            isDone: results.isDone,
-            continueCursor: results.continueCursor,
-        };
+        return await listKnowledgeForOrganization(ctx, orgId, args);
     },
 });
 
@@ -666,100 +830,92 @@ export const clearAIReplyCache = mutation({
     },
 });
 
+export const getKnowledgeContentForOrganization = async (
+    ctx: ActionCtx,
+    orgId: string,
+    entryId: EntryId,
+) => {
+    const entry = await rag.getEntry(ctx, {
+        entryId,
+    });
+
+    if (!entry) {
+        throw new ConvexError({
+            code: "NOT_FOUND",
+            message: "Entry not found",
+        });
+    }
+
+    const metadata = entry.metadata as EntryMetadata | undefined;
+    const storageId = metadata?.storageId;
+    const filename = metadata?.filename || entry.key || "Unknown";
+
+    if (metadata?.uploadedBy !== orgId) {
+        throw new ConvexError({
+            code: "UNAUTHORIZED",
+            message: "Invalid Organization ID",
+        });
+    }
+
+    if (storageId) {
+        const storageBlob = await ctx.storage.get(storageId);
+
+        if (!storageBlob) {
+            throw new ConvexError({
+                code: "NOT_FOUND",
+                message: "Stored file not found",
+            });
+        }
+
+        const mimeType = storageBlob.type || "";
+        const extension = filename.split(".").pop()?.toLowerCase() || "";
+        const isTextLike =
+            metadata?.sourceType === "website" ||
+            mimeType.startsWith("text/") ||
+            ["txt", "csv", "md", "json", "html", "xml"].includes(extension);
+
+        if (isTextLike) {
+            const rawText = new TextDecoder().decode(await storageBlob.arrayBuffer());
+            return {
+                kind: "text" as const,
+                filename,
+                sourceUrl: metadata?.sourceUrl,
+                content: rawText.slice(0, MAX_VIEWER_TEXT_LENGTH),
+            };
+        }
+
+        return {
+            kind: "document" as const,
+            filename,
+            sourceUrl: metadata?.sourceUrl,
+            url: await ctx.storage.getUrl(storageId),
+        };
+    }
+
+    if (metadata?.sourceUrl) {
+        const scraped = await scrapeWebsite(metadata.sourceUrl);
+        return {
+            kind: "text" as const,
+            filename,
+            sourceUrl: metadata.sourceUrl,
+            content: scraped.text.slice(0, MAX_VIEWER_TEXT_LENGTH),
+        };
+    }
+
+    throw new ConvexError({
+        code: "NOT_FOUND",
+        message: "No preview content available for this entry",
+    });
+};
+
 export const getViewerContent = action({
     args: {
         entryId: vEntryId,
     },
     handler: async (ctx, args) => {
-        const identity = await ctx.auth.getUserIdentity();
+        const orgId = await requireKnowledgeOrganizationId(ctx);
 
-        if (identity === null) {
-            throw new ConvexError({
-                code: "UNAUTHORIZED",
-                message: "Identity not found",
-            });
-        }
-
-        const orgId = getOrganizationIdFromIdentity(identity) as string;
-
-        if (!orgId) {
-            throw new ConvexError({
-                code: "UNAUTHORIZED",
-                message: "Organization not found",
-            });
-        }
-
-        const entry = await rag.getEntry(ctx, {
-            entryId: args.entryId,
-        });
-
-        if (!entry) {
-            throw new ConvexError({
-                code: "NOT_FOUND",
-                message: "Entry not found",
-            });
-        }
-
-        const metadata = entry.metadata as EntryMetadata | undefined;
-        const storageId = metadata?.storageId;
-        const filename = metadata?.filename || entry.key || "Unknown";
-
-        if (metadata?.uploadedBy !== orgId) {
-            throw new ConvexError({
-                code: "UNAUTHORIZED",
-                message: "Invalid Organization ID",
-            });
-        }
-
-        if (storageId) {
-            const storageBlob = await ctx.storage.get(storageId);
-
-            if (!storageBlob) {
-                throw new ConvexError({
-                    code: "NOT_FOUND",
-                    message: "Stored file not found",
-                });
-            }
-
-            const mimeType = storageBlob.type || "";
-            const extension = filename.split(".").pop()?.toLowerCase() || "";
-            const isTextLike =
-                metadata?.sourceType === "website" ||
-                mimeType.startsWith("text/") ||
-                ["txt", "csv", "md", "json", "html", "xml"].includes(extension);
-
-            if (isTextLike) {
-                const rawText = new TextDecoder().decode(await storageBlob.arrayBuffer());
-                return {
-                    kind: "text" as const,
-                    filename,
-                    sourceUrl: metadata?.sourceUrl,
-                    content: rawText.slice(0, MAX_VIEWER_TEXT_LENGTH),
-                };
-            }
-
-            return {
-                kind: "document" as const,
-                filename,
-                sourceUrl: metadata?.sourceUrl,
-                url: await ctx.storage.getUrl(storageId),
-            };
-        }
-
-        if (metadata?.sourceUrl) {
-            const scraped = await scrapeWebsite(metadata.sourceUrl);
-            return {
-                kind: "text" as const,
-                filename,
-                sourceUrl: metadata.sourceUrl,
-                content: scraped.text.slice(0, MAX_VIEWER_TEXT_LENGTH),
-            };
-        }
-
-        throw new ConvexError({
-            code: "NOT_FOUND",
-            message: "No preview content available for this entry",
-        });
+        return await getKnowledgeContentForOrganization(ctx, orgId, args.entryId);
     },
 });
 
@@ -901,6 +1057,8 @@ export const testKnowledgeBase = action({
 export type PublicFile = {
     id: EntryId;
     name: string;
+    /** The entry's own title; differs from `name` for pasted documents. */
+    title?: string;
     type: string;
     size: string;
     status: "ready" | "processing" | "error";
@@ -920,7 +1078,7 @@ type EntryMetadata = {
 };
 
 
-async function convertEntryToPublicFile(
+export async function convertEntryToPublicFile(
     ctx: QueryCtx,
     entry: Entry,
 ): Promise<PublicFile> {
@@ -960,6 +1118,7 @@ async function convertEntryToPublicFile(
     return {
         id: entry.entryId,
         name: filename,
+        title: entry.title || undefined,
         type: extension,
         size: fileSize,
         status,

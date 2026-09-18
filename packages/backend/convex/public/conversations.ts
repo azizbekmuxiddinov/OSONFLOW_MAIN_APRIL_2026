@@ -1,4 +1,4 @@
-import { mutation } from "../_generated/server"
+import { mutation, type MutationCtx } from "../_generated/server"
 import { ConvexError, v } from "convex/values"
 import { query } from "../_generated/server"
 import { supportAgent } from "../system/ai/agents/supportAgent"
@@ -205,6 +205,167 @@ export const markAsRead = mutation({
   },
 })
 
+type CreatedConversation = {
+  conversationId: Id<"conversations">
+  contactSessionId: Id<"contactSessions">
+  threadId: string
+  source: "workflow" | "widget"
+}
+
+/**
+ * Opens a conversation for a contact. Called once the contact has a real
+ * message to send — never merely because a chat window was opened.
+ *
+ * Shared by the widget and the developer API. The API is held to its own
+ * configured limits rather than the widget's per-visitor one, and may leave
+ * the greeting out of the transcript when its own interface shows none.
+ */
+export const createConversationForContact = async (
+  ctx: MutationCtx,
+  args: {
+    organizationId: string
+    agentId?: string
+    contactSessionId: Id<"contactSessions">
+  },
+  {
+    enforceWidgetRateLimit,
+    includeGreeting = true,
+  }: { enforceWidgetRateLimit: boolean; includeGreeting?: boolean }
+): Promise<CreatedConversation> => {
+  const activeWorkflow = await ctx.db
+    .query("workflows")
+    .withIndex("by_organization_id_and_active", (q) =>
+      q.eq("organizationId", args.organizationId).eq("isActive", true)
+    )
+    .first()
+  const hasActiveWorkflow = Boolean(activeWorkflow?.publishedDefinition)
+  const contactSessionId = args.contactSessionId
+
+  const session = await ctx.db.get(contactSessionId)
+
+  if (!session || session.expiresAt < Date.now()) {
+    throw new ConvexError({
+      code: "UNAUTHORIZED",
+      message: "Invalid session",
+    })
+  }
+
+  if (session.organizationId !== args.organizationId) {
+    throw new ConvexError({
+      code: "UNAUTHORIZED",
+      message: "Invalid organization",
+    })
+  }
+
+  if (enforceWidgetRateLimit) {
+    await enforceRateLimit(ctx, "widgetConversationCreateBySession", {
+      key: `${args.organizationId}:${contactSessionId}`,
+      message:
+        "Too many conversations started. Please wait before starting another chat.",
+    })
+  }
+
+  // This refreshes the user's session if they are within the threshold
+  await ctx.runMutation(internal.system.contactSessions.refresh, {
+    contactSessionId,
+  })
+
+  const agentId = args.agentId?.trim() || "default"
+  const widgetSettings = await ctx.db
+    .query("widgetSettings")
+    .withIndex("by_organization_id_and_agent_id", (q) =>
+      q.eq("organizationId", args.organizationId).eq("agentId", agentId)
+    )
+    .unique()
+    .then(async (settings) => {
+      if (settings || agentId !== "default") return settings
+
+      const organizationSettings = await ctx.db
+        .query("widgetSettings")
+        .withIndex("by_organization_id", (q) =>
+          q.eq("organizationId", args.organizationId)
+        )
+        .collect()
+
+      return (
+        organizationSettings.find((item) => item.isDefault) ??
+        organizationSettings.find((item) => !item.agentId) ??
+        organizationSettings[0] ??
+        null
+      )
+    })
+
+  const { threadId } = await supportAgent.createThread(ctx, {
+    userId: args.organizationId,
+  })
+
+  if (!hasActiveWorkflow && includeGreeting) {
+    await saveMessage(ctx, components.agent, {
+      threadId,
+      message: {
+        role: "assistant",
+        content:
+          widgetSettings?.greetMessage || "Hello, how can I help you today?",
+      },
+    })
+  }
+
+  const conversationId: Id<"conversations"> = await ctx.db.insert(
+    "conversations",
+    {
+      contactSessionId: session._id,
+      status: "unresolved",
+      organizationId: args.organizationId,
+      agentId,
+      threadId,
+      assignedToId: null,
+      assignedToName: null,
+      assignedAt: null,
+      contactLastReadAt: Date.now(),
+      lastCustomerMessageAt: null,
+      lastOperatorMessageAt: null,
+      unreadForContactCount: 0,
+      unreadForOperatorCount: 0,
+      // Recorded on the row, not just derived: the inbox filters on it and
+      // the reply path uses it to keep assistant tools out.
+      source: hasActiveWorkflow ? "workflow" : "widget",
+      workflowId: hasActiveWorkflow ? activeWorkflow?._id : undefined,
+    }
+  )
+
+  await ctx.runMutation(
+    (internal as any).system.integrationWebhooks.dispatchEvent,
+    {
+      organizationId: args.organizationId,
+      eventType: "conversation.created",
+      payload: {
+        conversationId,
+        threadId,
+        contactSessionId: session._id,
+        status: "unresolved",
+        source: hasActiveWorkflow ? "workflow" : "widget",
+        workflowId: hasActiveWorkflow ? activeWorkflow?._id : undefined,
+      },
+    }
+  )
+
+  if (hasActiveWorkflow) {
+    await ctx.runMutation(
+      (internal as any).system.workflowRuntime.startForConversation,
+      {
+        conversationId,
+      }
+    )
+  }
+
+  return {
+    conversationId,
+    contactSessionId: session._id,
+    threadId,
+    source: hasActiveWorkflow ? ("workflow" as const) : ("widget" as const),
+  }
+}
+
 export const create = mutation({
   args: {
     organizationId: v.string(),
@@ -212,144 +373,8 @@ export const create = mutation({
     contactSessionId: v.id("contactSessions"),
     metadata: contactSessionMetadataValidator,
   },
-  handler: async (
-    ctx,
-    args
-  ): Promise<{
-    conversationId: Id<"conversations">
-    contactSessionId: Id<"contactSessions">
-    threadId: string
-    source: "workflow" | "widget"
-  }> => {
-    const activeWorkflow = await ctx.db
-      .query("workflows")
-      .withIndex("by_organization_id_and_active", (q) =>
-        q.eq("organizationId", args.organizationId).eq("isActive", true)
-      )
-      .first()
-    const hasActiveWorkflow = Boolean(activeWorkflow?.publishedDefinition)
-    const contactSessionId = args.contactSessionId
-
-    const session = await ctx.db.get(contactSessionId)
-
-    if (!session || session.expiresAt < Date.now()) {
-      throw new ConvexError({
-        code: "UNAUTHORIZED",
-        message: "Invalid session",
-      })
-    }
-
-    if (session.organizationId !== args.organizationId) {
-      throw new ConvexError({
-        code: "UNAUTHORIZED",
-        message: "Invalid organization",
-      })
-    }
-
-    await enforceRateLimit(ctx, "widgetConversationCreateBySession", {
-      key: `${args.organizationId}:${contactSessionId}`,
-      message:
-        "Too many conversations started. Please wait before starting another chat.",
-    })
-
-    // This refreshes the user's session if they are within the threshold
-    await ctx.runMutation(internal.system.contactSessions.refresh, {
-      contactSessionId,
-    })
-
-    const agentId = args.agentId?.trim() || "default"
-    const widgetSettings = await ctx.db
-      .query("widgetSettings")
-      .withIndex("by_organization_id_and_agent_id", (q) =>
-        q.eq("organizationId", args.organizationId).eq("agentId", agentId)
-      )
-      .unique()
-      .then(async (settings) => {
-        if (settings || agentId !== "default") return settings
-
-        const organizationSettings = await ctx.db
-          .query("widgetSettings")
-          .withIndex("by_organization_id", (q) =>
-            q.eq("organizationId", args.organizationId)
-          )
-          .collect()
-
-        return (
-          organizationSettings.find((item) => item.isDefault) ??
-          organizationSettings.find((item) => !item.agentId) ??
-          organizationSettings[0] ??
-          null
-        )
-      })
-
-    const { threadId } = await supportAgent.createThread(ctx, {
-      userId: args.organizationId,
-    })
-
-    if (!hasActiveWorkflow) {
-      await saveMessage(ctx, components.agent, {
-        threadId,
-        message: {
-          role: "assistant",
-          content:
-            widgetSettings?.greetMessage || "Hello, how can I help you today?",
-        },
-      })
-    }
-
-    const conversationId: Id<"conversations"> = await ctx.db.insert(
-      "conversations",
-      {
-        contactSessionId: session._id,
-        status: "unresolved",
-        organizationId: args.organizationId,
-        agentId,
-        threadId,
-        assignedToId: null,
-        assignedToName: null,
-        assignedAt: null,
-        contactLastReadAt: Date.now(),
-        lastCustomerMessageAt: null,
-        lastOperatorMessageAt: null,
-        unreadForContactCount: 0,
-        unreadForOperatorCount: 0,
-        // Recorded on the row, not just derived: the inbox filters on it and
-        // the reply path uses it to keep assistant tools out.
-        source: hasActiveWorkflow ? "workflow" : "widget",
-        workflowId: hasActiveWorkflow ? activeWorkflow?._id : undefined,
-      }
-    )
-
-    await ctx.runMutation(
-      (internal as any).system.integrationWebhooks.dispatchEvent,
-      {
-        organizationId: args.organizationId,
-        eventType: "conversation.created",
-        payload: {
-          conversationId,
-          threadId,
-          contactSessionId: session._id,
-          status: "unresolved",
-          source: hasActiveWorkflow ? "workflow" : "widget",
-          workflowId: hasActiveWorkflow ? activeWorkflow?._id : undefined,
-        },
-      }
-    )
-
-    if (hasActiveWorkflow) {
-      await ctx.runMutation(
-        (internal as any).system.workflowRuntime.startForConversation,
-        {
-          conversationId,
-        }
-      )
-    }
-
-    return {
-      conversationId,
-      contactSessionId: session._id,
-      threadId,
-      source: hasActiveWorkflow ? ("workflow" as const) : ("widget" as const),
-    }
-  },
+  handler: async (ctx, args): Promise<CreatedConversation> =>
+    await createConversationForContact(ctx, args, {
+      enforceWidgetRateLimit: true,
+    }),
 })

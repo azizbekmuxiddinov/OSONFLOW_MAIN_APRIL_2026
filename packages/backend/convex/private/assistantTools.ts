@@ -92,7 +92,29 @@ const requireOrganizationId = async (ctx: {
   return organizationId
 }
 
-const listOrganizationTools = async (
+export type AssistantToolCreateArgs = {
+  name: string
+  description: string
+  type: Doc<"assistantTools">["type"]
+  isEnabled?: boolean
+  enabledForChat: boolean
+  enabledForVoice: boolean
+  parameters: Doc<"assistantTools">["parameters"]
+  config?: Doc<"assistantTools">["config"]
+}
+
+export type AssistantToolUpdateArgs = {
+  toolId: Id<"assistantTools">
+  name?: string
+  description?: string
+  isEnabled?: boolean
+  enabledForChat?: boolean
+  enabledForVoice?: boolean
+  parameters?: Doc<"assistantTools">["parameters"]
+  config?: Doc<"assistantTools">["config"]
+}
+
+export const listOrganizationTools = async (
   ctx: QueryCtx | MutationCtx,
   organizationId: string
 ): Promise<Doc<"assistantTools">[]> => {
@@ -161,6 +183,83 @@ export const list = query({
   },
 })
 
+export const createAssistantToolForOrganization = async (
+  ctx: MutationCtx,
+  organizationId: string,
+  args: AssistantToolCreateArgs
+): Promise<Id<"assistantTools">> => {
+  if (
+    args.type === "query" ||
+    args.type === "handoff" ||
+    args.type === "resolve"
+  ) {
+    throw new ConvexError({
+      code: "BAD_REQUEST",
+      message: "Built-in assistant tools cannot be created manually.",
+    })
+  }
+
+  let name: string
+  try {
+    name = sanitizeAssistantToolName(args.name)
+  } catch (error) {
+    throw new ConvexError({
+      code: "BAD_REQUEST",
+      message: error instanceof Error ? error.message : "Invalid tool name",
+    })
+  }
+  const existing = await ctx.db
+    .query("assistantTools")
+    .withIndex("by_organization_id_and_name", (q) =>
+      q.eq("organizationId", organizationId).eq("name", name)
+    )
+    .unique()
+
+  if (existing) {
+    throw new ConvexError({
+      code: "BAD_REQUEST",
+      message: `A tool named "${name}" already exists.`,
+    })
+  }
+
+  validateAssistantToolConfig(args.type, args.config)
+
+  let parameters: typeof args.parameters
+  try {
+    parameters = sanitizeAssistantToolParameters(args.parameters)
+  } catch (error) {
+    throw new ConvexError({
+      code: "BAD_REQUEST",
+      message:
+        error instanceof Error ? error.message : "Invalid tool parameter",
+    })
+  }
+
+  const tools = await ctx.db
+    .query("assistantTools")
+    .withIndex("by_organization_id", (q) =>
+      q.eq("organizationId", organizationId)
+    )
+    .collect()
+
+  return await ctx.db.insert("assistantTools", {
+    organizationId,
+    name,
+    description: args.description.trim(),
+    type: args.type,
+    isBuiltin: false,
+    isEnabled: args.isEnabled ?? true,
+    enabledForChat: args.enabledForChat,
+    enabledForVoice:
+      args.enabledForVoice &&
+      isVoiceCompatibleAssistantTool({ type: args.type }),
+    parameters,
+    config: args.config,
+    sortOrder: tools.length,
+    updatedAt: Date.now(),
+  })
+}
+
 export const create = mutation({
   args: {
     name: v.string(),
@@ -175,46 +274,48 @@ export const create = mutation({
   returns: v.id("assistantTools"),
   handler: async (ctx, args): Promise<Id<"assistantTools">> => {
     const organizationId = await requireOrganizationId(ctx)
+    return await createAssistantToolForOrganization(ctx, organizationId, args)
+  },
+})
 
-    if (
-      args.type === "query" ||
-      args.type === "handoff" ||
-      args.type === "resolve"
-    ) {
-      throw new ConvexError({
-        code: "BAD_REQUEST",
-        message: "Built-in assistant tools cannot be created manually.",
-      })
-    }
+export const updateAssistantToolForOrganization = async (
+  ctx: MutationCtx,
+  organizationId: string,
+  args: AssistantToolUpdateArgs
+): Promise<null> => {
+  const tool = await ctx.db.get(args.toolId)
 
-    let name: string
+  if (!tool || tool.organizationId !== organizationId) {
+    throw new ConvexError({
+      code: "NOT_FOUND",
+      message: "Assistant tool not found",
+    })
+  }
+
+  const updates: Partial<Doc<"assistantTools">> = {
+    updatedAt: Date.now(),
+  }
+
+  if (args.description !== undefined) {
+    updates.description = args.description.trim()
+  }
+
+  if (args.isEnabled !== undefined) {
+    updates.isEnabled = args.isEnabled
+  }
+
+  if (args.enabledForChat !== undefined) {
+    updates.enabledForChat = args.enabledForChat
+  }
+
+  if (args.enabledForVoice !== undefined) {
+    updates.enabledForVoice =
+      args.enabledForVoice && isVoiceCompatibleAssistantTool(tool)
+  }
+
+  if (args.parameters !== undefined) {
     try {
-      name = sanitizeAssistantToolName(args.name)
-    } catch (error) {
-      throw new ConvexError({
-        code: "BAD_REQUEST",
-        message: error instanceof Error ? error.message : "Invalid tool name",
-      })
-    }
-    const existing = await ctx.db
-      .query("assistantTools")
-      .withIndex("by_organization_id_and_name", (q) =>
-        q.eq("organizationId", organizationId).eq("name", name)
-      )
-      .unique()
-
-    if (existing) {
-      throw new ConvexError({
-        code: "BAD_REQUEST",
-        message: `A tool named "${name}" already exists.`,
-      })
-    }
-
-    validateAssistantToolConfig(args.type, args.config)
-
-    let parameters: typeof args.parameters
-    try {
-      parameters = sanitizeAssistantToolParameters(args.parameters)
+      updates.parameters = sanitizeAssistantToolParameters(args.parameters)
     } catch (error) {
       throw new ConvexError({
         code: "BAD_REQUEST",
@@ -222,32 +323,27 @@ export const create = mutation({
           error instanceof Error ? error.message : "Invalid tool parameter",
       })
     }
+  }
 
-    const tools = await ctx.db
-      .query("assistantTools")
-      .withIndex("by_organization_id", (q) =>
-        q.eq("organizationId", organizationId)
-      )
-      .collect()
+  if (args.config !== undefined) {
+    validateAssistantToolConfig(tool.type, args.config)
+    updates.config = args.config
+  }
 
-    return await ctx.db.insert("assistantTools", {
-      organizationId,
-      name,
-      description: args.description.trim(),
-      type: args.type,
-      isBuiltin: false,
-      isEnabled: args.isEnabled ?? true,
-      enabledForChat: args.enabledForChat,
-      enabledForVoice:
-        args.enabledForVoice &&
-        isVoiceCompatibleAssistantTool({ type: args.type }),
-      parameters,
-      config: args.config,
-      sortOrder: tools.length,
-      updatedAt: Date.now(),
-    })
-  },
-})
+  if (args.name !== undefined && !tool.isBuiltin) {
+    try {
+      updates.name = sanitizeAssistantToolName(args.name)
+    } catch (error) {
+      throw new ConvexError({
+        code: "BAD_REQUEST",
+        message: error instanceof Error ? error.message : "Invalid tool name",
+      })
+    }
+  }
+
+  await ctx.db.patch(args.toolId, updates)
+  return null
+}
 
 export const update = mutation({
   args: {
@@ -263,68 +359,34 @@ export const update = mutation({
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     const organizationId = await requireOrganizationId(ctx)
-    const tool = await ctx.db.get(args.toolId)
-
-    if (!tool || tool.organizationId !== organizationId) {
-      throw new ConvexError({
-        code: "NOT_FOUND",
-        message: "Assistant tool not found",
-      })
-    }
-
-    const updates: Partial<Doc<"assistantTools">> = {
-      updatedAt: Date.now(),
-    }
-
-    if (args.description !== undefined) {
-      updates.description = args.description.trim()
-    }
-
-    if (args.isEnabled !== undefined) {
-      updates.isEnabled = args.isEnabled
-    }
-
-    if (args.enabledForChat !== undefined) {
-      updates.enabledForChat = args.enabledForChat
-    }
-
-    if (args.enabledForVoice !== undefined) {
-      updates.enabledForVoice =
-        args.enabledForVoice && isVoiceCompatibleAssistantTool(tool)
-    }
-
-    if (args.parameters !== undefined) {
-      try {
-        updates.parameters = sanitizeAssistantToolParameters(args.parameters)
-      } catch (error) {
-        throw new ConvexError({
-          code: "BAD_REQUEST",
-          message:
-            error instanceof Error ? error.message : "Invalid tool parameter",
-        })
-      }
-    }
-
-    if (args.config !== undefined) {
-      validateAssistantToolConfig(tool.type, args.config)
-      updates.config = args.config
-    }
-
-    if (args.name !== undefined && !tool.isBuiltin) {
-      try {
-        updates.name = sanitizeAssistantToolName(args.name)
-      } catch (error) {
-        throw new ConvexError({
-          code: "BAD_REQUEST",
-          message: error instanceof Error ? error.message : "Invalid tool name",
-        })
-      }
-    }
-
-    await ctx.db.patch(args.toolId, updates)
-    return null
+    return await updateAssistantToolForOrganization(ctx, organizationId, args)
   },
 })
+
+export const removeAssistantToolForOrganization = async (
+  ctx: MutationCtx,
+  organizationId: string,
+  args: { toolId: Id<"assistantTools"> }
+): Promise<null> => {
+  const tool = await ctx.db.get(args.toolId)
+
+  if (!tool || tool.organizationId !== organizationId) {
+    throw new ConvexError({
+      code: "NOT_FOUND",
+      message: "Assistant tool not found",
+    })
+  }
+
+  if (tool.isBuiltin) {
+    throw new ConvexError({
+      code: "BAD_REQUEST",
+      message: "Built-in assistant tools cannot be deleted.",
+    })
+  }
+
+  await ctx.db.delete(args.toolId)
+  return null
+}
 
 export const remove = mutation({
   args: {
@@ -333,24 +395,7 @@ export const remove = mutation({
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     const organizationId = await requireOrganizationId(ctx)
-    const tool = await ctx.db.get(args.toolId)
-
-    if (!tool || tool.organizationId !== organizationId) {
-      throw new ConvexError({
-        code: "NOT_FOUND",
-        message: "Assistant tool not found",
-      })
-    }
-
-    if (tool.isBuiltin) {
-      throw new ConvexError({
-        code: "BAD_REQUEST",
-        message: "Built-in assistant tools cannot be deleted.",
-      })
-    }
-
-    await ctx.db.delete(args.toolId)
-    return null
+    return await removeAssistantToolForOrganization(ctx, organizationId, args)
   },
 })
 

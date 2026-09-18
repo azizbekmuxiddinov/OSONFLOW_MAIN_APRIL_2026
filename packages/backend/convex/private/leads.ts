@@ -8,8 +8,8 @@ import { isAnonymousContactSession } from "../lib/contactSessionIdentity"
 import { paginateArray } from "../lib/paginateArray"
 
 export const LEADS_EXPORT_LIMIT = 5000
-const LEADS_LIST_SCAN_LIMIT = 2000
-const NEWCOMER_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
+export const LEADS_LIST_SCAN_LIMIT = 2000
+export const NEWCOMER_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
 const ARRIVALS_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
 const TOP_ORIGINS_LIMIT = 5
 
@@ -31,7 +31,7 @@ const leadSegmentValidator = v.union(
   v.literal("no_chats")
 )
 
-type LeadSegment = "all" | "waiting" | "newcomers" | "no_chats"
+export type LeadSegment = "all" | "waiting" | "newcomers" | "no_chats"
 
 const leadRecordValidator = v.object({
   contactSessionId: v.id("contactSessions"),
@@ -137,7 +137,7 @@ const buildConversationIndex = (conversations: Doc<"conversations">[]) => {
   return byContactSession
 }
 
-const toLeadRecord = (
+export const toLeadRecord = (
   session: Doc<"contactSessions">,
   conversations: Doc<"conversations">[],
   newcomerCutoff: number
@@ -243,7 +243,7 @@ const topCounts = (labels: (string | undefined)[]) => {
     .slice(0, TOP_ORIGINS_LIMIT)
 }
 
-const loadLeads = async (
+export const loadLeads = async (
   ctx: QueryCtx,
   organizationId: string,
   options: {
@@ -340,6 +340,73 @@ export const getForExport = query({
   },
 })
 
+export const getLeadSummaryForOrganization = async (
+  ctx: QueryCtx,
+  orgId: string
+) => {
+  const leads = await loadLeads(ctx, orgId, {
+    scanLimit: LEADS_LIST_SCAN_LIMIT,
+  })
+
+  const arrivalsCutoff = Date.now() - ARRIVALS_WINDOW_MS
+  const channelCounts = {
+    widget: 0,
+    voice: 0,
+    telegram: 0,
+    whatsapp: 0,
+    instagram: 0,
+    web: 0,
+  }
+
+  for (const lead of leads) {
+    switch (lead.channel) {
+      case "Widget":
+        channelCounts.widget += 1
+        break
+      case "Voice":
+        channelCounts.voice += 1
+        break
+      case "Telegram":
+        channelCounts.telegram += 1
+        break
+      case "WhatsApp":
+        channelCounts.whatsapp += 1
+        break
+      case "Instagram":
+        channelCounts.instagram += 1
+        break
+      default:
+        channelCounts.web += 1
+        break
+    }
+  }
+
+  return {
+    totalLeads: leads.length,
+    newcomerCount: leads.filter((lead) => lead.isNewcomer).length,
+    withConversationsCount: leads.filter(
+      (lead) => lead.conversationCount > 0
+    ).length,
+    awaitingReplyCount: leads.filter((lead) => lead.isAwaitingReply).length,
+    noChatsCount: leads.filter((lead) => lead.conversationCount === 0)
+      .length,
+    recentArrivals: leads
+      .map((lead) => lead.firstSeenAt)
+      .filter((at) => at >= arrivalsCutoff),
+    // A referrer on the site's own host is in-site navigation, not a source.
+    topReferrers: topCounts(
+      leads.map((lead) => {
+        const referrer = hostOf(lead.referrer)
+        return referrer && referrer !== hostOf(lead.currentUrl)
+          ? referrer
+          : undefined
+      })
+    ),
+    topPages: topCounts(leads.map((lead) => pathOf(lead.currentUrl))),
+    channelCounts,
+  }
+}
+
 export const getSummary = query({
   args: {},
   returns: v.object({
@@ -364,67 +431,6 @@ export const getSummary = query({
   }),
   handler: async (ctx) => {
     const { orgId } = await requireOrganizationIdentity(ctx)
-
-    const leads = await loadLeads(ctx, orgId, {
-      scanLimit: LEADS_LIST_SCAN_LIMIT,
-    })
-
-    const arrivalsCutoff = Date.now() - ARRIVALS_WINDOW_MS
-    const channelCounts = {
-      widget: 0,
-      voice: 0,
-      telegram: 0,
-      whatsapp: 0,
-      instagram: 0,
-      web: 0,
-    }
-
-    for (const lead of leads) {
-      switch (lead.channel) {
-        case "Widget":
-          channelCounts.widget += 1
-          break
-        case "Voice":
-          channelCounts.voice += 1
-          break
-        case "Telegram":
-          channelCounts.telegram += 1
-          break
-        case "WhatsApp":
-          channelCounts.whatsapp += 1
-          break
-        case "Instagram":
-          channelCounts.instagram += 1
-          break
-        default:
-          channelCounts.web += 1
-          break
-      }
-    }
-
-    return {
-      totalLeads: leads.length,
-      newcomerCount: leads.filter((lead) => lead.isNewcomer).length,
-      withConversationsCount: leads.filter(
-        (lead) => lead.conversationCount > 0
-      ).length,
-      awaitingReplyCount: leads.filter((lead) => lead.isAwaitingReply).length,
-      noChatsCount: leads.filter((lead) => lead.conversationCount === 0)
-        .length,
-      recentArrivals: leads
-        .map((lead) => lead.firstSeenAt)
-        .filter((at) => at >= arrivalsCutoff),
-      // A referrer on the site's own host is in-site navigation, not a source.
-      topReferrers: topCounts(
-        leads.map((lead) => {
-          const referrer = hostOf(lead.referrer)
-          return referrer && referrer !== hostOf(lead.currentUrl)
-            ? referrer
-            : undefined
-        })
-      ),
-      topPages: topCounts(leads.map((lead) => pathOf(lead.currentUrl))),
-      channelCounts,
-    }
+    return await getLeadSummaryForOrganization(ctx, orgId)
   },
 })

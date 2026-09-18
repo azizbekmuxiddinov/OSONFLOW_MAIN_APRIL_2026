@@ -24,6 +24,7 @@ import {
   MailIcon,
   MonitorIcon,
   RefreshCwIcon,
+  SendIcon,
 } from "lucide-react"
 import { Badge } from "@workspace/ui/components/badge"
 import { cn } from "@workspace/ui/lib/utils"
@@ -99,12 +100,16 @@ export const ContactPanel = () => {
   const instagramFullName = contactSession?.metadata?.instagramFullName
   const isInstagramSession = contactSession?.metadata?.platform === "Instagram"
   const isWhatsappSession = contactSession?.metadata?.platform === "WhatsApp"
+  const isTelegramSession = contactSession?.metadata?.platform === "Telegram"
+  const telegramUsername = contactSession?.metadata?.telegramUsername
   const secondaryIdentity =
     isInstagramSession && instagramUsername
       ? `@${instagramUsername}`
-      : isWhatsappSession && contactSession?.metadata?.whatsappPhoneNumber
-        ? contactSession.metadata.whatsappPhoneNumber
-      : (contactSession?.email ?? "")
+      : isTelegramSession && telegramUsername
+        ? `@${telegramUsername}`
+        : isWhatsappSession && contactSession?.metadata?.whatsappPhoneNumber
+          ? contactSession.metadata.whatsappPhoneNumber
+          : (contactSession?.email ?? "")
   const handleRefreshInstagramProfile = async () => {
     if (!conversationId) {
       return
@@ -174,28 +179,34 @@ export const ContactPanel = () => {
               },
             ],
       },
-      {
-        id: "location-language",
-        icon: GlobeIcon,
-        title: "Location & Language",
-        items: [
-          {
-            label: "Country",
-            value: countryInfo?.name || "Unknown",
-          },
-          {
-            label: "Timezone",
-            value: contactSession.metadata.timezone || "Unknown",
-          },
-          {
-            label: "Language",
-            value:
-              contactSession.metadata.language ||
-              contactSession.metadata.telegramLanguageCode ||
-              "Unknown",
-          },
-        ],
-      },
+      // Telegram gives us no location or timezone, so the section would only
+      // ever show "Unknown" rows.
+      ...(isTelegramSession
+        ? []
+        : [
+            {
+              id: "location-language",
+              icon: GlobeIcon,
+              title: "Location & Language",
+              items: [
+                {
+                  label: "Country",
+                  value: countryInfo?.name || "Unknown",
+                },
+                {
+                  label: "Timezone",
+                  value: contactSession.metadata.timezone || "Unknown",
+                },
+                {
+                  label: "Language",
+                  value:
+                    contactSession.metadata.language ||
+                    contactSession.metadata.telegramLanguageCode ||
+                    "Unknown",
+                },
+              ],
+            },
+          ]),
       {
         id: "session-details",
         icon: ClockIcon,
@@ -317,7 +328,19 @@ export const ContactPanel = () => {
           </div>
         </div>
 
-        {!isInstagramSession && (
+        {isTelegramSession && telegramUsername && (
+          <Button asChild className="mt-3 w-full" size="sm" variant="outline">
+            <a
+              href={`https://t.me/${telegramUsername}`}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              <SendIcon className="size-3.5" />
+              <span>Open in Telegram</span>
+            </a>
+          </Button>
+        )}
+        {!isInstagramSession && !isTelegramSession && (
           <Button asChild className="mt-3 w-full" size="sm" variant="outline">
             <Link href={`mailto:${contactSession.email}`}>
               <MailIcon className="size-3.5" />

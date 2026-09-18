@@ -123,7 +123,7 @@ const colorFromUserId = (userId: string) => {
   return PRESENCE_COLORS[hash] ?? PRESENCE_COLORS[0]
 }
 
-const assertWorkflowAccess = async (
+export const assertWorkflowAccess = async (
   ctx: QueryCtx | MutationCtx,
   workflowId: Id<"workflows">,
   organizationId: string
@@ -140,7 +140,7 @@ const assertWorkflowAccess = async (
   return workflow
 }
 
-const toWorkflowRecord = (workflow: {
+export const toWorkflowRecord = (workflow: {
   _id: string
   name: string
   description?: string
@@ -728,6 +728,73 @@ export const syncLive = mutation({
   },
 })
 
+export const saveWorkflowForOrganization = async (
+  ctx: MutationCtx,
+  organizationId: string,
+  actorId: string | undefined,
+  args: {
+    workflowId?: Id<"workflows">
+    name: string
+    description?: string | null
+    definition: StoredWorkflowDefinition
+  }
+) => {
+  const now = Date.now()
+  const name = normalizeName(args.name)
+  const description = normalizeDescription(args.description)
+  const definition = withWorkflowMetadata(
+    args.workflowId,
+    name,
+    description,
+    args.definition as StoredWorkflowDefinition
+  )
+
+  if (args.workflowId) {
+    const existing = await ctx.db.get(args.workflowId)
+
+    if (!existing || existing.organizationId !== organizationId) {
+      throw new ConvexError({
+        code: "NOT_FOUND",
+        message: "Workflow not found",
+      })
+    }
+
+    await ctx.db.patch(args.workflowId, {
+      name,
+      description,
+      definition,
+      updatedAt: now,
+      updatedBy: actorId,
+    })
+
+    const updated = await ctx.db.get(args.workflowId)
+    return toWorkflowRecord(updated!)
+  }
+
+  const workflowId = await ctx.db.insert("workflows", {
+    organizationId,
+    name,
+    description,
+    definition,
+    createdAt: now,
+    updatedAt: now,
+    createdBy: actorId,
+    updatedBy: actorId,
+  })
+
+  await ctx.db.patch(workflowId, {
+    definition: withWorkflowMetadata(
+      workflowId,
+      name,
+      description,
+      args.definition as StoredWorkflowDefinition
+    ),
+  })
+
+  const created = await ctx.db.get(workflowId)
+  return toWorkflowRecord(created!)
+}
+
 export const save = mutation({
   args: {
     workflowId: v.optional(v.id("workflows")),
@@ -737,62 +804,69 @@ export const save = mutation({
   },
   handler: async (ctx, args) => {
     const { identity, organizationId } = await getOrganizationIdentity(ctx)
-    const now = Date.now()
-    const name = normalizeName(args.name)
-    const description = normalizeDescription(args.description)
-    const definition = withWorkflowMetadata(
-      args.workflowId,
-      name,
-      description,
-      args.definition as StoredWorkflowDefinition
-    )
-
-    if (args.workflowId) {
-      const existing = await ctx.db.get(args.workflowId)
-
-      if (!existing || existing.organizationId !== organizationId) {
-        throw new ConvexError({
-          code: "NOT_FOUND",
-          message: "Workflow not found",
-        })
-      }
-
-      await ctx.db.patch(args.workflowId, {
-        name,
-        description,
-        definition,
-        updatedAt: now,
-        updatedBy: identity.subject,
-      })
-
-      const updated = await ctx.db.get(args.workflowId)
-      return toWorkflowRecord(updated!)
-    }
-
-    const workflowId = await ctx.db.insert("workflows", {
+    return await saveWorkflowForOrganization(
+      ctx,
       organizationId,
-      name,
-      description,
-      definition,
-      createdAt: now,
-      updatedAt: now,
-      createdBy: identity.subject,
-      updatedBy: identity.subject,
-    })
-
-    await ctx.db.patch(workflowId, {
-      definition: withWorkflowMetadata(
-        workflowId,
-        name,
-        description,
-        args.definition as StoredWorkflowDefinition
-      ),
-    })
-
-    const created = await ctx.db.get(workflowId)
-    return toWorkflowRecord(created!)
+      identity.subject,
+      args
+    )
   },
 })
+
+export const publishWorkflowForOrganization = async (
+  ctx: MutationCtx,
+  organizationId: string,
+  actorId: string | undefined,
+  args: { workflowId: Id<"workflows">; activate?: boolean }
+) => {
+  const now = Date.now()
+  const workflow = await assertWorkflowAccess(
+    ctx,
+    args.workflowId,
+    organizationId
+  )
+  const definition = withWorkflowMetadata(
+    args.workflowId,
+    workflow.name,
+    workflow.description,
+    workflow.definition as StoredWorkflowDefinition
+  )
+
+  const activate = args.activate ?? true
+
+  if (activate) {
+    const activeWorkflows = await ctx.db
+      .query("workflows")
+      .withIndex("by_organization_id_and_active", (q) =>
+        q.eq("organizationId", organizationId).eq("isActive", true)
+      )
+      .collect()
+
+    await Promise.all(
+      activeWorkflows
+        .filter((activeWorkflow) => activeWorkflow._id !== args.workflowId)
+        .map((activeWorkflow) =>
+          ctx.db.patch(activeWorkflow._id, {
+            isActive: false,
+            updatedAt: now,
+            updatedBy: actorId,
+          })
+        )
+    )
+  }
+
+  await ctx.db.patch(args.workflowId, {
+    publishedDefinition: definition,
+    ...(activate ? { isActive: true } : {}),
+    publishedAt: now,
+    publishedBy: actorId,
+    updatedAt: now,
+    updatedBy: actorId,
+  })
+
+  const published = await ctx.db.get(args.workflowId)
+  return toWorkflowRecord(published!)
+}
 
 export const publish = mutation({
   args: {
@@ -806,53 +880,12 @@ export const publish = mutation({
   },
   handler: async (ctx, args) => {
     const { identity, organizationId } = await getOrganizationIdentity(ctx)
-    const now = Date.now()
-    const workflow = await assertWorkflowAccess(
+    return await publishWorkflowForOrganization(
       ctx,
-      args.workflowId,
-      organizationId
+      organizationId,
+      identity.subject,
+      args
     )
-    const definition = withWorkflowMetadata(
-      args.workflowId,
-      workflow.name,
-      workflow.description,
-      workflow.definition as StoredWorkflowDefinition
-    )
-
-    const activate = args.activate ?? true
-
-    if (activate) {
-      const activeWorkflows = await ctx.db
-        .query("workflows")
-        .withIndex("by_organization_id_and_active", (q) =>
-          q.eq("organizationId", organizationId).eq("isActive", true)
-        )
-        .collect()
-
-      await Promise.all(
-        activeWorkflows
-          .filter((activeWorkflow) => activeWorkflow._id !== args.workflowId)
-          .map((activeWorkflow) =>
-            ctx.db.patch(activeWorkflow._id, {
-              isActive: false,
-              updatedAt: now,
-              updatedBy: identity.subject,
-            })
-          )
-      )
-    }
-
-    await ctx.db.patch(args.workflowId, {
-      publishedDefinition: definition,
-      ...(activate ? { isActive: true } : {}),
-      publishedAt: now,
-      publishedBy: identity.subject,
-      updatedAt: now,
-      updatedBy: identity.subject,
-    })
-
-    const published = await ctx.db.get(args.workflowId)
-    return toWorkflowRecord(published!)
   },
 })
 
@@ -935,50 +968,77 @@ export const duplicate = mutation({
   },
 })
 
+export const removeWorkflowForOrganization = async (
+  ctx: MutationCtx,
+  organizationId: string,
+  args: { workflowId: Id<"workflows"> }
+) => {
+  const workflow = await assertWorkflowAccess(
+    ctx,
+    args.workflowId,
+    organizationId
+  )
+
+  // Deleting the live workflow would strand conversations mid-run.
+  if (workflow.isActive) {
+    throw new ConvexError({
+      code: "BAD_REQUEST",
+      message: "Deactivate this workflow before deleting it.",
+    })
+  }
+
+  const sessions = await ctx.db
+    .query("workflowSessions")
+    .withIndex("by_organization_id", (q) =>
+      q.eq("organizationId", organizationId)
+    )
+    .collect()
+
+  await Promise.all(
+    sessions
+      .filter((session) => session.workflowId === args.workflowId)
+      .map((session) => ctx.db.delete(session._id))
+  )
+
+  const presence = await ctx.db
+    .query("workflowPresence")
+    .withIndex("by_workflow_id", (q) => q.eq("workflowId", args.workflowId))
+    .collect()
+
+  await Promise.all(presence.map((entry) => ctx.db.delete(entry._id)))
+  await ctx.db.delete(args.workflowId)
+
+  return { deleted: true }
+}
+
 export const remove = mutation({
   args: {
     workflowId: v.id("workflows"),
   },
   handler: async (ctx, args) => {
     const { organizationId } = await getOrganizationIdentity(ctx)
-    const workflow = await assertWorkflowAccess(
-      ctx,
-      args.workflowId,
-      organizationId
-    )
-
-    // Deleting the live workflow would strand conversations mid-run.
-    if (workflow.isActive) {
-      throw new ConvexError({
-        code: "BAD_REQUEST",
-        message: "Deactivate this workflow before deleting it.",
-      })
-    }
-
-    const sessions = await ctx.db
-      .query("workflowSessions")
-      .withIndex("by_organization_id", (q) =>
-        q.eq("organizationId", organizationId)
-      )
-      .collect()
-
-    await Promise.all(
-      sessions
-        .filter((session) => session.workflowId === args.workflowId)
-        .map((session) => ctx.db.delete(session._id))
-    )
-
-    const presence = await ctx.db
-      .query("workflowPresence")
-      .withIndex("by_workflow_id", (q) => q.eq("workflowId", args.workflowId))
-      .collect()
-
-    await Promise.all(presence.map((entry) => ctx.db.delete(entry._id)))
-    await ctx.db.delete(args.workflowId)
-
-    return { deleted: true }
+    return await removeWorkflowForOrganization(ctx, organizationId, args)
   },
 })
+
+export const deactivateWorkflowForOrganization = async (
+  ctx: MutationCtx,
+  organizationId: string,
+  actorId: string | undefined,
+  args: { workflowId: Id<"workflows"> }
+) => {
+  const now = Date.now()
+  await assertWorkflowAccess(ctx, args.workflowId, organizationId)
+
+  await ctx.db.patch(args.workflowId, {
+    isActive: false,
+    updatedAt: now,
+    updatedBy: actorId,
+  })
+
+  const deactivated = await ctx.db.get(args.workflowId)
+  return toWorkflowRecord(deactivated!)
+}
 
 export const deactivate = mutation({
   args: {
@@ -986,17 +1046,12 @@ export const deactivate = mutation({
   },
   handler: async (ctx, args) => {
     const { identity, organizationId } = await getOrganizationIdentity(ctx)
-    const now = Date.now()
-    await assertWorkflowAccess(ctx, args.workflowId, organizationId)
-
-    await ctx.db.patch(args.workflowId, {
-      isActive: false,
-      updatedAt: now,
-      updatedBy: identity.subject,
-    })
-
-    const deactivated = await ctx.db.get(args.workflowId)
-    return toWorkflowRecord(deactivated!)
+    return await deactivateWorkflowForOrganization(
+      ctx,
+      organizationId,
+      identity.subject,
+      args
+    )
   },
 })
 

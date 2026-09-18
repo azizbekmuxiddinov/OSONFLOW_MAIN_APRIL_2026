@@ -1,12 +1,12 @@
 import { supportAgent } from "../system/ai/agents/supportAgent"
-import { query, mutation } from "../_generated/server"
+import { query, mutation, type MutationCtx } from "../_generated/server"
 import { v, ConvexError } from "convex/values"
 import { MessageDoc } from "@convex-dev/agent"
 import {
   paginationOptsValidator,
   PaginationResult,
 } from "convex/server"
-import { Doc } from "../_generated/dataModel"
+import type { Doc, Id } from "../_generated/dataModel"
 import { components, internal } from "../_generated/api"
 import {
   belongsToOrganization,
@@ -71,6 +71,121 @@ const getSearchSnippet = (
   return `${prefix}${value.slice(start, end)}${suffix}`
 }
 
+type ConversationStatus = Doc<"conversations">["status"]
+
+/**
+ * Moves a conversation to a new status on behalf of a person, from the inbox
+ * or the developer API. Keeps a linked voice call in step and tells webhooks
+ * and analytics about the change.
+ */
+export const updateConversationStatusForOrganization = async (
+  ctx: MutationCtx,
+  organizationId: string,
+  conversationId: Id<"conversations">,
+  status: ConversationStatus,
+  source: "operator" | "api" = "operator"
+) => {
+  const conversation = await ctx.db.get(conversationId)
+  if (!conversation) {
+    return null
+  }
+
+  if (conversation.organizationId !== organizationId) {
+    throw new ConvexError({
+      code: "UNAUTHORZIED",
+      message: "Invalid Organization ID",
+    })
+  }
+
+  const previousStatus = conversation.status
+  const now = Date.now()
+
+  await ctx.db.patch(conversationId, {
+    status,
+    escalatedAt:
+      status === "escalated"
+        ? (conversation.escalatedAt ?? now)
+        : conversation.escalatedAt,
+    resolvedAt:
+      status === "resolved"
+        ? (conversation.resolvedAt ?? now)
+        : conversation.resolvedAt,
+    resolutionSource:
+      status === "resolved" ? "human" : conversation.resolutionSource,
+  })
+
+  const linkedAiVoiceConversation = await ctx.db
+    .query("aiVoiceConversations")
+    .withIndex("by_organization_id", (q) =>
+      q.eq("organizationId", organizationId)
+    )
+    .filter((q) => q.eq(q.field("linkedConversationId"), conversationId))
+    .first()
+
+  if (linkedAiVoiceConversation) {
+    await ctx.db.patch(linkedAiVoiceConversation._id, {
+      status,
+      lastActivityAt: now,
+      endedAt:
+        status === "resolved"
+          ? (linkedAiVoiceConversation.endedAt ?? now)
+          : linkedAiVoiceConversation.endedAt,
+      escalatedAt:
+        status === "escalated"
+          ? (linkedAiVoiceConversation.escalatedAt ?? now)
+          : linkedAiVoiceConversation.escalatedAt,
+      resolvedAt:
+        status === "resolved"
+          ? (linkedAiVoiceConversation.resolvedAt ?? now)
+          : linkedAiVoiceConversation.resolvedAt,
+      resolutionSource:
+        status === "resolved"
+          ? "human"
+          : linkedAiVoiceConversation.resolutionSource,
+    })
+  }
+
+  if (previousStatus !== status) {
+    await ctx.runMutation(
+      (internal as any).system.integrationWebhooks.dispatchEvent,
+      {
+        organizationId,
+        eventType: "conversation.status_changed",
+        payload: {
+          conversationId,
+          threadId: conversation.threadId,
+          previousStatus,
+          status,
+          source,
+        },
+      }
+    )
+  }
+
+  await ctx.scheduler.runAfter(
+    0,
+    (internal as any).system.intelligence.analyzeChatConversation,
+    {
+      conversationId,
+    }
+  )
+
+  if (
+    linkedAiVoiceConversation &&
+    (linkedAiVoiceConversation.status ?? "unresolved") !== status
+  ) {
+    await ctx.scheduler.runAfter(
+      0,
+      (internal as any).system.intelligence.analyzeVoiceConversation,
+      {
+        conversationId: linkedAiVoiceConversation._id,
+      }
+    )
+  }
+
+  return conversation
+}
+
 export const updateStatus = mutation({
   args: {
     conversationId: v.id("conversations"),
@@ -83,101 +198,12 @@ export const updateStatus = mutation({
   handler: async (ctx, args) => {
     const { orgId } = await requireOrganizationIdentity(ctx)
 
-    const conversation = await ctx.db.get(args.conversationId)
-    if (!conversation) {
-      return null
-    }
-
-    if (conversation.organizationId !== orgId) {
-      throw new ConvexError({
-        code: "UNAUTHORZIED",
-        message: "Invalid Organization ID",
-      })
-    }
-
-    const previousStatus = conversation.status
-    const now = Date.now()
-
-    await ctx.db.patch(args.conversationId, {
-      status: args.status,
-      escalatedAt:
-        args.status === "escalated"
-          ? (conversation.escalatedAt ?? now)
-          : conversation.escalatedAt,
-      resolvedAt:
-        args.status === "resolved"
-          ? (conversation.resolvedAt ?? now)
-          : conversation.resolvedAt,
-      resolutionSource:
-        args.status === "resolved" ? "human" : conversation.resolutionSource,
-    })
-
-    const linkedAiVoiceConversation = await ctx.db
-      .query("aiVoiceConversations")
-      .withIndex("by_organization_id", (q) => q.eq("organizationId", orgId))
-      .filter((q) => q.eq(q.field("linkedConversationId"), args.conversationId))
-      .first()
-
-    if (linkedAiVoiceConversation) {
-      await ctx.db.patch(linkedAiVoiceConversation._id, {
-        status: args.status,
-        lastActivityAt: now,
-        endedAt:
-          args.status === "resolved"
-            ? (linkedAiVoiceConversation.endedAt ?? now)
-            : linkedAiVoiceConversation.endedAt,
-        escalatedAt:
-          args.status === "escalated"
-            ? (linkedAiVoiceConversation.escalatedAt ?? now)
-            : linkedAiVoiceConversation.escalatedAt,
-        resolvedAt:
-          args.status === "resolved"
-            ? (linkedAiVoiceConversation.resolvedAt ?? now)
-            : linkedAiVoiceConversation.resolvedAt,
-        resolutionSource:
-          args.status === "resolved"
-            ? "human"
-            : linkedAiVoiceConversation.resolutionSource,
-      })
-    }
-
-    if (previousStatus !== args.status) {
-      await ctx.runMutation(
-        (internal as any).system.integrationWebhooks.dispatchEvent,
-        {
-          organizationId: orgId,
-          eventType: "conversation.status_changed",
-          payload: {
-            conversationId: args.conversationId,
-            threadId: conversation.threadId,
-            previousStatus,
-            status: args.status,
-            source: "operator",
-          },
-        }
-      )
-    }
-
-    await ctx.scheduler.runAfter(
-      0,
-      (internal as any).system.intelligence.analyzeChatConversation,
-      {
-        conversationId: args.conversationId,
-      }
+    await updateConversationStatusForOrganization(
+      ctx,
+      orgId,
+      args.conversationId,
+      args.status
     )
-
-    if (
-      linkedAiVoiceConversation &&
-      (linkedAiVoiceConversation.status ?? "unresolved") !== args.status
-    ) {
-      await ctx.scheduler.runAfter(
-        0,
-        (internal as any).system.intelligence.analyzeVoiceConversation,
-        {
-          conversationId: linkedAiVoiceConversation._id,
-        }
-      )
-    }
   },
 })
 
@@ -299,6 +325,94 @@ export const exportOne = query({
   },
 })
 
+/**
+ * Deletes a conversation with everything hanging off it: the thread, workflow
+ * runs and insights, and the links channel contacts and voice calls keep to it.
+ */
+export const removeConversationForOrganization = async (
+  ctx: MutationCtx,
+  organizationId: string,
+  conversationId: Id<"conversations">
+) => {
+  const conversation = await ctx.db.get(conversationId)
+
+  if (!conversation) {
+    return false
+  }
+
+  if (conversation.organizationId !== organizationId) {
+    throw new ConvexError({
+      code: "UNAUTHORIZED",
+      message: "Invalid Organization ID",
+    })
+  }
+
+  const workflowSessions = await ctx.db
+    .query("workflowSessions")
+    .withIndex("by_conversation_id", (q) =>
+      q.eq("conversationId", conversationId)
+    )
+    .collect()
+
+  const insights = await ctx.db
+    .query("conversationInsights")
+    .withIndex("by_conversation_id", (q) =>
+      q.eq("conversationId", conversationId)
+    )
+    .collect()
+
+  const linkedVoiceConversations = await ctx.db
+    .query("aiVoiceConversations")
+    .withIndex("by_organization_id", (q) =>
+      q.eq("organizationId", organizationId)
+    )
+    .filter((q) => q.eq(q.field("linkedConversationId"), conversationId))
+    .collect()
+
+  const telegramContacts = await ctx.db
+    .query("telegramContacts")
+    .withIndex("by_organization_id", (q) =>
+      q.eq("organizationId", organizationId)
+    )
+    .filter((q) => q.eq(q.field("activeConversationId"), conversationId))
+    .collect()
+
+  const instagramContacts = await ctx.db
+    .query("instagramContacts")
+    .withIndex("by_organization_id", (q) =>
+      q.eq("organizationId", organizationId)
+    )
+    .filter((q) => q.eq(q.field("activeConversationId"), conversationId))
+    .collect()
+
+  await Promise.all([
+    ctx.runMutation(components.agent.threads.deleteAllForThreadIdAsync, {
+      threadId: conversation.threadId,
+      limit: 100,
+    }),
+    ...workflowSessions.map((session) => ctx.db.delete(session._id)),
+    ...insights.map((insight) => ctx.db.delete(insight._id)),
+    ...linkedVoiceConversations.map((voiceConversation) =>
+      ctx.db.patch(voiceConversation._id, {
+        linkedConversationId: undefined,
+      })
+    ),
+    ...telegramContacts.map((contact) =>
+      ctx.db.patch(contact._id, {
+        activeConversationId: undefined,
+      })
+    ),
+    ...instagramContacts.map((contact) =>
+      ctx.db.patch(contact._id, {
+        activeConversationId: undefined,
+      })
+    ),
+  ])
+
+  await ctx.db.delete(conversationId)
+  return true
+}
+
 export const remove = mutation({
   args: {
     conversationId: v.id("conversations"),
@@ -306,76 +420,7 @@ export const remove = mutation({
   handler: async (ctx, args) => {
     const { orgId } = await requireOrganizationIdentity(ctx)
 
-    const conversation = await ctx.db.get(args.conversationId)
-
-    if (!conversation) {
-      return
-    }
-
-    if (conversation.organizationId !== orgId) {
-      throw new ConvexError({
-        code: "UNAUTHORIZED",
-        message: "Invalid Organization ID",
-      })
-    }
-
-    const workflowSessions = await ctx.db
-      .query("workflowSessions")
-      .withIndex("by_conversation_id", (q) =>
-        q.eq("conversationId", args.conversationId)
-      )
-      .collect()
-
-    const insights = await ctx.db
-      .query("conversationInsights")
-      .withIndex("by_conversation_id", (q) =>
-        q.eq("conversationId", args.conversationId)
-      )
-      .collect()
-
-    const linkedVoiceConversations = await ctx.db
-      .query("aiVoiceConversations")
-      .withIndex("by_organization_id", (q) => q.eq("organizationId", orgId))
-      .filter((q) => q.eq(q.field("linkedConversationId"), args.conversationId))
-      .collect()
-
-    const telegramContacts = await ctx.db
-      .query("telegramContacts")
-      .withIndex("by_organization_id", (q) => q.eq("organizationId", orgId))
-      .filter((q) => q.eq(q.field("activeConversationId"), args.conversationId))
-      .collect()
-
-    const instagramContacts = await ctx.db
-      .query("instagramContacts")
-      .withIndex("by_organization_id", (q) => q.eq("organizationId", orgId))
-      .filter((q) => q.eq(q.field("activeConversationId"), args.conversationId))
-      .collect()
-
-    await Promise.all([
-      ctx.runMutation(components.agent.threads.deleteAllForThreadIdAsync, {
-        threadId: conversation.threadId,
-        limit: 100,
-      }),
-      ...workflowSessions.map((session) => ctx.db.delete(session._id)),
-      ...insights.map((insight) => ctx.db.delete(insight._id)),
-      ...linkedVoiceConversations.map((voiceConversation) =>
-        ctx.db.patch(voiceConversation._id, {
-          linkedConversationId: undefined,
-        })
-      ),
-      ...telegramContacts.map((contact) =>
-        ctx.db.patch(contact._id, {
-          activeConversationId: undefined,
-        })
-      ),
-      ...instagramContacts.map((contact) =>
-        ctx.db.patch(contact._id, {
-          activeConversationId: undefined,
-        })
-      ),
-    ])
-
-    await ctx.db.delete(args.conversationId)
+    await removeConversationForOrganization(ctx, orgId, args.conversationId)
   },
 })
 
@@ -588,44 +633,71 @@ export const getMany = query({
         .order("desc")
         .collect()
     } else {
-      if (assignmentFilter === "assigned_to_me") {
-        if (args.status) {
-          conversations = await ctx.db
-            .query("conversations")
-            .withIndex("by_status_and_organization_id_and_assigned_to", (q) =>
-              q
-                .eq("status", args.status as Doc<"conversations">["status"])
-                .eq("organizationId", orgId)
-                .eq("assignedToId", identity.subject)
+      const baseQuery =
+        assignmentFilter === "assigned_to_me"
+          ? args.status
+            ? ctx.db
+                .query("conversations")
+                .withIndex(
+                  "by_status_and_organization_id_and_assigned_to",
+                  (q) =>
+                    q
+                      .eq("status", args.status as Doc<"conversations">["status"])
+                      .eq("organizationId", orgId)
+                      .eq("assignedToId", identity.subject)
+                )
+            : ctx.db
+                .query("conversations")
+                .withIndex("by_organization_id_and_assigned_to", (q) =>
+                  q
+                    .eq("organizationId", orgId)
+                    .eq("assignedToId", identity.subject)
+                )
+          : args.status
+            ? ctx.db
+                .query("conversations")
+                .withIndex("by_status_and_organization_id", (q) =>
+                  q
+                    .eq("status", args.status as Doc<"conversations">["status"])
+                    .eq("organizationId", orgId)
+                )
+            : ctx.db
+                .query("conversations")
+                .withIndex("by_organization_id", (q) =>
+                  q.eq("organizationId", orgId)
+                )
+
+      // Narrow filters run inside the scan so every page comes back full.
+      // Filtering after .paginate() returned mostly-empty pages, which made
+      // the infinite-scroll trigger chain loads until the table ran out.
+      conversations = await baseQuery
+        .order("desc")
+        .filter((q) => {
+          const conditions = []
+          if (args.priorityFilter === "prioritized") {
+            conditions.push(
+              q.and(
+                q.neq(q.field("priority"), undefined),
+                q.neq(q.field("priority"), null)
+              )
             )
-            .order("desc")
-            .paginate(args.paginationOpts)
-        } else {
-          conversations = await ctx.db
-            .query("conversations")
-            .withIndex("by_organization_id_and_assigned_to", (q) =>
-              q.eq("organizationId", orgId).eq("assignedToId", identity.subject)
+          }
+          if (assignmentFilter === "unassigned") {
+            conditions.push(
+              q.or(
+                q.eq(q.field("assignedToId"), undefined),
+                q.eq(q.field("assignedToId"), null)
+              )
             )
-            .order("desc")
-            .paginate(args.paginationOpts)
-        }
-      } else if (args.status) {
-        conversations = await ctx.db
-          .query("conversations")
-          .withIndex("by_status_and_organization_id", (q) =>
-            q
-              .eq("status", args.status as Doc<"conversations">["status"])
-              .eq("organizationId", orgId)
-          )
-          .order("desc")
-          .paginate(args.paginationOpts)
-      } else {
-        conversations = await ctx.db
-          .query("conversations")
-          .withIndex("by_organization_id", (q) => q.eq("organizationId", orgId))
-          .order("desc")
-          .paginate(args.paginationOpts)
-      }
+          }
+          if (sourceFilter === "workflow") {
+            conditions.push(q.eq(q.field("source"), "workflow"))
+          } else if (sourceFilter === "widget") {
+            conditions.push(q.neq(q.field("source"), "workflow"))
+          }
+          return conditions.length > 0 ? q.and(...conditions) : true
+        })
+        .paginate(args.paginationOpts)
 
       sourceConversations = conversations.page
     }

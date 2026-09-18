@@ -13,4 +13,13 @@ crons.interval(
   {}
 )
 
+// Developer API request logs past each organization's retention period, and
+// daily usage counters older than the usage chart shows.
+crons.interval(
+  "purge developer API logs",
+  { hours: 1 },
+  internal.system.developerApi.gate.purgeExpired,
+  {}
+)
+
 export default crons

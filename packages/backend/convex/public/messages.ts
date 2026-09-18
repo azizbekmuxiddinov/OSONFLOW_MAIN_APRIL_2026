@@ -1,5 +1,10 @@
 import { ConvexError, v } from "convex/values"
-import { action, query } from "../_generated/server"
+import {
+  action,
+  internalAction,
+  query,
+  type ActionCtx,
+} from "../_generated/server"
 import { components, internal } from "../_generated/api"
 import type { Id } from "../_generated/dataModel"
 import { supportAgent } from "../system/ai/agents/supportAgent"
@@ -11,6 +16,7 @@ import {
   listStreams,
   saveMessage,
   vStreamArgs,
+  type SyncStreamsReturnValue,
 } from "@convex-dev/agent"
 import { search } from "../system/ai/tools/search"
 import {
@@ -322,115 +328,134 @@ const describeAttachmentsForModel = (count: number, promptText: string) => {
   return promptText ? `${promptText}\n\n${notice}` : notice
 }
 
-export const create = action({
-  args: {
-    prompt: v.string(),
-    threadId: v.string(),
-    contactSessionId: v.id("contactSessions"),
-    workflowButtonId: v.optional(v.string()),
-    attachmentIds: v.optional(v.array(v.id("chatAttachments"))),
-  },
-  handler: async (ctx, args) => {
-    const contactSession = await ctx.runQuery(
-      internal.system.contactSessions.getOne,
+const visitorMessageArgs = {
+  prompt: v.string(),
+  threadId: v.string(),
+  contactSessionId: v.id("contactSessions"),
+  workflowButtonId: v.optional(v.string()),
+  attachmentIds: v.optional(v.array(v.id("chatAttachments"))),
+}
+
+type VisitorMessageArgs = {
+  prompt: string
+  threadId: string
+  contactSessionId: Id<"contactSessions">
+  workflowButtonId?: string
+  attachmentIds?: Id<"chatAttachments">[]
+}
+
+/**
+ * One visitor turn: the message is saved, then a published workflow or the
+ * assistant answers it. Shared by the widget and the developer API, which
+ * differ only in whose rate limits apply — the widget's per-visitor ones, or
+ * the limits the organization configured for its API keys.
+ */
+const runVisitorMessageTurn = async (
+  ctx: ActionCtx,
+  args: VisitorMessageArgs,
+  { enforceWidgetRateLimits }: { enforceWidgetRateLimits: boolean }
+): Promise<{ handledByWorkflow: boolean }> => {
+  const contactSession = await ctx.runQuery(
+    internal.system.contactSessions.getOne,
+    {
+      contactSessionId: args.contactSessionId,
+    }
+  )
+
+  if (!contactSession || contactSession.expiresAt < Date.now()) {
+    throw new ConvexError({
+      code: "UNAUTHORIZED",
+      message: "Invalid session",
+    })
+  }
+
+  const conversation = await ctx.runQuery(
+    internal.system.conversations.getByThreadId,
+    {
+      threadId: args.threadId,
+    }
+  )
+
+  if (!conversation) {
+    throw new ConvexError({
+      code: "NOT_FOUND",
+      message: "Conversation not found",
+    })
+  }
+
+  if (
+    conversation.contactSessionId !== args.contactSessionId ||
+    contactSession.organizationId !== conversation.organizationId
+  ) {
+    throw new ConvexError({
+      code: "UNAUTHORIZED",
+      message: "Invalid session",
+    })
+  }
+
+  if (conversation.status === "resolved") {
+    throw new ConvexError({
+      code: "BAD_REQUEST",
+      message: "Conversation resolved",
+    })
+  }
+
+  const attachmentIds = args.attachmentIds ?? []
+  const promptText = args.prompt.trim()
+  let attachments: Array<{
+    id: Id<"chatAttachments">
+    storageId: Id<"_storage">
+    mediaType: string
+    filename: string
+    size: number
+  }> = []
+  let attachmentsVisibleToModel = false
+
+  if (attachmentIds.length > 0) {
+    const uploadPolicy = await ctx.runQuery(
+      internal.system.chatAttachments.getUploadPolicy,
       {
+        organizationId: conversation.organizationId,
+        agentId: conversation.agentId,
+      }
+    )
+
+    if (!uploadPolicy.enabled) {
+      throw new ConvexError({
+        code: "FORBIDDEN",
+        message: "Image attachments are turned off for this widget.",
+      })
+    }
+
+    if (attachmentIds.length > uploadPolicy.maxPerMessage) {
+      throw new ConvexError({
+        code: "BAD_REQUEST",
+        message: `You can attach up to ${uploadPolicy.maxPerMessage} image${uploadPolicy.maxPerMessage === 1 ? "" : "s"} per message.`,
+      })
+    }
+
+    // Confirms every id belongs to this visitor and this conversation, and is
+    // not already attached to an earlier message.
+    attachments = await ctx.runQuery(
+      internal.system.chatAttachments.resolveForSend,
+      {
+        conversationId: conversation._id,
+        attachmentIds,
+        source: "contact",
         contactSessionId: args.contactSessionId,
       }
     )
+    attachmentsVisibleToModel = uploadPolicy.aiVisionEnabled
+  }
 
-    if (!contactSession || contactSession.expiresAt < Date.now()) {
-      throw new ConvexError({
-        code: "UNAUTHORIZED",
-        message: "Invalid session",
-      })
-    }
+  if (!promptText && attachments.length === 0) {
+    throw new ConvexError({
+      code: "BAD_REQUEST",
+      message: "Message is required",
+    })
+  }
 
-    const conversation = await ctx.runQuery(
-      internal.system.conversations.getByThreadId,
-      {
-        threadId: args.threadId,
-      }
-    )
-
-    if (!conversation) {
-      throw new ConvexError({
-        code: "NOT_FOUND",
-        message: "Conversation not found",
-      })
-    }
-
-    if (
-      conversation.contactSessionId !== args.contactSessionId ||
-      contactSession.organizationId !== conversation.organizationId
-    ) {
-      throw new ConvexError({
-        code: "UNAUTHORIZED",
-        message: "Invalid session",
-      })
-    }
-
-    if (conversation.status === "resolved") {
-      throw new ConvexError({
-        code: "BAD_REQUEST",
-        message: "Conversation resolved",
-      })
-    }
-
-    const attachmentIds = args.attachmentIds ?? []
-    const promptText = args.prompt.trim()
-    let attachments: Array<{
-      id: Id<"chatAttachments">
-      storageId: Id<"_storage">
-      mediaType: string
-      filename: string
-      size: number
-    }> = []
-    let attachmentsVisibleToModel = false
-
-    if (attachmentIds.length > 0) {
-      const uploadPolicy = await ctx.runQuery(
-        internal.system.chatAttachments.getUploadPolicy,
-        {
-          organizationId: conversation.organizationId,
-          agentId: conversation.agentId,
-        }
-      )
-
-      if (!uploadPolicy.enabled) {
-        throw new ConvexError({
-          code: "FORBIDDEN",
-          message: "Image attachments are turned off for this widget.",
-        })
-      }
-
-      if (attachmentIds.length > uploadPolicy.maxPerMessage) {
-        throw new ConvexError({
-          code: "BAD_REQUEST",
-          message: `You can attach up to ${uploadPolicy.maxPerMessage} image${uploadPolicy.maxPerMessage === 1 ? "" : "s"} per message.`,
-        })
-      }
-
-      // Confirms every id belongs to this visitor and this conversation, and is
-      // not already attached to an earlier message.
-      attachments = await ctx.runQuery(
-        internal.system.chatAttachments.resolveForSend,
-        {
-          conversationId: conversation._id,
-          attachmentIds,
-          source: "contact",
-          contactSessionId: args.contactSessionId,
-        }
-      )
-      attachmentsVisibleToModel = uploadPolicy.aiVisionEnabled
-    }
-
-    if (!promptText && attachments.length === 0) {
-      throw new ConvexError({
-        code: "BAD_REQUEST",
-        message: "Message is required",
-      })
-    }
-
+  if (enforceWidgetRateLimits) {
     await enforceRateLimit(ctx, "widgetMessageBySession", {
       key: `${conversation.organizationId}:${args.contactSessionId}`,
       message: "You are sending messages too quickly. Please wait a moment.",
@@ -440,384 +465,319 @@ export const create = action({
       message:
         "This widget is receiving too many messages. Please try again shortly.",
     })
+  }
 
-    // This refreshes the user's session if they are within the threshold
-    await ctx.runMutation(internal.system.contactSessions.refresh, {
+  // This refreshes the user's session if they are within the threshold
+  await ctx.runMutation(internal.system.contactSessions.refresh, {
+    contactSessionId: args.contactSessionId,
+  })
+
+  const workflowResult = await ctx.runMutation(
+    (internal as any).system.workflowRuntime.handleUserMessage,
+    {
+      threadId: args.threadId,
+      prompt: args.prompt,
       contactSessionId: args.contactSessionId,
+      workflowButtonId: args.workflowButtonId,
+      attachmentIds,
+    }
+  )
+
+  if (workflowResult?.handled) {
+    return { handledByWorkflow: true }
+  }
+
+  const now = Date.now()
+
+  const subscription = await ctx.runQuery(
+    internal.system.subscriptions.getByOrganizationId,
+    {
+      organizationId: conversation.organizationId,
+    }
+  )
+
+  let subscriptionStatus = subscription?.status ?? null
+
+  if (subscriptionStatus !== "active") {
+    const hasPaidSubscription = await hasPaidOrganizationSubscription(
+      conversation.organizationId
+    )
+
+    if (hasPaidSubscription) {
+      subscriptionStatus = "active"
+      await ctx.runMutation(internal.system.subscriptions.upsert, {
+        organizationId: conversation.organizationId,
+        status: "active",
+      })
+    }
+  }
+
+  const openAIPlugin = await ctx.runQuery(
+    internal.system.plugins.getByOrganizationIdAndService,
+    {
+      organizationId: conversation.organizationId,
+      service: "openai_realtime",
+    }
+  )
+
+  const openAISecretValue = openAIPlugin?.secretValue ?? null
+  const hasOrganizationOpenAICredentials = Boolean(
+    getOpenAIKeyFromSecretValue(openAISecretValue)
+  )
+  const hasOpenAICredentials = Boolean(
+    hasOrganizationOpenAICredentials || process.env.OPENAI_API_KEY
+  )
+
+  const shouldTriggerAgent =
+    conversation.status === "unresolved" &&
+    subscriptionStatus === "active" &&
+    hasOpenAICredentials
+
+  const widgetSettings = await ctx.runQuery(
+    internal.system.widgetSettings.getByOrganizationId,
+    {
+      organizationId: conversation.organizationId,
+      agentId: conversation.agentId,
+    }
+  )
+
+  const systemPrompt =
+    widgetSettings?.systemPrompt?.trim() || SUPPORT_AGENT_PROMPT
+  const enabledToolIds = widgetSettings?.enabledToolIds
+  const chatModel =
+    widgetSettings?.chatSettings?.model?.trim() || OPENAI_CHAT_MODEL
+
+  const configuredTools = await ctx.runQuery(
+    internal.system.assistantTools.listEnabledForOrganization,
+    {
+      organizationId: conversation.organizationId,
+      channel: "chat",
+    }
+  )
+
+  const activeTools = filterAssistantToolsByIds(
+    configuredTools,
+    enabledToolIds
+  )
+  // An answer keyed on text alone must never be replayed for a message that
+  // also carried an image, and such an answer must not be cached either. The
+  // same goes for a message that only means something next to the previous
+  // one, whose answer depends on the thread rather than on the words.
+  //
+  // Having a live integration switched on is deliberately not part of this:
+  // the cache used to be disabled outright for any organization with one,
+  // which meant the organizations sending the most traffic never got a single
+  // hit. What actually matters is whether a live tool ran while producing a
+  // given answer, and that is decided per answer further down.
+  const bypassReplyCache =
+    attachments.length > 0 || !isSelfContainedQuestion(args.prompt)
+
+  const liveToolNames = getLiveChatToolNames(activeTools)
+  const toolsFingerprint = buildChatToolsFingerprint(activeTools)
+
+  // With attachments the visitor's message is written here rather than by the
+  // generate call below, so the uploads can be bound to a real message id
+  // before any reply exists. The images stay out of the stored message: they
+  // are handed to the model for this turn only, which keeps a screenshot from
+  // being re-uploaded as context on every later turn of the conversation.
+  let promptMessageId: string | undefined
+
+  if (attachments.length > 0) {
+    const savedUserMessage = await saveMessage(ctx, components.agent, {
+      threadId: args.threadId,
+      message: {
+        role: "user",
+        content: promptText,
+      },
     })
 
-    const workflowResult = await ctx.runMutation(
-      (internal as any).system.workflowRuntime.handleUserMessage,
-      {
-        threadId: args.threadId,
-        prompt: args.prompt,
-        contactSessionId: args.contactSessionId,
-        workflowButtonId: args.workflowButtonId,
-        attachmentIds,
-      }
-    )
+    promptMessageId = savedUserMessage.messageId
 
-    if (workflowResult?.handled) {
-      return
-    }
+    await ctx.runMutation(internal.system.chatAttachments.bindToMessage, {
+      conversationId: conversation._id,
+      attachmentIds: attachments.map((attachment) => attachment.id),
+      messageId: promptMessageId,
+      source: "contact",
+      contactSessionId: args.contactSessionId,
+    })
+  }
 
-    const now = Date.now()
+  let assistantReplyText: string | null = null
 
-    const subscription = await ctx.runQuery(
-      internal.system.subscriptions.getByOrganizationId,
-      {
-        organizationId: conversation.organizationId,
-      }
-    )
+  if (shouldTriggerAgent) {
+    let cachedReply: {
+      _id: string
+      answer: string
+    } | null = null
 
-    let subscriptionStatus = subscription?.status ?? null
-
-    if (subscriptionStatus !== "active") {
-      const hasPaidSubscription = await hasPaidOrganizationSubscription(
-        conversation.organizationId
+    if (!bypassReplyCache) {
+      cachedReply = await ctx.runQuery(
+        (internal as any).system.ai.replyCache.find,
+        {
+          organizationId: conversation.organizationId,
+          prompt: args.prompt,
+          model: chatModel,
+          systemPrompt,
+          toolsFingerprint,
+        }
       )
 
-      if (hasPaidSubscription) {
-        subscriptionStatus = "active"
-        await ctx.runMutation(internal.system.subscriptions.upsert, {
+      if (!cachedReply) {
+        cachedReply = await findSemanticCachedReply(ctx, {
           organizationId: conversation.organizationId,
-          status: "active",
+          prompt: args.prompt,
+          model: chatModel,
+          systemPrompt,
+          toolsFingerprint,
+          openAISecretValue,
         })
       }
     }
 
-    const openAIPlugin = await ctx.runQuery(
-      internal.system.plugins.getByOrganizationIdAndService,
-      {
-        organizationId: conversation.organizationId,
-        service: "openai_realtime",
-      }
-    )
+    if (cachedReply?.answer) {
+      await saveMessage(ctx, components.agent, {
+        threadId: args.threadId,
+        prompt: args.prompt,
+      })
 
-    const openAISecretValue = openAIPlugin?.secretValue ?? null
-    const hasOrganizationOpenAICredentials = Boolean(
-      getOpenAIKeyFromSecretValue(openAISecretValue)
-    )
-    const hasOpenAICredentials = Boolean(
-      hasOrganizationOpenAICredentials || process.env.OPENAI_API_KEY
-    )
-
-    const shouldTriggerAgent =
-      conversation.status === "unresolved" &&
-      subscriptionStatus === "active" &&
-      hasOpenAICredentials
-
-    const widgetSettings = await ctx.runQuery(
-      internal.system.widgetSettings.getByOrganizationId,
-      {
-        organizationId: conversation.organizationId,
-        agentId: conversation.agentId,
-      }
-    )
-
-    const systemPrompt =
-      widgetSettings?.systemPrompt?.trim() || SUPPORT_AGENT_PROMPT
-    const enabledToolIds = widgetSettings?.enabledToolIds
-    const chatModel =
-      widgetSettings?.chatSettings?.model?.trim() || OPENAI_CHAT_MODEL
-
-    const configuredTools = await ctx.runQuery(
-      internal.system.assistantTools.listEnabledForOrganization,
-      {
-        organizationId: conversation.organizationId,
-        channel: "chat",
-      }
-    )
-
-    const activeTools = filterAssistantToolsByIds(
-      configuredTools,
-      enabledToolIds
-    )
-    // An answer keyed on text alone must never be replayed for a message that
-    // also carried an image, and such an answer must not be cached either. The
-    // same goes for a message that only means something next to the previous
-    // one, whose answer depends on the thread rather than on the words.
-    //
-    // Having a live integration switched on is deliberately not part of this:
-    // the cache used to be disabled outright for any organization with one,
-    // which meant the organizations sending the most traffic never got a single
-    // hit. What actually matters is whether a live tool ran while producing a
-    // given answer, and that is decided per answer further down.
-    const bypassReplyCache =
-      attachments.length > 0 || !isSelfContainedQuestion(args.prompt)
-
-    const liveToolNames = getLiveChatToolNames(activeTools)
-    const toolsFingerprint = buildChatToolsFingerprint(activeTools)
-
-    // With attachments the visitor's message is written here rather than by the
-    // generate call below, so the uploads can be bound to a real message id
-    // before any reply exists. The images stay out of the stored message: they
-    // are handed to the model for this turn only, which keeps a screenshot from
-    // being re-uploaded as context on every later turn of the conversation.
-    let promptMessageId: string | undefined
-
-    if (attachments.length > 0) {
-      const savedUserMessage = await saveMessage(ctx, components.agent, {
+      await saveMessage(ctx, components.agent, {
         threadId: args.threadId,
         message: {
-          role: "user",
-          content: promptText,
+          role: "assistant",
+          content: cachedReply.answer,
         },
       })
 
-      promptMessageId = savedUserMessage.messageId
+      assistantReplyText = cachedReply.answer
 
-      await ctx.runMutation(internal.system.chatAttachments.bindToMessage, {
-        conversationId: conversation._id,
-        attachmentIds: attachments.map((attachment) => attachment.id),
-        messageId: promptMessageId,
-        source: "contact",
-        contactSessionId: args.contactSessionId,
+      await ctx.runMutation((internal as any).system.ai.replyCache.markHit, {
+        cacheId: cachedReply._id,
       })
-    }
-
-    let assistantReplyText: string | null = null
-
-    if (shouldTriggerAgent) {
-      let cachedReply: {
-        _id: string
-        answer: string
-      } | null = null
-
-      if (!bypassReplyCache) {
-        cachedReply = await ctx.runQuery(
-          (internal as any).system.ai.replyCache.find,
-          {
-            organizationId: conversation.organizationId,
-            prompt: args.prompt,
-            model: chatModel,
-            systemPrompt,
-            toolsFingerprint,
-          }
-        )
-
-        if (!cachedReply) {
-          cachedReply = await findSemanticCachedReply(ctx, {
-            organizationId: conversation.organizationId,
-            prompt: args.prompt,
-            model: chatModel,
-            systemPrompt,
-            toolsFingerprint,
-            openAISecretValue,
-          })
-        }
-      }
-
-      if (cachedReply?.answer) {
-        await saveMessage(ctx, components.agent, {
-          threadId: args.threadId,
-          prompt: args.prompt,
-        })
-
-        await saveMessage(ctx, components.agent, {
-          threadId: args.threadId,
-          message: {
-            role: "assistant",
-            content: cachedReply.answer,
-          },
-        })
-
-        assistantReplyText = cachedReply.answer
-
-        await ctx.runMutation((internal as any).system.ai.replyCache.markHit, {
-          cacheId: cachedReply._id,
-        })
-      } else {
-        const previousAssistantMessage = await getLatestAssistantMessage(
-          ctx,
-          args.threadId
-        )
-
-        const dynamicTools = await getEnabledChatTools(
-          ctx,
-          conversation.organizationId,
-          enabledToolIds,
-        conversation.agentId
-        )
-
-        const legacyTools = {
-          escalateConversationTool: escalateConversation,
-          resolveConversationTool: resolveConversation,
-          searchTool: search,
-        }
-
-        const chatTools = resolveChatToolsForWidget(
-          dynamicTools,
-          enabledToolIds,
-          legacyTools
-        )
-
-        const toolAwareSystemPrompt = buildToolAwareSystemPrompt(
-          systemPrompt,
-          activeTools
-        )
-
-        const modelPrompt = attachments.length
-          ? [
-              {
-                role: "user" as const,
-                content: attachmentsVisibleToModel
-                  ? [
-                      ...(promptText
-                        ? [{ type: "text" as const, text: promptText }]
-                        : []),
-                      ...(await buildModelImageParts(ctx, attachments)),
-                    ]
-                  : describeAttachmentsForModel(
-                      attachments.length,
-                      promptText
-                    ),
-              },
-            ]
-          : args.prompt
-
-        // Streamed rather than generated in one piece: the deltas go into the
-        // thread as they are produced, so the widget renders the answer while
-        // it is being written instead of showing a typing dot for the whole
-        // turn. The call still waits for the stream to finish, so everything
-        // below sees a complete turn exactly as it did before.
-        const stream = await supportAgent.streamText(
-          ctx,
-          { threadId: args.threadId },
-          {
-            model: getOpenAIChatModelFromSecretValue(
-              openAISecretValue,
-              chatModel
-            ),
-            system: toolAwareSystemPrompt,
-            prompt: modelPrompt,
-            // Anchors the reply to the message saved above so the prompt
-            // override is used for this call only and never written back.
-            promptMessageId,
-            tools: chatTools,
-          },
-          {
-            contextOptions: {
-              excludeToolMessages: true,
-            },
-            saveStreamDeltas: CHAT_STREAMING_OPTIONS,
-          }
-        ).catch(async (error) => {
-          await abortDanglingStreams(
-            ctx,
-            args.threadId,
-            "The reply could not be finished."
-          )
-          throw error
-        })
-
-        // streamText hands back promises where generateText had values, so the
-        // turn is settled here and read from a plain object below.
-        const result = {
-          text: await stream.text,
-          steps: await stream.steps,
-        }
-
-        const latestAssistantMessage = await getLatestAssistantMessage(
-          ctx,
-          args.threadId
-        )
-        assistantReplyText =
-          result.text?.trim() ||
-          (latestAssistantMessage &&
-          latestAssistantMessage.id !== previousAssistantMessage?.id
-            ? latestAssistantMessage.text
-            : null)
-
-        // A turn that spent every step calling tools leaves no text to show.
-        // The tool's own output is internal data, so the visitor gets a plain
-        // acknowledgement rather than a look at what the integration returned.
-        //
-        // A turn that produced nothing at all is answered too: with no
-        // assistant message the widget has nothing to render against, so the
-        // visitor is left watching a typing indicator over a reply that is
-        // never coming.
-        //
-        // The acknowledgement is written in the visitor's own language rather
-        // than hardcoded, so it does not arrive in English in the middle of a
-        // conversation the assistant has been holding in another language.
-        if (!assistantReplyText) {
-          assistantReplyText = await writeFallbackReply({
-            model: getOpenAIChatModelFromSecretValue(
-              openAISecretValue,
-              chatModel
-            ),
-            languageSample:
-              latestAssistantMessage?.text ?? previousAssistantMessage?.text,
-            visitorMessage: promptText,
-            kind: didCallTool(result) ? "acknowledge" : "lost",
-          })
-
-          await saveMessage(ctx, components.agent, {
-            threadId: args.threadId,
-            message: {
-              role: "assistant",
-              content: assistantReplyText,
-            },
-          })
-        }
-
-        const updatedConversation = await ctx.runQuery(
-          internal.system.conversations.getByThreadId,
-          {
-            threadId: args.threadId,
-          }
-        )
-
-        // An answer that came out of a spreadsheet, a calendar or someone's API
-        // was true for that one moment, so it is never stored — while an answer
-        // to "what are your opening hours" from the same assistant still is.
-        const usedLiveTool = getCalledToolNames(result).some((name) =>
-          liveToolNames.includes(name)
-        )
-
-        if (
-          assistantReplyText &&
-          updatedConversation?.status === conversation.status &&
-          !bypassReplyCache &&
-          !usedLiveTool
-        ) {
-          const cacheResult = await ctx.runMutation(
-            (internal as any).system.ai.replyCache.upsert,
-            {
-              organizationId: conversation.organizationId,
-              prompt: args.prompt,
-              answer: assistantReplyText,
-              model: chatModel,
-              systemPrompt,
-              toolsFingerprint,
-              sourceThreadId: args.threadId,
-            }
-          )
-
-          if (cacheResult) {
-            await indexSemanticCachedReply(ctx, {
-              organizationId: conversation.organizationId,
-              prompt: args.prompt,
-              cacheId: cacheResult.cacheId,
-              cacheKey: cacheResult.cacheKey,
-              model: chatModel,
-              openAISecretValue,
-            })
-          }
-        }
-      }
     } else {
-      if (!promptMessageId) {
-        await saveMessage(ctx, components.agent, {
-          threadId: args.threadId,
-          prompt: args.prompt,
-        })
+      const previousAssistantMessage = await getLatestAssistantMessage(
+        ctx,
+        args.threadId
+      )
+
+      const dynamicTools = await getEnabledChatTools(
+        ctx,
+        conversation.organizationId,
+        enabledToolIds,
+      conversation.agentId
+      )
+
+      const legacyTools = {
+        escalateConversationTool: escalateConversation,
+        resolveConversationTool: resolveConversation,
+        searchTool: search,
       }
 
-      if (conversation.status === "unresolved" && !shouldTriggerAgent) {
-        assistantReplyText =
-          "Thanks, your message was received. A human operator will reply soon."
+      const chatTools = resolveChatToolsForWidget(
+        dynamicTools,
+        enabledToolIds,
+        legacyTools
+      )
+
+      const toolAwareSystemPrompt = buildToolAwareSystemPrompt(
+        systemPrompt,
+        activeTools
+      )
+
+      const modelPrompt = attachments.length
+        ? [
+            {
+              role: "user" as const,
+              content: attachmentsVisibleToModel
+                ? [
+                    ...(promptText
+                      ? [{ type: "text" as const, text: promptText }]
+                      : []),
+                    ...(await buildModelImageParts(ctx, attachments)),
+                  ]
+                : describeAttachmentsForModel(
+                    attachments.length,
+                    promptText
+                  ),
+            },
+          ]
+        : args.prompt
+
+      // Streamed rather than generated in one piece: the deltas go into the
+      // thread as they are produced, so the widget renders the answer while
+      // it is being written instead of showing a typing dot for the whole
+      // turn. The call still waits for the stream to finish, so everything
+      // below sees a complete turn exactly as it did before.
+      const stream = await supportAgent.streamText(
+        ctx,
+        { threadId: args.threadId },
+        {
+          model: getOpenAIChatModelFromSecretValue(
+            openAISecretValue,
+            chatModel
+          ),
+          system: toolAwareSystemPrompt,
+          prompt: modelPrompt,
+          // Anchors the reply to the message saved above so the prompt
+          // override is used for this call only and never written back.
+          promptMessageId,
+          tools: chatTools,
+        },
+        {
+          contextOptions: {
+            excludeToolMessages: true,
+          },
+          saveStreamDeltas: CHAT_STREAMING_OPTIONS,
+        }
+      ).catch(async (error) => {
+        await abortDanglingStreams(
+          ctx,
+          args.threadId,
+          "The reply could not be finished."
+        )
+        throw error
+      })
+
+      // streamText hands back promises where generateText had values, so the
+      // turn is settled here and read from a plain object below.
+      const result = {
+        text: await stream.text,
+        steps: await stream.steps,
+      }
+
+      const latestAssistantMessage = await getLatestAssistantMessage(
+        ctx,
+        args.threadId
+      )
+      assistantReplyText =
+        result.text?.trim() ||
+        (latestAssistantMessage &&
+        latestAssistantMessage.id !== previousAssistantMessage?.id
+          ? latestAssistantMessage.text
+          : null)
+
+      // A turn that spent every step calling tools leaves no text to show.
+      // The tool's own output is internal data, so the visitor gets a plain
+      // acknowledgement rather than a look at what the integration returned.
+      //
+      // A turn that produced nothing at all is answered too: with no
+      // assistant message the widget has nothing to render against, so the
+      // visitor is left watching a typing indicator over a reply that is
+      // never coming.
+      //
+      // The acknowledgement is written in the visitor's own language rather
+      // than hardcoded, so it does not arrive in English in the middle of a
+      // conversation the assistant has been holding in another language.
+      if (!assistantReplyText) {
+        assistantReplyText = await writeFallbackReply({
+          model: getOpenAIChatModelFromSecretValue(
+            openAISecretValue,
+            chatModel
+          ),
+          languageSample:
+            latestAssistantMessage?.text ?? previousAssistantMessage?.text,
+          visitorMessage: promptText,
+          kind: didCallTool(result) ? "acknowledge" : "lost",
+        })
 
         await saveMessage(ctx, components.agent, {
           threadId: args.threadId,
@@ -827,46 +787,201 @@ export const create = action({
           },
         })
       }
-    }
 
-    await ctx.runMutation(internal.system.conversations.touchCustomerMessage, {
-      conversationId: conversation._id,
-      timestamp: now,
-    })
-
-    if (assistantReplyText) {
-      await ctx.runMutation(
-        internal.system.conversations.touchAssistantMessage,
+      const updatedConversation = await ctx.runQuery(
+        internal.system.conversations.getByThreadId,
         {
-          conversationId: conversation._id,
+          threadId: args.threadId,
         }
       )
+
+      // An answer that came out of a spreadsheet, a calendar or someone's API
+      // was true for that one moment, so it is never stored — while an answer
+      // to "what are your opening hours" from the same assistant still is.
+      const usedLiveTool = getCalledToolNames(result).some((name) =>
+        liveToolNames.includes(name)
+      )
+
+      if (
+        assistantReplyText &&
+        updatedConversation?.status === conversation.status &&
+        !bypassReplyCache &&
+        !usedLiveTool
+      ) {
+        const cacheResult = await ctx.runMutation(
+          (internal as any).system.ai.replyCache.upsert,
+          {
+            organizationId: conversation.organizationId,
+            prompt: args.prompt,
+            answer: assistantReplyText,
+            model: chatModel,
+            systemPrompt,
+            toolsFingerprint,
+            sourceThreadId: args.threadId,
+          }
+        )
+
+        if (cacheResult) {
+          await indexSemanticCachedReply(ctx, {
+            organizationId: conversation.organizationId,
+            prompt: args.prompt,
+            cacheId: cacheResult.cacheId,
+            cacheKey: cacheResult.cacheKey,
+            model: chatModel,
+            openAISecretValue,
+          })
+        }
+      }
+    }
+  } else {
+    if (!promptMessageId) {
+      await saveMessage(ctx, components.agent, {
+        threadId: args.threadId,
+        prompt: args.prompt,
+      })
     }
 
-    await ctx.scheduler.runAfter(
-      0,
-      (internal as any).system.intelligence.analyzeChatConversation,
+    if (conversation.status === "unresolved" && !shouldTriggerAgent) {
+      assistantReplyText =
+        "Thanks, your message was received. A human operator will reply soon."
+
+      await saveMessage(ctx, components.agent, {
+        threadId: args.threadId,
+        message: {
+          role: "assistant",
+          content: assistantReplyText,
+        },
+      })
+    }
+  }
+
+  await ctx.runMutation(internal.system.conversations.touchCustomerMessage, {
+    conversationId: conversation._id,
+    timestamp: now,
+  })
+
+  if (assistantReplyText) {
+    await ctx.runMutation(
+      internal.system.conversations.touchAssistantMessage,
       {
         conversationId: conversation._id,
       }
     )
+  }
 
-    await ctx.runMutation(
-      (internal as any).system.integrationWebhooks.dispatchEvent,
-      {
-        organizationId: conversation.organizationId,
-        eventType: "message.received",
-        payload: {
-          conversationId: conversation._id,
-          threadId: args.threadId,
-          contactSessionId: args.contactSessionId,
-          prompt: args.prompt,
-          attachmentCount: attachments.length,
-        },
-      }
-    )
+  await ctx.scheduler.runAfter(
+    0,
+    (internal as any).system.intelligence.analyzeChatConversation,
+    {
+      conversationId: conversation._id,
+    }
+  )
+
+  await ctx.runMutation(
+    (internal as any).system.integrationWebhooks.dispatchEvent,
+    {
+      organizationId: conversation.organizationId,
+      eventType: "message.received",
+      payload: {
+        conversationId: conversation._id,
+        threadId: args.threadId,
+        contactSessionId: args.contactSessionId,
+        prompt: args.prompt,
+        attachmentCount: attachments.length,
+      },
+    }
+  )
+
+  return { handledByWorkflow: false }
+}
+
+export const create = action({
+  args: visitorMessageArgs,
+  handler: async (ctx, args) => {
+    await runVisitorMessageTurn(ctx, args, { enforceWidgetRateLimits: true })
   },
 })
+
+/**
+ * The developer API's customer message. The caller has already been admitted
+ * against the organization's configured API limits, so the widget's
+ * per-visitor limits are not applied a second time.
+ */
+export const createFromDeveloperApi = internalAction({
+  args: visitorMessageArgs,
+  handler: async (ctx, args): Promise<{ handledByWorkflow: boolean }> =>
+    await runVisitorMessageTurn(ctx, args, { enforceWidgetRateLimits: false }),
+})
+
+/** The parts of a streamed tool chunk that say where it belongs, not what it holds. */
+const TOOL_CHUNK_STRUCTURE = [
+  "type",
+  "toolCallId",
+  "approvalId",
+  "dynamic",
+  "providerExecuted",
+  "preliminary",
+] as const
+
+/** What stands in for each field that would carry the tool's own data. */
+const TOOL_CHUNK_BLANKS: Record<string, unknown> = {
+  toolName: "tool",
+  input: {},
+  inputTextDelta: "",
+  output: null,
+  errorText: "",
+}
+
+const redactToolChunk = (chunk: any) => {
+  if (typeof chunk?.type !== "string" || !chunk.type.startsWith("tool-")) {
+    return chunk
+  }
+
+  const redacted: Record<string, unknown> = {}
+
+  for (const key of TOOL_CHUNK_STRUCTURE) {
+    if (key in chunk) {
+      redacted[key] = chunk[key]
+    }
+  }
+
+  for (const [key, blank] of Object.entries(TOOL_CHUNK_BLANKS)) {
+    if (key in chunk) {
+      redacted[key] = blank
+    }
+  }
+
+  return redacted
+}
+
+/**
+ * A streaming reply with its tool steps emptied.
+ *
+ * The widget receives every chunk of a reply as it is written, tool calls
+ * included — what the knowledge search was asked and the passages it found,
+ * what an integration was sent and what it answered. None of it is rendered,
+ * but all of it would be readable in the visitor's network tab, and a tool's
+ * data is the backend's alone.
+ *
+ * The chunks are kept and only their contents dropped: the widget rebuilds the
+ * reply from them, and each step it counts has to line up with the saved
+ * message that replaces it, or the bubble remounts and types out a second time.
+ */
+const withoutToolData = (
+  streams: SyncStreamsReturnValue | undefined
+): SyncStreamsReturnValue | undefined => {
+  if (streams?.kind !== "deltas") {
+    return streams
+  }
+
+  return {
+    ...streams,
+    deltas: streams.deltas.map((delta) => ({
+      ...delta,
+      parts: delta.parts.map(redactToolChunk),
+    })),
+  }
+}
 
 export const getMany = query({
   args: {
@@ -900,7 +1015,7 @@ export const getMany = query({
       streamArgs: args.streamArgs,
     })
 
-    return { ...paginated, streams }
+    return { ...paginated, streams: withoutToolData(streams) }
   },
 })
 

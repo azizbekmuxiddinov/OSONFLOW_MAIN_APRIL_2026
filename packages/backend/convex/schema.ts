@@ -293,6 +293,22 @@ const assistantToolConfigValidator = v.object({
   webhookMethod: v.optional(v.union(v.literal("GET"), v.literal("POST"))),
 })
 
+/**
+ * Developer API limit overrides. Every field is optional: an absent value
+ * falls through to the level above (key → organization → platform).
+ */
+const developerApiLimitsValidator = v.object({
+  requestsPerMinute: v.optional(v.number()),
+  requestsPerDay: v.optional(v.number()),
+  writesPerMinute: v.optional(v.number()),
+  aiRequestsPerMinute: v.optional(v.number()),
+  aiRequestsPerDay: v.optional(v.number()),
+  knowledgeImportsPerHour: v.optional(v.number()),
+  maxPageSize: v.optional(v.number()),
+  maxMessageChars: v.optional(v.number()),
+  maxBodyKb: v.optional(v.number()),
+})
+
 const workflowDefinitionValidator = v.object({
   schemaVersion: v.number(),
   id: v.optional(v.string()),
@@ -1087,4 +1103,81 @@ export default defineSchema({
   })
     .index("by_organization_id", ["organizationId"])
     .index("by_organization_id_and_updated_at", ["organizationId", "updatedAt"]),
+
+  /* ── developer API ────────────────────────────────────────────────────── */
+
+  /** One row per organization that has changed a Developer API setting. */
+  developerApiSettings: defineTable({
+    organizationId: v.string(),
+    /** The organization-wide switch; keys keep their settings while off. */
+    enabled: v.boolean(),
+    limits: v.optional(developerApiLimitsValidator),
+    logRetentionDays: v.optional(v.number()),
+    updatedAt: v.number(),
+    updatedBy: v.optional(v.string()),
+  }).index("by_organization_id", ["organizationId"]),
+
+  /** Only the hash of a key is stored; the key itself is shown once. */
+  developerApiKeys: defineTable({
+    organizationId: v.string(),
+    name: v.string(),
+    keyHash: v.string(),
+    /** `osf_live_` plus the first characters of the secret, for display. */
+    prefix: v.string(),
+    lastFour: v.string(),
+    scopes: v.array(v.string()),
+    limits: v.optional(developerApiLimitsValidator),
+    /** IPv4 addresses or CIDR ranges, or exact IPv6 addresses. Empty: any. */
+    allowedIps: v.optional(v.array(v.string())),
+    /** Websites allowed to call from a browser. Empty: server-side only. */
+    allowedOrigins: v.optional(v.array(v.string())),
+    expiresAt: v.optional(v.number()),
+    revokedAt: v.optional(v.number()),
+    lastUsedAt: v.optional(v.number()),
+    createdBy: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_key_hash", ["keyHash"])
+    .index("by_organization_id", ["organizationId"]),
+
+  /** One row per API call, kept for the organization's retention period. */
+  developerApiRequests: defineTable({
+    organizationId: v.string(),
+    keyId: v.id("developerApiKeys"),
+    requestId: v.string(),
+    method: v.string(),
+    /** The route template, such as `/v1/conversations/:conversationId`. */
+    route: v.string(),
+    path: v.string(),
+    status: v.number(),
+    errorCode: v.optional(v.string()),
+    durationMs: v.number(),
+    ip: v.optional(v.string()),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+  })
+    .index("by_organization_id_and_created_at", ["organizationId", "createdAt"])
+    .index("by_key_id_and_created_at", ["keyId", "createdAt"])
+    .index("by_expires_at", ["expiresAt"]),
+
+  /**
+   * Daily call counts per key. Each key's day is split over a few shard rows
+   * so that concurrent calls from one integration do not all write the same
+   * document; readers add the shards together.
+   */
+  developerApiUsage: defineTable({
+    organizationId: v.string(),
+    keyId: v.id("developerApiKeys"),
+    /** UTC calendar day, `YYYY-MM-DD`. */
+    day: v.string(),
+    shard: v.number(),
+    requests: v.number(),
+    errors: v.number(),
+    aiRequests: v.number(),
+    rateLimited: v.number(),
+  })
+    .index("by_organization_id_and_day", ["organizationId", "day"])
+    .index("by_key_id_and_day_and_shard", ["keyId", "day", "shard"])
+    .index("by_day", ["day"]),
 })

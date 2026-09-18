@@ -1,0 +1,653 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   API documentation — a reference page in the landing's own material.
+
+   Built on the japandi landing tokens: linen paper, ink text, indigo accent,
+   Lora for headings. Code sits on --panel-ink, the colour of the site-end
+   card, so the dark code panels and the footer read as one system. Every
+   class carries an api- prefix, so nothing collides with the landing's own
+   rules or leaks into the dashboard.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+.japandi-landing .api-docs {
+  --code-bg: var(--panel-ink);
+  --code-bg-2: var(--panel-ink-2);
+  --code-text: var(--d-text);
+  --code-soft: var(--d-soft);
+  --code-faint: var(--d-faint);
+  --code-hair: var(--panel-hair);
+  --method-get: rgb(79, 70, 229);
+  --method-post: rgb(22, 128, 83);
+  --method-patch: rgb(161, 98, 7);
+  --method-delete: rgb(200, 45, 45);
+}
+
+/* The landing clips sideways overflow with `overflow-x: hidden`, which turns
+   its root into a scroll container and quietly disables every sticky element
+   inside it. `clip` hides the same overflow without that side effect, so the
+   side navigation and code panels can stay in view. Scoped to this page. */
+.japandi-landing:has(.api-docs) {
+  overflow-x: clip;
+}
+
+/* ── hero ──────────────────────────────────────────────────────────────── */
+
+.japandi-landing .api-docs-hero {
+  padding-block: clamp(96px, 11vw, 150px) clamp(40px, 5vw, 64px);
+  background: var(--linen-50);
+  border-bottom: 1px solid var(--linen-200);
+}
+
+.japandi-landing .api-docs-hero .container {
+  max-width: 76rem;
+}
+
+.japandi-landing .api-docs-hero__title {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: clamp(38px, 5.6vw, 66px);
+  letter-spacing: -0.04em;
+  line-height: 1.02;
+  color: var(--ink);
+  text-wrap: balance;
+}
+
+.japandi-landing .api-docs-hero__lead {
+  margin-top: 22px;
+  max-width: 46rem;
+  font-size: clamp(16px, 1.6vw, 19px);
+  line-height: 1.6;
+  color: var(--ink-soft);
+  text-wrap: pretty;
+}
+
+.japandi-landing .api-docs-hero__actions {
+  margin-top: 30px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.japandi-landing .api-docs-hero__facts {
+  margin-top: 40px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  border-top: 1px solid var(--linen-200);
+}
+
+.japandi-landing .api-docs-hero__fact {
+  padding: 18px 20px 0 0;
+}
+
+.japandi-landing .api-docs-hero__fact dt {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.japandi-landing .api-docs-hero__fact dd {
+  margin-top: 6px;
+  font-size: 15px;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+/* ── layout ────────────────────────────────────────────────────────────── */
+
+.japandi-landing .api-docs-body {
+  padding-block: clamp(40px, 6vw, 72px) clamp(64px, 8vw, 110px);
+  background: var(--linen-100);
+}
+
+.japandi-landing .api-docs-body .container {
+  max-width: 88rem;
+}
+
+.japandi-landing .api-docs__grid {
+  display: grid;
+  grid-template-columns: 15.5rem minmax(0, 1fr);
+  gap: clamp(32px, 4vw, 64px);
+  align-items: start;
+}
+
+.japandi-landing .api-docs__nav {
+  position: sticky;
+  top: 104px;
+  max-height: calc(100vh - 128px);
+  overflow-y: auto;
+  padding-right: 6px;
+  scrollbar-width: thin;
+}
+
+.japandi-landing .api-docs__nav-mobile {
+  display: none;
+}
+
+.japandi-landing .api-docs__nav-group + .api-docs__nav-group {
+  margin-top: 22px;
+}
+
+.japandi-landing .api-docs__nav-title {
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--linen-300);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.japandi-landing .api-docs__nav-list {
+  list-style: none;
+  margin-top: 8px;
+  display: grid;
+  gap: 1px;
+}
+
+.japandi-landing .api-docs__nav-list a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 8px;
+  padding: 5px 8px;
+  font-size: 13.5px;
+  line-height: 1.35;
+  color: var(--ink-soft);
+  transition:
+    color 0.2s var(--ease),
+    background-color 0.2s var(--ease);
+}
+
+.japandi-landing .api-docs__nav-list a:hover {
+  color: var(--ink);
+  background: var(--linen-150);
+}
+
+.japandi-landing .api-docs__nav-list a[aria-current="true"] {
+  color: var(--ink);
+  background: var(--linen-50);
+  box-shadow: var(--elev-1);
+}
+
+.japandi-landing .api-docs__nav-sub {
+  list-style: none;
+  margin: 2px 0 6px 10px;
+  padding-left: 8px;
+  border-left: 1px solid var(--linen-300);
+}
+
+.japandi-landing .api-docs__nav-sub a {
+  padding-block: 3px;
+  font-size: 12.5px;
+}
+
+.japandi-landing .api-docs__content {
+  min-width: 0;
+}
+
+@media (max-width: 1023px) {
+  .japandi-landing .api-docs__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .japandi-landing .api-docs__nav {
+    display: none;
+  }
+
+  .japandi-landing .api-docs__nav-mobile {
+    display: block;
+    border: 1px solid var(--linen-200);
+    border-radius: var(--radius-sm);
+    background: var(--linen-50);
+  }
+
+  .japandi-landing .api-docs__nav-mobile > summary {
+    cursor: pointer;
+    list-style: none;
+    padding: 14px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .japandi-landing .api-docs__nav-mobile > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .japandi-landing .api-docs__nav-mobile > div {
+    max-height: 60vh;
+    overflow-y: auto;
+    padding: 0 16px 16px;
+  }
+}
+
+/* ── prose sections ────────────────────────────────────────────────────── */
+
+.japandi-landing .api-docs__section {
+  scroll-margin-top: 104px;
+}
+
+.japandi-landing .api-docs__section + .api-docs__section,
+.japandi-landing .api-docs__group {
+  margin-top: clamp(40px, 5vw, 64px);
+  padding-top: clamp(40px, 5vw, 64px);
+  border-top: 1px solid var(--linen-200);
+}
+
+.japandi-landing .api-docs__eyebrow {
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--verdant-700);
+}
+
+.japandi-landing .api-docs__h2 {
+  margin-top: 8px;
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: clamp(26px, 3vw, 36px);
+  letter-spacing: -0.03em;
+  line-height: 1.12;
+  color: var(--ink);
+  text-wrap: balance;
+}
+
+.japandi-landing .api-docs__h3 {
+  font-family: var(--font-sans);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.japandi-landing .api-docs__prose {
+  margin-top: 18px;
+  display: grid;
+  gap: 14px;
+  max-width: 48rem;
+}
+
+.japandi-landing .api-docs__prose p,
+.japandi-landing .api-docs__prose li {
+  font-size: 15.5px;
+  line-height: 1.7;
+  color: var(--ink-soft);
+  text-wrap: pretty;
+}
+
+.japandi-landing .api-docs__prose strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.japandi-landing .api-docs__prose ol,
+.japandi-landing .api-docs__prose ul {
+  display: grid;
+  gap: 6px;
+  padding-left: 1.25rem;
+}
+
+.japandi-landing .api-docs__prose ol {
+  list-style: decimal;
+}
+
+.japandi-landing .api-docs__prose ul {
+  list-style: disc;
+}
+
+.japandi-landing .api-docs a.api-docs__link {
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  text-decoration-color: var(--verdant-500);
+}
+
+.japandi-landing .api-docs code.api-docs__inline {
+  border-radius: 6px;
+  padding: 1px 6px;
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  color: var(--ink);
+  background: var(--linen-150);
+  overflow-wrap: anywhere;
+}
+
+.japandi-landing .api-docs__callout {
+  border-left: 2px solid var(--verdant-500);
+  padding: 2px 0 2px 16px;
+}
+
+.japandi-landing .api-docs__callout[data-tone="warning"] {
+  border-left-color: var(--alert-500);
+}
+
+/* ── tables ────────────────────────────────────────────────────────────── */
+
+.japandi-landing .api-docs__table-wrap {
+  margin-top: 6px;
+  overflow-x: auto;
+  border: 1px solid var(--linen-200);
+  border-radius: var(--radius-sm);
+  background: var(--linen-50);
+}
+
+.japandi-landing .api-docs__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.japandi-landing .api-docs__table th {
+  padding: 11px 14px;
+  text-align: left;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  border-bottom: 1px solid var(--linen-200);
+  white-space: nowrap;
+}
+
+.japandi-landing .api-docs__table td {
+  padding: 11px 14px;
+  vertical-align: top;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  border-bottom: 1px solid var(--linen-200);
+}
+
+.japandi-landing .api-docs__table tr:last-child td {
+  border-bottom: 0;
+}
+
+.japandi-landing .api-docs__table td:first-child {
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.japandi-landing .api-docs__table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ── endpoints ─────────────────────────────────────────────────────────── */
+
+.japandi-landing .api-endpoint {
+  scroll-margin-top: 104px;
+  display: grid;
+  gap: 22px 36px;
+  padding-top: 36px;
+  margin-top: 36px;
+  border-top: 1px solid var(--linen-200);
+}
+
+@media (min-width: 1280px) {
+  .japandi-landing .api-endpoint {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 27rem);
+    align-items: start;
+  }
+
+  .japandi-landing .api-endpoint__code {
+    position: sticky;
+    top: 104px;
+  }
+}
+
+.japandi-landing .api-endpoint__signature {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.japandi-landing .api-method {
+  display: inline-flex;
+  min-width: 3.9rem;
+  justify-content: center;
+  border-radius: 7px;
+  padding: 3px 8px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--method-color);
+  background: color-mix(in srgb, var(--method-color) 11%, transparent);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--method-color) 24%, transparent);
+}
+
+.japandi-landing .api-method[data-method="GET"] {
+  --method-color: var(--method-get);
+}
+
+.japandi-landing .api-method[data-method="POST"] {
+  --method-color: var(--method-post);
+}
+
+.japandi-landing .api-method[data-method="PATCH"] {
+  --method-color: var(--method-patch);
+}
+
+.japandi-landing .api-method[data-method="DELETE"] {
+  --method-color: var(--method-delete);
+}
+
+.japandi-landing .api-endpoint__path {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.japandi-landing .api-endpoint__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.japandi-landing .api-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 3px 11px;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  background: var(--linen-50);
+  box-shadow: inset 0 0 0 1px var(--linen-200);
+}
+
+.japandi-landing .api-chip strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.japandi-landing .api-params {
+  margin-top: 20px;
+}
+
+.japandi-landing .api-params__title {
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--linen-300);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.japandi-landing .api-param {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--linen-200);
+}
+
+.japandi-landing .api-param__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.japandi-landing .api-param__name {
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.japandi-landing .api-param__type {
+  font-size: 12.5px;
+  color: var(--ink-faint);
+}
+
+.japandi-landing .api-param__required {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--alert-500);
+}
+
+.japandi-landing .api-param__description {
+  margin-top: 4px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+
+.japandi-landing .api-param__enum {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* ── code panels ───────────────────────────────────────────────────────── */
+
+.japandi-landing .api-code {
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--code-bg);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 22px 44px -28px rgba(30, 27, 24, 0.6);
+}
+
+.japandi-landing .api-code + .api-code {
+  margin-top: 14px;
+}
+
+.japandi-landing .api-code__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 8px 8px 14px;
+  border-bottom: 1px solid var(--code-hair);
+  background: var(--code-bg-2);
+}
+
+.japandi-landing .api-code__title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--code-soft);
+}
+
+.japandi-landing .api-code__tabs {
+  display: flex;
+  gap: 2px;
+}
+
+.japandi-landing .api-code__tab,
+.japandi-landing .api-code__copy {
+  border-radius: 7px;
+  padding: 4px 9px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--code-faint);
+  transition:
+    color 0.2s var(--ease),
+    background-color 0.2s var(--ease);
+}
+
+.japandi-landing .api-code__tab:hover,
+.japandi-landing .api-code__copy:hover {
+  color: var(--code-text);
+}
+
+.japandi-landing .api-code__tab[aria-selected="true"] {
+  color: var(--code-text);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.japandi-landing .api-code__tab:focus-visible,
+.japandi-landing .api-code__copy:focus-visible {
+  outline: 2px solid var(--verdant-300);
+  outline-offset: 1px;
+}
+
+.japandi-landing .api-code pre {
+  max-height: 30rem;
+  overflow: auto;
+  padding: 16px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--code-text);
+  white-space: pre;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
+.japandi-landing .api-code [data-token="string"] {
+  color: rgb(167, 217, 170);
+}
+
+.japandi-landing .api-code [data-token="key"] {
+  color: rgb(182, 186, 250);
+}
+
+.japandi-landing .api-code [data-token="number"] {
+  color: rgb(247, 190, 130);
+}
+
+.japandi-landing .api-code [data-token="keyword"] {
+  color: rgb(230, 160, 220);
+}
+
+.japandi-landing .api-code [data-token="comment"] {
+  color: var(--code-faint);
+  font-style: italic;
+}
+
+.japandi-landing .api-code [data-token="flag"] {
+  color: rgb(150, 200, 240);
+}
+
+/* ── replacements for utilities the landing reset would override ───────── */
+
+.japandi-landing .api-docs__nav-mobile {
+  margin-bottom: 40px;
+}
+
+.japandi-landing .api-endpoint__main,
+.japandi-landing .api-endpoint__code {
+  min-width: 0;
+}
+
+.japandi-landing .api-endpoint__summary,
+.japandi-landing .api-docs__group-lede {
+  margin-top: 12px;
+  max-width: 46rem;
+  font-size: 15.5px;
+  line-height: 1.65;
+  color: var(--ink-soft);
+}
+
+.japandi-landing .api-endpoint__notes {
+  margin-top: 20px;
+}
+
+.japandi-landing .api-code__bar-start {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}

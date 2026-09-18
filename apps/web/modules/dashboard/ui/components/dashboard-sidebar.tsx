@@ -6,6 +6,7 @@ import {
   ArrowLeftRightIcon,
   BookOpen,
   BotMessageSquare,
+  BracesIcon,
   BrainIcon,
   ChartColumnBig,
   CompassIcon,
@@ -103,6 +104,11 @@ const configurationItems = [
     title: "Data transfer",
     url: "/org-transfer",
     icon: ArrowLeftRightIcon,
+  },
+  {
+    title: "Developer API",
+    url: "/developers",
+    icon: BracesIcon,
   },
 ]
 
