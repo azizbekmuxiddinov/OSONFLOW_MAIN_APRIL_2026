@@ -1,0 +1,123 @@
+/* Previews of the launcher's attention motions.
+
+   Mirrors the keyframes the embed script injects on the customer's page
+   (apps/embed/embed.ts), so what a merchant picks here is what visitors see.
+   Set `--launcher-glow` on the element to the launcher colour's shadow. */
+
+@keyframes launcher-attn-pulse {
+  0% {
+    box-shadow: 0 0 0 0 var(--launcher-glow);
+    opacity: 1;
+  }
+  38%,
+  100% {
+    box-shadow: 0 0 0 12px transparent;
+    opacity: 0;
+  }
+}
+
+@keyframes launcher-attn-bounce {
+  0%,
+  20%,
+  100% {
+    translate: 0 0;
+  }
+  6% {
+    translate: 0 -8px;
+  }
+  11% {
+    translate: 0 0;
+  }
+  15% {
+    translate: 0 -3px;
+  }
+}
+
+@keyframes launcher-attn-wiggle {
+  0%,
+  18%,
+  100% {
+    rotate: 0deg;
+  }
+  3% {
+    rotate: -14deg;
+  }
+  6% {
+    rotate: 12deg;
+  }
+  9% {
+    rotate: -8deg;
+  }
+  12% {
+    rotate: 5deg;
+  }
+  15% {
+    rotate: -2deg;
+  }
+}
+
+@keyframes launcher-attn-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 0 transparent);
+  }
+  20% {
+    filter: drop-shadow(0 0 10px var(--launcher-glow)) brightness(1.08);
+  }
+  40% {
+    filter: drop-shadow(0 0 0 transparent);
+  }
+}
+
+@keyframes launcher-badge-in {
+  0% {
+    transform: scale(0);
+  }
+  60% {
+    transform: scale(1.18);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.launcher-attn--pulse {
+  position: relative;
+}
+
+.launcher-attn--pulse::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  animation: launcher-attn-pulse 2.6s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+/* The previews loop faster than the real launcher so a merchant sees the
+   motion without waiting through its long rest. */
+.launcher-attn--bounce {
+  animation: launcher-attn-bounce 2.4s cubic-bezier(0.3, 0, 0.3, 1) infinite;
+}
+
+.launcher-attn--wiggle {
+  animation: launcher-attn-wiggle 2.8s ease-in-out infinite;
+}
+
+.launcher-attn--glow {
+  animation: launcher-attn-glow 2.4s ease-in-out infinite;
+}
+
+.launcher-badge {
+  animation: launcher-badge-in 420ms cubic-bezier(0.18, 1.35, 0.32, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .launcher-attn--pulse::after,
+  .launcher-attn--bounce,
+  .launcher-attn--wiggle,
+  .launcher-attn--glow,
+  .launcher-badge {
+    animation: none;
+  }
+}

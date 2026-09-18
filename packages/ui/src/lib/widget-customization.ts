@@ -1,5 +1,12 @@
 export type WidgetLauncherIcon = "chat" | "sparkles" | "question"
 export type WidgetAnimation = "slide-up" | "scale" | "fade" | "pop"
+/** A motion the closed launcher plays now and then to catch the eye. */
+export type WidgetLauncherAttention =
+  | "none"
+  | "pulse"
+  | "bounce"
+  | "wiggle"
+  | "glow"
 
 /** What the home hero shows in its brand slot. */
 export type WidgetBrandMode = "none" | "image" | "text"
@@ -40,6 +47,11 @@ export type WidgetAppearanceSettings = {
   launcherPromptEnabled: boolean
   launcherPromptText: string
   launcherPromptDelaySeconds: number
+  /** Up to three tap-to-send replies shown under the invitation bubble. */
+  launcherQuickReplies: string[]
+  launcherAttention: WidgetLauncherAttention
+  /** A "1" badge on the launcher while the invitation is waiting. */
+  launcherBadgeEnabled: boolean
   animation: WidgetAnimation
   poweredByText: string
   showPoweredBy: boolean
@@ -99,6 +111,9 @@ export const DEFAULT_WIDGET_APPEARANCE: WidgetAppearanceSettings = {
   launcherPromptEnabled: true,
   launcherPromptText: "Need help? Talk with us",
   launcherPromptDelaySeconds: 5,
+  launcherQuickReplies: [],
+  launcherAttention: "pulse",
+  launcherBadgeEnabled: true,
   animation: "scale",
   poweredByText: "Osonflow",
   showPoweredBy: true,
@@ -173,6 +188,22 @@ export const clampLauncherPromptDelaySeconds = (value: number): number => {
   }
 
   return Math.max(0, Math.min(120, value))
+}
+
+export const LAUNCHER_QUICK_REPLY_LIMITS = { count: 3, length: 40 } as const
+
+/** A few short, distinct, non-empty replies; anything else is dropped. */
+export const normalizeLauncherQuickReplies = (value: unknown): string[] => {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  const replies = value
+    .filter((reply): reply is string => typeof reply === "string")
+    .map((reply) => reply.trim().slice(0, LAUNCHER_QUICK_REPLY_LIMITS.length))
+    .filter(Boolean)
+
+  return [...new Set(replies)].slice(0, LAUNCHER_QUICK_REPLY_LIMITS.count)
 }
 
 /** Distance in px between the launcher and the host page edge. */
@@ -324,6 +355,13 @@ const LAUNCHER_POSITIONS: readonly WidgetLauncherPosition[] = [
   "bottom-right",
   "bottom-left",
 ]
+const LAUNCHER_ATTENTIONS: readonly WidgetLauncherAttention[] = [
+  "none",
+  "pulse",
+  "bounce",
+  "wiggle",
+  "glow",
+]
 const AUTO_OPEN_FREQUENCIES: readonly WidgetAutoOpenFrequency[] = [
   "session",
   "visitor",
@@ -417,6 +455,15 @@ export const mergeWidgetAppearance = (
     launcherPromptDelaySeconds: clampLauncherPromptDelaySeconds(
       Number(merged.launcherPromptDelaySeconds)
     ),
+    launcherQuickReplies: normalizeLauncherQuickReplies(
+      merged.launcherQuickReplies
+    ),
+    launcherAttention: sanitizeOption(
+      merged.launcherAttention,
+      LAUNCHER_ATTENTIONS,
+      DEFAULT_WIDGET_APPEARANCE.launcherAttention
+    ),
+    launcherBadgeEnabled: merged.launcherBadgeEnabled !== false,
     launcherPosition: sanitizeOption(
       merged.launcherPosition,
       LAUNCHER_POSITIONS,

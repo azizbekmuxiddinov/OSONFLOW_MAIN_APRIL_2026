@@ -1,6 +1,7 @@
 "use client"
 
 import { UseFormReturn } from "react-hook-form"
+import "../launcher-attention.css"
 import {
   ArrowUpIcon,
   BellIcon,
@@ -25,7 +26,9 @@ import { Input } from "@workspace/ui/components/input"
 import { Switch } from "@workspace/ui/components/switch"
 import {
   getContrastingTextColor,
+  LAUNCHER_QUICK_REPLY_LIMITS,
   type WidgetAnimation,
+  type WidgetLauncherAttention,
   type WidgetAutoOpenFrequency,
   type WidgetLauncherPosition,
 } from "@workspace/ui/lib/widget-customization"
@@ -95,6 +98,52 @@ const animationOptions: Array<{
     icon: <WandSparklesIcon className="size-4" />,
   },
 ]
+
+const attentionOptions: Array<{
+  value: WidgetLauncherAttention
+  label: string
+  hint: string
+}> = [
+  { value: "none", label: "Still", hint: "No motion" },
+  { value: "pulse", label: "Pulse", hint: "A soft ring" },
+  { value: "bounce", label: "Bounce", hint: "Hops now and then" },
+  { value: "wiggle", label: "Wiggle", hint: "A playful shake" },
+  { value: "glow", label: "Glow", hint: "Brightens in a halo" },
+]
+
+/** A miniature launcher playing one attention motion, for the picker. */
+const AttentionSample = ({
+  attention,
+  color,
+  icon,
+}: {
+  attention: WidgetLauncherAttention
+  color: string
+  icon: React.ReactNode
+}) => (
+  <span className="flex h-11 w-full items-center justify-center rounded-[8px] bg-muted/40">
+    <span
+      className={
+        attention === "none" ? undefined : `launcher-attn--${attention}`
+      }
+      style={
+        {
+          "--launcher-glow": `color-mix(in srgb, ${color} 50%, transparent)`,
+          alignItems: "center",
+          backgroundColor: color,
+          borderRadius: 999,
+          color: getContrastingTextColor(color),
+          display: "flex",
+          height: 26,
+          justifyContent: "center",
+          width: 26,
+        } as React.CSSProperties
+      }
+    >
+      {icon}
+    </span>
+  </span>
+)
 
 const positionOptions: Array<{
   value: WidgetLauncherPosition
@@ -236,6 +285,46 @@ export const AppearanceFormFields = ({ form }: AppearanceFormFieldsProps) => {
                   columns={3}
                   onChange={field.onChange}
                   options={launcherIconOptions}
+                  value={field.value}
+                />
+              </FormControl>
+              <FormMessage className="mt-1.5" />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="appearance.launcherAttention"
+          render={({ field }) => (
+            <FormItem className="min-w-0 space-y-0">
+              <p className="text-xs font-medium text-foreground">
+                Attention motion
+              </p>
+              <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                Plays every few seconds until the visitor opens the widget
+                once, then stops. Visitors who turned off motion in their
+                system settings never see it.
+              </p>
+              <FormControl>
+                <OptionCards
+                  className="mt-2.5"
+                  columns={3}
+                  onChange={field.onChange}
+                  options={attentionOptions.map((option) => ({
+                    ...option,
+                    preview: (
+                      <AttentionSample
+                        attention={option.value}
+                        color={appearance.launcherColor}
+                        icon={
+                          launcherIconOptions.find(
+                            (icon) => icon.value === appearance.launcherIcon
+                          )?.icon
+                        }
+                      />
+                    ),
+                  }))}
                   value={field.value}
                 />
               </FormControl>
@@ -416,6 +505,50 @@ export const AppearanceFormFields = ({ form }: AppearanceFormFieldsProps) => {
                         </FormItem>
                       )}
                     />
+                    <div className="min-w-0 sm:col-span-2">
+                      <span className="text-xs font-medium text-foreground">
+                        Quick replies
+                      </span>
+                      <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                        Buttons under the message. Tapping one opens the
+                        chat and sends it as the visitor&apos;s first
+                        message. Leave a slot empty to hide it.
+                      </p>
+                      <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                        {Array.from(
+                          { length: LAUNCHER_QUICK_REPLY_LIMITS.count },
+                          (_, index) => (
+                            <FormField
+                              control={form.control}
+                              key={index}
+                              name={`appearance.launcherQuickReplies.${index}`}
+                              render={({ field: replyField }) => (
+                                <FormItem className="min-w-0 space-y-0">
+                                  <FormControl>
+                                    <Input
+                                      {...replyField}
+                                      className="h-9 bg-background"
+                                      maxLength={
+                                        LAUNCHER_QUICK_REPLY_LIMITS.length
+                                      }
+                                      placeholder={
+                                        [
+                                          "What are your prices?",
+                                          "Book an appointment",
+                                          "Talk to a person",
+                                        ][index]
+                                      }
+                                      value={replyField.value ?? ""}
+                                    />
+                                  </FormControl>
+                                  <FormMessage className="mt-1.5" />
+                                </FormItem>
+                              )}
+                            />
+                          )
+                        )}
+                      </div>
+                    </div>
                   </div>
                 ) : null}
               </SettingRow>
@@ -423,6 +556,28 @@ export const AppearanceFormFields = ({ form }: AppearanceFormFieldsProps) => {
             </FormItem>
           )}
         />
+        {appearance.launcherPromptEnabled ? (
+          <FormField
+            control={form.control}
+            name="appearance.launcherBadgeEnabled"
+            render={({ field }) => (
+              <FormItem className="min-w-0 space-y-0">
+                <SettingRow
+                  control={
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  }
+                  description="A red “1” on the launcher while the invitation is waiting, like an unread message."
+                  label="Notification badge"
+                />
+              </FormItem>
+            )}
+          />
+        ) : null}
       </SettingsGroup>
 
       <SettingsDivider />

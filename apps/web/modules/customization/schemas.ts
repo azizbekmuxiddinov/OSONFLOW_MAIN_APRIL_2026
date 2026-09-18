@@ -120,6 +120,16 @@ export const widgetSettingsSchema = z.object({
       .min(1, "Launcher prompt text is required")
       .max(80, "Launcher prompt text must be at most 80 characters"),
     launcherPromptDelaySeconds: z.coerce.number().min(0).max(120),
+    launcherQuickReplies: z
+      .array(
+        z
+          .string()
+          .trim()
+          .max(40, "A quick reply must be at most 40 characters")
+      )
+      .max(3),
+    launcherAttention: z.enum(["none", "pulse", "bounce", "wiggle", "glow"]),
+    launcherBadgeEnabled: z.boolean(),
     animation: z.enum(["slide-up", "scale", "fade", "pop"]),
     poweredByText: z
       .string()

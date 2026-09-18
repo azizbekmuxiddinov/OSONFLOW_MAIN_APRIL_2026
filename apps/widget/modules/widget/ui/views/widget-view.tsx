@@ -16,6 +16,7 @@ import { WidgetHelpScreen } from "../screens/widget-help-screen"
 import { WidgetArticleScreen } from "../screens/widget-article-screen"
 import { WidgetTopicScreen } from "../screens/widget-topic-screen"
 import { WidgetNotificationSound } from "../components/widget-notification-sound"
+import { WidgetHostCommands } from "../components/widget-host-commands"
 import {
   getContrastingTextColor,
   mergeWidgetTheme,
@@ -88,8 +89,11 @@ export const WidgetView = ({
   }
 
   return (
+    // No card chrome here: the embed's rounded container already clips and
+    // shadows the frame, and a border or fill of our own shows as a light
+    // ring between the background image and the panel edge.
     <main
-      className="owc surface-widget relative flex h-full max-h-svh min-h-0 w-full min-w-0 flex-col overflow-hidden border-0 bg-transparent"
+      className="owc relative flex h-full max-h-svh min-h-0 w-full min-w-0 flex-col overflow-hidden border-0 bg-transparent"
       style={{
         ...widgetStyles,
         borderRadius: `${theme.borderRadius}px`,
@@ -97,6 +101,7 @@ export const WidgetView = ({
     >
       <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
         <WidgetNotificationSound />
+        <WidgetHostCommands />
         {screenComponents[screen]}
       </div>
     </main>

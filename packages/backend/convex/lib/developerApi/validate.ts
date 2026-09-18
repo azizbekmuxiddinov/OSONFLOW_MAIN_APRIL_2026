@@ -380,6 +380,8 @@ export const APPEARANCE_SHAPE: Shape = {
   launcherPromptEnabled: "boolean",
   launcherPromptText: "string",
   launcherPromptDelaySeconds: "number",
+  launcherAttention: ["none", "pulse", "bounce", "wiggle", "glow"],
+  launcherBadgeEnabled: "boolean",
   animation: ["slide-up", "scale", "fade", "pop"],
   poweredByText: "string",
   showPoweredBy: "boolean",

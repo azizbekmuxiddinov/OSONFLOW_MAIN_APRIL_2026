@@ -80,6 +80,7 @@ import {
   DEFAULT_WIDGET_APPEARANCE,
   DEFAULT_WIDGET_COPY,
   mergeWidgetAppearance,
+  normalizeLauncherQuickReplies,
   mergeWidgetCopy,
   mergeWidgetTheme,
 } from "@workspace/ui/lib/widget-customization"
@@ -478,7 +479,13 @@ const buildFormDefaultValues = (
       ).join("\n"),
     },
     theme: defaultTheme,
-    appearance: defaultAppearance,
+    appearance: {
+      ...defaultAppearance,
+      // The form always edits three slots; empty ones are dropped on save.
+      launcherQuickReplies: [0, 1, 2].map(
+        (index) => defaultAppearance.launcherQuickReplies[index] ?? ""
+      ),
+    },
     widgetCopy: mergeWidgetCopy(snapshot.widgetCopy),
   }
 }
@@ -1071,6 +1078,9 @@ export const CustomizationForm = ({
           DEFAULT_WIDGET_APPEARANCE.launcherPromptText,
         launcherPromptDelaySeconds: clampLauncherPromptDelaySeconds(
           Number(values.appearance.launcherPromptDelaySeconds)
+        ),
+        launcherQuickReplies: normalizeLauncherQuickReplies(
+          values.appearance.launcherQuickReplies
         ),
         poweredByText:
           values.appearance.poweredByText.trim() ||

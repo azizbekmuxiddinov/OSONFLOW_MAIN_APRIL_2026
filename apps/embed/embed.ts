@@ -1,6 +1,7 @@
 import { EMBED_CONFIG } from "./config"
 import {
   chatBubbleIcon,
+  closeIcon,
   collapseIcon,
   questionIcon,
   sparklesIcon,
@@ -9,6 +10,7 @@ import {
 type WidgetPosition = "bottom-right" | "bottom-left"
 type WidgetLauncherIcon = "chat" | "sparkles" | "question"
 type WidgetAnimation = "slide-up" | "scale" | "fade" | "pop"
+type WidgetLauncherAttention = "none" | "pulse" | "bounce" | "wiggle" | "glow"
 
 type WidgetAutoOpenFrequency = "session" | "visitor" | "always"
 
@@ -21,6 +23,9 @@ type WidgetAppearancePayload = {
   launcherPromptEnabled?: boolean
   launcherPromptText?: string
   launcherPromptDelaySeconds?: number
+  launcherQuickReplies?: string[]
+  launcherAttention?: WidgetLauncherAttention
+  launcherBadgeEnabled?: boolean
   animation?: WidgetAnimation
   showPoweredBy?: boolean
   launcherPosition?: WidgetPosition
@@ -33,9 +38,16 @@ type WidgetAppearancePayload = {
   notificationSoundEnabled?: boolean
 }
 
+/** Who the invitation bubble speaks as: the assistant's name and logo. */
+type WidgetTeaserPayload = {
+  name?: string
+  avatarUrl?: string
+}
+
 type WidgetSettingsPayload = {
   appearance?: WidgetAppearancePayload
   liveVoiceEnabled?: boolean
+  teaser?: WidgetTeaserPayload
 }
 
 const LAUNCHER_EDGE_OFFSET = 20
@@ -52,7 +64,19 @@ const LAUNCHER_ORB_SIZE = 34
 const LAUNCHER_BUTTON_GAP = 10
 const LAUNCHER_LABEL_PADDING_X = 18
 const LAUNCHER_PROMPT_GAP = 8
-const LAUNCHER_PROMPT_MAX_WIDTH = 220
+const LAUNCHER_PROMPT_GAP_EXTRA = 4
+const LAUNCHER_PROMPT_MAX_WIDTH = 296
+const LAUNCHER_PROMPT_TYPING_MS = 900
+const LAUNCHER_PROMPT_DISMISSED_KEY = "echo-widget-teaser-dismissed"
+const LAUNCHER_QUICK_REPLY_MAX = 3
+const LAUNCHER_QUICK_REPLY_MAX_LENGTH = 40
+const LAUNCHER_ATTENTIONS: readonly WidgetLauncherAttention[] = [
+  "none",
+  "pulse",
+  "bounce",
+  "wiggle",
+  "glow",
+]
 const WIDGET_CONTAINER_WIDTH = 380
 const WIDGET_CONTAINER_STANDARD_HEIGHT = 640
 const WIDGET_CONTAINER_VOICE_HEIGHT = 470
@@ -87,6 +111,14 @@ const NOTIFICATION_SOUND_PATH = "/sounds/notification.mp3"
   let notificationAudio: HTMLAudioElement | null = null
   let canPlayNotificationSound = false
   let isListeningForHostUserActivation = false
+  let launcherBadge: HTMLSpanElement | null = null
+  let isLauncherPromptVisible = false
+  let launcherPromptTypingTimer: number | null = null
+  // Attention motion stops for good once the visitor has opened the widget:
+  // it has done its job, and repeating it after that only nags.
+  let hasOpenedWidget = false
+  let teaserName = ""
+  let teaserAvatarUrl = ""
 
   const launcherAppearance: Required<
     Pick<
@@ -99,6 +131,9 @@ const NOTIFICATION_SOUND_PATH = "/sounds/notification.mp3"
       | "launcherPromptEnabled"
       | "launcherPromptText"
       | "launcherPromptDelaySeconds"
+      | "launcherQuickReplies"
+      | "launcherAttention"
+      | "launcherBadgeEnabled"
       | "animation"
     >
   > = {
@@ -110,6 +145,9 @@ const NOTIFICATION_SOUND_PATH = "/sounds/notification.mp3"
     launcherPromptEnabled: false,
     launcherPromptText: "Need help? Talk with us",
     launcherPromptDelaySeconds: 5,
+    launcherQuickReplies: [],
+    launcherAttention: "none",
+    launcherBadgeEnabled: false,
     animation: "slide-up",
   }
 
@@ -415,6 +453,54 @@ const NOTIFICATION_SOUND_PATH = "/sounds/notification.mp3"
       window.clearTimeout(launcherPromptTimer)
       launcherPromptTimer = null
     }
+
+    if (launcherPromptTypingTimer !== null) {
+      window.clearTimeout(launcherPromptTypingTimer)
+      launcherPromptTypingTimer = null
+    }
+  }
+
+  const parseLauncherAttention = (value: unknown): WidgetLauncherAttention =>
+    LAUNCHER_ATTENTIONS.includes(value as WidgetLauncherAttention)
+      ? (value as WidgetLauncherAttention)
+      : "none"
+
+  const parseQuickReplies = (value: unknown): string[] => {
+    if (!Array.isArray(value)) {
+      return []
+    }
+
+    const replies = value
+      .filter((reply): reply is string => typeof reply === "string")
+      .map((reply) => reply.trim().slice(0, LAUNCHER_QUICK_REPLY_MAX_LENGTH))
+      .filter(Boolean)
+
+    return [...new Set(replies)].slice(0, LAUNCHER_QUICK_REPLY_MAX)
+  }
+
+  /**
+   * A dismissed invitation stays dismissed for the rest of the visit, not just
+   * this page load, so a visitor clicking around the site is not asked again
+   * on every page. Storage can be blocked by the host, so every access is
+   * guarded and a failure simply means the invitation may reappear.
+   */
+  const getPromptDismissedKey = () =>
+    `${LAUNCHER_PROMPT_DISMISSED_KEY}:${organizationId ?? "default"}`
+
+  const wasPromptDismissedThisSession = () => {
+    try {
+      return window.sessionStorage.getItem(getPromptDismissedKey()) === "1"
+    } catch {
+      return false
+    }
+  }
+
+  const rememberPromptDismissed = () => {
+    try {
+      window.sessionStorage.setItem(getPromptDismissedKey(), "1")
+    } catch {
+      // Blocked storage; the invitation may show again on the next page.
+    }
   }
 
   const syncLauncherPromptPosition = () => {
@@ -429,37 +515,138 @@ const NOTIFICATION_SOUND_PATH = "/sounds/notification.mp3"
           ? `right: ${launcherOffsetX}px;`
           : `left: ${launcherOffsetX}px;`
       }
-      bottom: ${launcherOffsetY + launcherSize + LAUNCHER_PROMPT_GAP}px;
-      max-width: ${LAUNCHER_PROMPT_MAX_WIDTH}px;
-      padding: 8px 12px;
-      border-radius: 20px;
-      background: #f5f5f4;
-      color: #1e293b;
-      box-shadow: 0 16px 34px -22px rgba(15, 23, 42, 0.45);
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      font-size: 12px;
-      font-weight: 600;
-      line-height: 1.35;
-      text-align: ${position === "bottom-right" ? "right" : "left"};
+      bottom: ${launcherOffsetY + launcherSize + LAUNCHER_PROMPT_GAP + LAUNCHER_PROMPT_GAP_EXTRA}px;
+      width: min(${LAUNCHER_PROMPT_MAX_WIDTH}px, calc(100vw - ${launcherOffsetX * 2}px));
       z-index: 999999;
-      pointer-events: none;
-      opacity: 0;
-      transform: translate3d(0, 8px, 0);
-      transition: opacity 220ms cubic-bezier(0.16, 1, 0.3, 1), transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
-      display: none;
+      --echo-accent: ${launcherAppearance.launcherColor};
+      --echo-accent-ink: ${getContrastingTextColor(launcherAppearance.launcherColor)};
+      transform-origin: ${position === "bottom-right" ? "bottom right" : "bottom left"};
+      display: ${isLauncherPromptVisible ? "block" : "none"};
     `
+    launcherPrompt.dataset.side =
+      position === "bottom-right" ? "right" : "left"
+  }
+
+  const dismissLauncherPrompt = () => {
+    launcherPromptDismissed = true
+    rememberPromptDismissed()
+    hideLauncherPrompt()
+  }
+
+  const sendQuickReply = (reply: string) => {
+    show()
+
+    // The widget only accepts replies its own settings list, so this cannot
+    // be used to put arbitrary words in the visitor's mouth.
+    iframe?.contentWindow?.postMessage(
+      { type: "start-chat", payload: { message: reply } },
+      new URL(EMBED_CONFIG.WIDGET_URL).origin
+    )
+  }
+
+  /**
+   * Builds the invitation card with DOM APIs and `textContent` only: the name,
+   * message and replies are organization-authored text rendered on someone
+   * else's page, so none of it is ever parsed as markup.
+   */
+  const buildLauncherPromptContent = (withTyping: boolean) => {
+    if (!launcherPrompt) {
+      return
+    }
+
+    const card = document.createElement("div")
+    card.className = "echo-teaser"
+    if (withTyping) {
+      card.classList.add("is-typing")
+    }
+
+    const closeButton = document.createElement("button")
+    closeButton.type = "button"
+    closeButton.className = "echo-teaser__close"
+    closeButton.setAttribute("aria-label", "Dismiss")
+    closeButton.innerHTML = closeIcon
+    closeButton.addEventListener("click", (event) => {
+      event.stopPropagation()
+      dismissLauncherPrompt()
+    })
+
+    const header = document.createElement("div")
+    header.className = "echo-teaser__header"
+
+    const avatar = document.createElement("span")
+    avatar.className = "echo-teaser__avatar"
+    const avatarUrl = sanitizeImageUrl(teaserAvatarUrl)
+    if (avatarUrl) {
+      const image = document.createElement("img")
+      image.src = avatarUrl
+      image.alt = ""
+      avatar.appendChild(image)
+    } else {
+      avatar.textContent = (teaserName.trim()[0] ?? "").toUpperCase()
+    }
+
+    const name = document.createElement("span")
+    name.className = "echo-teaser__name"
+    name.textContent = teaserName.trim()
+
+    const status = document.createElement("span")
+    status.className = "echo-teaser__status"
+    status.setAttribute("aria-hidden", "true")
+
+    header.append(avatar, name, status)
+
+    const message = document.createElement("button")
+    message.type = "button"
+    message.className = "echo-teaser__message"
+    message.addEventListener("click", () => show())
+
+    const typing = document.createElement("span")
+    typing.className = "echo-teaser__typing"
+    typing.setAttribute("aria-hidden", "true")
+    typing.append(
+      document.createElement("i"),
+      document.createElement("i"),
+      document.createElement("i")
+    )
+
+    const text = document.createElement("span")
+    text.className = "echo-teaser__text"
+    text.textContent = launcherAppearance.launcherPromptText.trim()
+
+    message.append(typing, text)
+    card.append(closeButton, header, message)
+
+    if (launcherAppearance.launcherQuickReplies.length > 0) {
+      const replies = document.createElement("div")
+      replies.className = "echo-teaser__replies"
+
+      launcherAppearance.launcherQuickReplies.forEach((reply, index) => {
+        const chip = document.createElement("button")
+        chip.type = "button"
+        chip.className = "echo-teaser__chip"
+        chip.style.setProperty("--echo-chip-index", String(index))
+        chip.textContent = reply
+        chip.addEventListener("click", () => sendQuickReply(reply))
+        replies.appendChild(chip)
+      })
+
+      card.appendChild(replies)
+    }
+
+    launcherPrompt.replaceChildren(card)
   }
 
   const hideLauncherPrompt = () => {
     clearLauncherPromptTimer()
+    isLauncherPromptVisible = false
+    syncLauncherBadge()
 
     if (!launcherPrompt) {
       return
     }
 
+    launcherPrompt.classList.remove("is-visible")
     launcherPrompt.style.display = "none"
-    launcherPrompt.style.opacity = "0"
-    launcherPrompt.style.transform = "translate3d(0, 8px, 0)"
   }
 
   const showLauncherPrompt = () => {
@@ -467,23 +654,28 @@ const NOTIFICATION_SOUND_PATH = "/sounds/notification.mp3"
       return
     }
 
-    const promptText = launcherAppearance.launcherPromptText.trim()
-    if (!promptText) {
+    if (!launcherAppearance.launcherPromptText.trim()) {
       return
     }
 
-    launcherPrompt.textContent = promptText
+    const withTyping = !prefersReducedMotion()
+    isLauncherPromptVisible = true
+    buildLauncherPromptContent(withTyping)
     syncLauncherPromptPosition()
-    launcherPrompt.style.display = "block"
+    syncLauncherBadge()
 
     window.requestAnimationFrame(() => {
-      if (!launcherPrompt) {
-        return
-      }
-
-      launcherPrompt.style.opacity = "1"
-      launcherPrompt.style.transform = "translate3d(0, 0, 0)"
+      launcherPrompt?.classList.add("is-visible")
     })
+
+    if (withTyping) {
+      launcherPromptTypingTimer = window.setTimeout(() => {
+        launcherPromptTypingTimer = null
+        launcherPrompt
+          ?.querySelector(".echo-teaser")
+          ?.classList.remove("is-typing")
+      }, LAUNCHER_PROMPT_TYPING_MS)
+    }
   }
 
   const canShowLauncherPrompt = () => {
@@ -506,8 +698,9 @@ const NOTIFICATION_SOUND_PATH = "/sounds/notification.mp3"
       return
     }
 
-    if (launcherPrompt && launcherPrompt.style.display === "block") {
-      launcherPrompt.textContent = launcherAppearance.launcherPromptText.trim()
+    if (isLauncherPromptVisible) {
+      // Settings changed while it is on screen: redraw in place, no retyping.
+      buildLauncherPromptContent(false)
       syncLauncherPromptPosition()
       return
     }
@@ -527,6 +720,63 @@ const NOTIFICATION_SOUND_PATH = "/sounds/notification.mp3"
         showLauncherPrompt()
       }
     }, delayMs)
+  }
+
+  /** The "1" on the launcher, shown while the invitation is waiting. */
+  function syncLauncherBadge() {
+    if (!button) {
+      return
+    }
+
+    const shouldShow =
+      launcherAppearance.launcherBadgeEnabled &&
+      isLauncherPromptVisible &&
+      !isOpen &&
+      !isLiveVoiceEnabled
+
+    if (!shouldShow) {
+      launcherBadge?.remove()
+      return
+    }
+
+    if (!launcherBadge) {
+      launcherBadge = document.createElement("span")
+      launcherBadge.className = "echo-widget-badge"
+      launcherBadge.setAttribute("aria-hidden", "true")
+      launcherBadge.textContent = "1"
+    }
+
+    // `applyLauncherAppearance` rewrites the button's markup, so re-attach.
+    if (launcherBadge.parentElement !== button) {
+      button.appendChild(launcherBadge)
+    }
+  }
+
+  /** Toggles the idle motion class; stops once the widget has been opened. */
+  function syncLauncherAttention() {
+    if (!button) {
+      return
+    }
+
+    for (const attention of LAUNCHER_ATTENTIONS) {
+      button.classList.remove(`echo-widget-attn--${attention}`)
+    }
+
+    const attention = launcherAppearance.launcherAttention
+    if (
+      attention === "none" ||
+      isOpen ||
+      isLiveVoiceEnabled ||
+      hasOpenedWidget
+    ) {
+      return
+    }
+
+    button.style.setProperty(
+      "--echo-launcher-glow",
+      toShadowColor(launcherAppearance.launcherColor)
+    )
+    button.classList.add(`echo-widget-attn--${attention}`)
   }
 
   const getLauncherImageMarkup = (imageUrl: string): string => {
@@ -804,6 +1054,322 @@ const NOTIFICATION_SOUND_PATH = "/sounds/notification.mp3"
         animation: echo-widget-orb-click-ripple 520ms ease-out;
       }
 
+      /* ── attention motions ───────────────────────────────────────────────
+         Each plays in the first part of a long cycle and then rests, so the
+         launcher catches the eye without fidgeting. Bounce and wiggle use the
+         standalone translate/rotate properties, which compose with the
+         transform the hover scale writes instead of fighting it. */
+
+      @keyframes echo-widget-attn-pulse {
+        0% { box-shadow: 0 0 0 0 var(--echo-launcher-glow); opacity: 1; }
+        38%, 100% { box-shadow: 0 0 0 16px transparent; opacity: 0; }
+      }
+
+      @keyframes echo-widget-attn-bounce {
+        0%, 20%, 100% { translate: 0 0; }
+        6% { translate: 0 -10px; }
+        11% { translate: 0 0; }
+        15% { translate: 0 -4px; }
+      }
+
+      @keyframes echo-widget-attn-wiggle {
+        0%, 18%, 100% { rotate: 0deg; }
+        3% { rotate: -14deg; }
+        6% { rotate: 12deg; }
+        9% { rotate: -8deg; }
+        12% { rotate: 5deg; }
+        15% { rotate: -2deg; }
+      }
+
+      @keyframes echo-widget-attn-glow {
+        0%, 100% { filter: drop-shadow(0 0 0 transparent); }
+        20% { filter: drop-shadow(0 0 14px var(--echo-launcher-glow)) brightness(1.08); }
+        40% { filter: drop-shadow(0 0 0 transparent); }
+      }
+
+      #echo-widget-button.echo-widget-attn--pulse::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        pointer-events: none;
+        animation: echo-widget-attn-pulse 2.6s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+      }
+
+      #echo-widget-button.echo-widget-attn--bounce {
+        animation: echo-widget-attn-bounce 5s cubic-bezier(0.3, 0, 0.3, 1) 1.2s infinite;
+      }
+
+      #echo-widget-button.echo-widget-attn--wiggle {
+        animation: echo-widget-attn-wiggle 6s ease-in-out 1.2s infinite;
+      }
+
+      #echo-widget-button.echo-widget-attn--glow {
+        animation: echo-widget-attn-glow 3.2s ease-in-out infinite;
+      }
+
+      /* ── unread badge ──────────────────────────────────────────────────── */
+
+      @keyframes echo-widget-badge-in {
+        0% { transform: scale(0); }
+        60% { transform: scale(1.18); }
+        100% { transform: scale(1); }
+      }
+
+      #echo-widget-button .echo-widget-badge {
+        position: absolute;
+        top: -3px;
+        right: -3px;
+        display: grid;
+        place-items: center;
+        min-width: 18px;
+        height: 18px;
+        padding: 0 5px;
+        box-sizing: border-box;
+        border-radius: 999px;
+        background: #ef4444;
+        color: #fff;
+        font: 700 11px/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        box-shadow: 0 0 0 2px #fff, 0 4px 10px rgba(239, 68, 68, 0.45);
+        pointer-events: none;
+        animation: echo-widget-badge-in 420ms cubic-bezier(0.18, 1.35, 0.32, 1) both;
+      }
+
+      /* ── invitation card ───────────────────────────────────────────────── */
+
+      #echo-widget-launcher-prompt button {
+        all: unset;
+        box-sizing: border-box;
+        cursor: pointer;
+      }
+
+      #echo-widget-launcher-prompt {
+        opacity: 0;
+        transform: translate3d(0, 12px, 0) scale(0.92);
+        transition:
+          opacity 260ms cubic-bezier(0.16, 1, 0.3, 1),
+          transform 420ms cubic-bezier(0.18, 1.25, 0.32, 1);
+      }
+
+      #echo-widget-launcher-prompt.is-visible {
+        opacity: 1;
+        transform: none;
+      }
+
+      #echo-widget-launcher-prompt .echo-teaser {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 12px 14px 14px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.97);
+        color: #0f172a;
+        box-shadow:
+          0 0 0 1px rgba(15, 23, 42, 0.06),
+          0 24px 48px -24px rgba(15, 23, 42, 0.45),
+          0 8px 18px -12px rgba(15, 23, 42, 0.25);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      #echo-widget-launcher-prompt[data-side="right"] .echo-teaser {
+        border-bottom-right-radius: 6px;
+      }
+
+      #echo-widget-launcher-prompt[data-side="left"] .echo-teaser {
+        border-bottom-left-radius: 6px;
+      }
+
+      #echo-widget-launcher-prompt .echo-teaser__close {
+        position: absolute;
+        top: -9px;
+        right: -9px;
+        display: grid;
+        place-items: center;
+        width: 24px;
+        height: 24px;
+        border-radius: 999px;
+        background: #fff;
+        color: #475569;
+        box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.08), 0 6px 14px -6px rgba(15, 23, 42, 0.4);
+        opacity: 0;
+        transform: scale(0.8);
+        transition: opacity 160ms ease, transform 160ms ease, color 160ms ease;
+      }
+
+      #echo-widget-launcher-prompt[data-side="left"] .echo-teaser__close {
+        right: auto;
+        left: -9px;
+      }
+
+      #echo-widget-launcher-prompt .echo-teaser__close svg {
+        width: 12px;
+        height: 12px;
+      }
+
+      #echo-widget-launcher-prompt .echo-teaser:hover .echo-teaser__close,
+      #echo-widget-launcher-prompt .echo-teaser__close:focus-visible {
+        opacity: 1;
+        transform: scale(1);
+      }
+
+      #echo-widget-launcher-prompt .echo-teaser__close:hover {
+        color: #0f172a;
+      }
+
+      /* Touch screens have no hover, so the dismiss control is always there. */
+      @media (hover: none) {
+        #echo-widget-launcher-prompt .echo-teaser__close {
+          opacity: 1;
+          transform: scale(1);
+        }
+      }
+
+      #echo-widget-launcher-prompt .echo-teaser__header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+      }
+
+      #echo-widget-launcher-prompt .echo-teaser__avatar {
+        position: relative;
+        display: grid;
+        place-items: center;
+        flex: 0 0 26px;
+        width: 26px;
+        height: 26px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: var(--echo-accent);
+        color: var(--echo-accent-ink);
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      #echo-widget-launcher-prompt .echo-teaser__avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        background: #fff;
+      }
+
+      #echo-widget-launcher-prompt .echo-teaser__name {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 12.5px;
+        font-weight: 650;
+        letter-spacing: -0.01em;
+      }
+
+      @keyframes echo-teaser-online {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5); }
+        60% { box-shadow: 0 0 0 5px rgba(34, 197, 94, 0); }
+      }
+
+      #echo-widget-launcher-prompt .echo-teaser__status {
+        flex: 0 0 7px;
+        width: 7px;
+        height: 7px;
+        border-radius: 999px;
+        background: #22c55e;
+        animation: echo-teaser-online 2.4s ease-out infinite;
+      }
+
+      #echo-widget-launcher-prompt .echo-teaser__message {
+        display: block;
+        font-size: 14px;
+        font-weight: 500;
+        line-height: 1.45;
+        letter-spacing: -0.006em;
+        overflow-wrap: anywhere;
+      }
+
+      @keyframes echo-teaser-dot {
+        0%, 60%, 100% { transform: translateY(0); opacity: 0.35; }
+        30% { transform: translateY(-3px); opacity: 1; }
+      }
+
+      #echo-widget-launcher-prompt .echo-teaser__typing {
+        display: none;
+        gap: 4px;
+        padding: 6px 0;
+      }
+
+      #echo-widget-launcher-prompt .echo-teaser__typing i {
+        width: 6px;
+        height: 6px;
+        border-radius: 999px;
+        background: #64748b;
+        animation: echo-teaser-dot 1s ease-in-out infinite;
+      }
+
+      #echo-widget-launcher-prompt .echo-teaser__typing i:nth-child(2) { animation-delay: 0.14s; }
+      #echo-widget-launcher-prompt .echo-teaser__typing i:nth-child(3) { animation-delay: 0.28s; }
+
+      #echo-widget-launcher-prompt .echo-teaser.is-typing .echo-teaser__typing {
+        display: inline-flex;
+      }
+
+      @keyframes echo-teaser-reveal {
+        from { opacity: 0; transform: translate3d(0, 6px, 0); }
+        to { opacity: 1; transform: none; }
+      }
+
+      #echo-widget-launcher-prompt .echo-teaser__text {
+        display: block;
+        animation: echo-teaser-reveal 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
+      }
+
+      #echo-widget-launcher-prompt .echo-teaser.is-typing .echo-teaser__text,
+      #echo-widget-launcher-prompt .echo-teaser.is-typing .echo-teaser__replies {
+        display: none;
+      }
+
+      #echo-widget-launcher-prompt .echo-teaser__replies {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      #echo-widget-launcher-prompt .echo-teaser__chip {
+        max-width: 100%;
+        padding: 7px 12px;
+        border-radius: 999px;
+        border: 1px solid color-mix(in srgb, var(--echo-accent) 38%, #e2e8f0);
+        background: color-mix(in srgb, var(--echo-accent) 7%, #fff);
+        color: #0f172a;
+        font-size: 12.5px;
+        font-weight: 600;
+        line-height: 1.2;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        animation: echo-teaser-reveal 360ms cubic-bezier(0.16, 1, 0.3, 1) both;
+        animation-delay: calc(80ms + var(--echo-chip-index, 0) * 70ms);
+        transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, transform 160ms ease;
+      }
+
+      #echo-widget-launcher-prompt .echo-teaser__chip:hover,
+      #echo-widget-launcher-prompt .echo-teaser__chip:focus-visible {
+        background: var(--echo-accent);
+        border-color: var(--echo-accent);
+        color: var(--echo-accent-ink);
+        transform: translateY(-1px);
+      }
+
+      #echo-widget-launcher-prompt .echo-teaser__message:focus-visible,
+      #echo-widget-launcher-prompt .echo-teaser__chip:focus-visible,
+      #echo-widget-launcher-prompt .echo-teaser__close:focus-visible {
+        outline: 2px solid var(--echo-accent);
+        outline-offset: 2px;
+      }
+
       @media (prefers-reduced-motion: reduce) {
         #echo-widget-button.echo-widget-button--voice,
         #echo-widget-button.echo-widget-button--voice::after,
@@ -815,6 +1381,16 @@ const NOTIFICATION_SOUND_PATH = "/sounds/notification.mp3"
         .echo-widget-voice-orb__ripple {
           animation-duration: 0.01ms !important;
           animation-iteration-count: 1 !important;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        #echo-widget-button[class*="echo-widget-attn--"],
+        #echo-widget-button[class*="echo-widget-attn--"]::after,
+        #echo-widget-launcher-prompt,
+        #echo-widget-launcher-prompt * {
+          animation: none !important;
+          transition: none !important;
         }
       }
     `
@@ -848,6 +1424,8 @@ const NOTIFICATION_SOUND_PATH = "/sounds/notification.mp3"
         button.setAttribute("aria-label", "Close chat widget")
         button.innerHTML = collapseIcon
       }
+      syncLauncherAttention()
+      syncLauncherBadge()
       syncLauncherVisibility()
       return
     }
@@ -891,9 +1469,11 @@ const NOTIFICATION_SOUND_PATH = "/sounds/notification.mp3"
     button.style.boxShadow = isVoiceSurface
       ? "0 16px 36px rgba(15, 23, 42, 0.16), 0 0 0 1px rgba(15, 23, 42, 0.08)"
       : `0 4px 24px ${toShadowColor(launcherAppearance.launcherColor)}`
+    // Cleared rather than "none" for the standard launcher: an inline value
+    // would override the attention motion applied by class.
     button.style.animation = isVoiceLauncher
       ? "echo-widget-voice-launcher-glow 2.8s ease-in-out infinite"
-      : "none"
+      : ""
     button.setAttribute(
       "aria-label",
       isOpen
@@ -911,6 +1491,8 @@ const NOTIFICATION_SOUND_PATH = "/sounds/notification.mp3"
       button.innerHTML = iconMarkup
     }
 
+    syncLauncherAttention()
+    syncLauncherBadge()
     syncLauncherVisibility()
   }
 
@@ -987,6 +1569,22 @@ const NOTIFICATION_SOUND_PATH = "/sounds/notification.mp3"
     if (typeof appearance.launcherPromptDelaySeconds === "number") {
       launcherAppearance.launcherPromptDelaySeconds =
         clampLauncherPromptDelaySeconds(appearance.launcherPromptDelaySeconds)
+    }
+
+    if (appearance.launcherQuickReplies !== undefined) {
+      launcherAppearance.launcherQuickReplies = parseQuickReplies(
+        appearance.launcherQuickReplies
+      )
+    }
+
+    if (appearance.launcherAttention !== undefined) {
+      launcherAppearance.launcherAttention = parseLauncherAttention(
+        appearance.launcherAttention
+      )
+    }
+
+    if (typeof appearance.launcherBadgeEnabled === "boolean") {
+      launcherAppearance.launcherBadgeEnabled = appearance.launcherBadgeEnabled
     }
 
     if (
@@ -1167,7 +1765,8 @@ const NOTIFICATION_SOUND_PATH = "/sounds/notification.mp3"
 
     launcherPrompt = document.createElement("div")
     launcherPrompt.id = "echo-widget-launcher-prompt"
-    launcherPrompt.setAttribute("aria-hidden", "true")
+    launcherPrompt.setAttribute("role", "status")
+    launcherPromptDismissed = wasPromptDismissedThisSession()
     syncLauncherPromptPosition()
     document.body.appendChild(launcherPrompt)
 
@@ -1388,6 +1987,14 @@ const NOTIFICATION_SOUND_PATH = "/sounds/notification.mp3"
       case "widget-settings":
         if (payload) {
           const settingsPayload = payload as WidgetSettingsPayload
+          if (settingsPayload.teaser) {
+            if (typeof settingsPayload.teaser.name === "string") {
+              teaserName = settingsPayload.teaser.name.slice(0, 60)
+            }
+            if (typeof settingsPayload.teaser.avatarUrl === "string") {
+              teaserAvatarUrl = settingsPayload.teaser.avatarUrl
+            }
+          }
           if (typeof settingsPayload.liveVoiceEnabled === "boolean") {
             isLiveVoiceEnabled = settingsPayload.liveVoiceEnabled
             applyContainerAnimationState(isOpen ? "open" : "closed")
@@ -1595,7 +2202,11 @@ const NOTIFICATION_SOUND_PATH = "/sounds/notification.mp3"
         hideTimer = null
       }
 
-      launcherPromptDismissed = true
+      if (!launcherPromptDismissed) {
+        launcherPromptDismissed = true
+        rememberPromptDismissed()
+      }
+      hasOpenedWidget = true
       hideLauncherPrompt()
 
       container.style.display = "block"
@@ -1663,6 +2274,9 @@ const NOTIFICATION_SOUND_PATH = "/sounds/notification.mp3"
       button.remove()
       button = null
     }
+    launcherBadge = null
+    isLauncherPromptVisible = false
+    hasOpenedWidget = false
     if (hideTimer !== null) {
       window.clearTimeout(hideTimer)
       hideTimer = null

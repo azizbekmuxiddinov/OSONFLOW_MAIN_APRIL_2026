@@ -156,6 +156,17 @@ const appearanceValidator = v.object({
   launcherPromptEnabled: v.optional(v.boolean()),
   launcherPromptText: v.optional(v.string()),
   launcherPromptDelaySeconds: v.optional(v.number()),
+  launcherQuickReplies: v.optional(v.array(v.string())),
+  launcherAttention: v.optional(
+    v.union(
+      v.literal("none"),
+      v.literal("pulse"),
+      v.literal("bounce"),
+      v.literal("wiggle"),
+      v.literal("glow")
+    )
+  ),
+  launcherBadgeEnabled: v.optional(v.boolean()),
   animation: v.optional(
     v.union(
       v.literal("slide-up"),

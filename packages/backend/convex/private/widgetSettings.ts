@@ -44,6 +44,9 @@ const DEFAULT_APPEARANCE = {
   launcherPromptEnabled: true,
   launcherPromptText: "Need help? Talk with us",
   launcherPromptDelaySeconds: 5,
+  launcherQuickReplies: [] as string[],
+  launcherAttention: "pulse" as const,
+  launcherBadgeEnabled: true,
   animation: "scale" as const,
   poweredByText: "Osonflow",
   showPoweredBy: true,
@@ -182,6 +185,17 @@ const appearanceValidator = v.object({
   launcherPromptEnabled: v.optional(v.boolean()),
   launcherPromptText: v.optional(v.string()),
   launcherPromptDelaySeconds: v.optional(v.number()),
+  launcherQuickReplies: v.optional(v.array(v.string())),
+  launcherAttention: v.optional(
+    v.union(
+      v.literal("none"),
+      v.literal("pulse"),
+      v.literal("bounce"),
+      v.literal("wiggle"),
+      v.literal("glow")
+    )
+  ),
+  launcherBadgeEnabled: v.optional(v.boolean()),
   animation: v.optional(
     v.union(
       v.literal("slide-up"),
@@ -271,6 +285,9 @@ type WidgetAppearance = {
   launcherPromptEnabled?: boolean
   launcherPromptText?: string
   launcherPromptDelaySeconds?: number
+  launcherQuickReplies?: string[]
+  launcherAttention?: "none" | "pulse" | "bounce" | "wiggle" | "glow"
+  launcherBadgeEnabled?: boolean
   animation?: "slide-up" | "scale" | "fade" | "pop"
   poweredByText?: string
   showPoweredBy?: boolean
@@ -511,6 +528,19 @@ const clampLauncherSize = (value?: number) =>
 const clampAutoOpenDelaySeconds = (value?: number) =>
   clampNumber(value, 0, 300, DEFAULT_APPEARANCE.autoOpenDelaySeconds)
 
+const MAX_LAUNCHER_QUICK_REPLIES = 3
+const MAX_LAUNCHER_QUICK_REPLY_LENGTH = 40
+
+/** Chips under the invitation bubble: a few short, distinct, non-empty ones. */
+const normalizeQuickReplies = (replies: string[]) =>
+  [
+    ...new Set(
+      replies
+        .map((reply) => reply.trim().slice(0, MAX_LAUNCHER_QUICK_REPLY_LENGTH))
+        .filter(Boolean)
+    ),
+  ].slice(0, MAX_LAUNCHER_QUICK_REPLIES)
+
 const mergeTheme = (
   base?: WidgetTheme,
   incoming?: WidgetTheme
@@ -611,6 +641,19 @@ const mergeAppearance = (
     incoming?.launcherPromptDelaySeconds ??
     base?.launcherPromptDelaySeconds ??
     DEFAULT_APPEARANCE.launcherPromptDelaySeconds,
+  launcherQuickReplies: normalizeQuickReplies(
+    incoming?.launcherQuickReplies ??
+      base?.launcherQuickReplies ??
+      DEFAULT_APPEARANCE.launcherQuickReplies
+  ),
+  launcherAttention:
+    incoming?.launcherAttention ??
+    base?.launcherAttention ??
+    DEFAULT_APPEARANCE.launcherAttention,
+  launcherBadgeEnabled:
+    incoming?.launcherBadgeEnabled ??
+    base?.launcherBadgeEnabled ??
+    DEFAULT_APPEARANCE.launcherBadgeEnabled,
   animation:
     incoming?.animation ?? base?.animation ?? DEFAULT_APPEARANCE.animation,
   poweredByText:

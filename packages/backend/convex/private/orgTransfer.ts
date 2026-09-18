@@ -198,6 +198,20 @@ const pickAppearance = (value: unknown) => {
     launcherPromptEnabled: pickBoolean(value.launcherPromptEnabled),
     launcherPromptText: pickString(value.launcherPromptText),
     launcherPromptDelaySeconds: pickNumber(value.launcherPromptDelaySeconds),
+    launcherQuickReplies: Array.isArray(value.launcherQuickReplies)
+      ? value.launcherQuickReplies.filter(
+          (reply): reply is string => typeof reply === "string"
+        )
+      : undefined,
+    launcherAttention:
+      value.launcherAttention === "none" ||
+      value.launcherAttention === "pulse" ||
+      value.launcherAttention === "bounce" ||
+      value.launcherAttention === "wiggle" ||
+      value.launcherAttention === "glow"
+        ? value.launcherAttention
+        : undefined,
+    launcherBadgeEnabled: pickBoolean(value.launcherBadgeEnabled),
     animation:
       value.animation === "slide-up" ||
       value.animation === "scale" ||

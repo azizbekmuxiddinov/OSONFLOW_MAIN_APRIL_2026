@@ -1,5 +1,7 @@
 "use client"
 
+import "../launcher-attention.css"
+
 import { useState, type CSSProperties, type ReactNode } from "react"
 import {
   ArrowUpIcon,
@@ -437,10 +439,12 @@ const VoiceScreenMock = ({
 
 const LauncherMock = ({
   appearance,
+  theme,
   voiceOnly,
   scale = 1,
 }: {
   appearance: WidgetAppearanceSettings
+  theme: WidgetThemeSettings
   voiceOnly: boolean
   scale?: number
 }) => {
@@ -460,16 +464,60 @@ const LauncherMock = ({
           : "items-start"
       )}
     >
-      {appearance.launcherPromptEnabled ? (
+      {appearance.launcherPromptEnabled && !voiceOnly ? (
         <div
           className={cn(
-            "max-w-[190px] rounded-2xl bg-white px-3 py-2 text-[10.5px] font-semibold text-slate-950 shadow-[0_16px_34px_-22px_rgba(15,23,42,0.55)]",
+            "flex w-[196px] flex-col gap-1.5 rounded-[14px] bg-white/97 px-2.5 py-2 text-slate-950 shadow-[0_0_0_1px_rgba(15,23,42,0.06),0_20px_40px_-22px_rgba(15,23,42,0.5)]",
             appearance.launcherPosition === "bottom-right"
-              ? "text-right"
-              : "text-left"
+              ? "rounded-br-[5px]"
+              : "rounded-bl-[5px]"
           )}
         >
-          {appearance.launcherPromptText}
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span
+              className="flex size-[18px] shrink-0 items-center justify-center overflow-hidden rounded-full text-[8px] font-bold"
+              style={{
+                backgroundColor: appearance.launcherColor,
+                color: textColor,
+              }}
+            >
+              {theme.logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  alt=""
+                  className="size-full bg-white object-cover"
+                  src={theme.logoUrl}
+                />
+              ) : (
+                theme.assistantName.trim()[0]?.toUpperCase()
+              )}
+            </span>
+            <span className="truncate text-[9.5px] font-semibold">
+              {theme.assistantName}
+            </span>
+            <span className="size-1.5 shrink-0 rounded-full bg-green-500" />
+          </div>
+          <p className="text-[10.5px] leading-snug font-medium">
+            {appearance.launcherPromptText}
+          </p>
+          {appearance.launcherQuickReplies.some((reply) => reply.trim()) ? (
+            <div className="flex flex-wrap gap-1">
+              {appearance.launcherQuickReplies
+                .filter((reply) => reply.trim())
+                .map((reply) => (
+                  <span
+                    className="max-w-full truncate rounded-full border px-2 py-[3px] text-[9px] font-semibold"
+                    key={reply}
+                    style={{
+                      backgroundColor: `color-mix(in srgb, ${appearance.launcherColor} 7%, white)`,
+                      borderColor: `color-mix(in srgb, ${appearance.launcherColor} 38%, #e2e8f0)`,
+                    }}
+                  >
+                    {reply}
+                  </span>
+                ))}
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -486,15 +534,28 @@ const LauncherMock = ({
         </span>
       ) : (
         <span
-          className="group inline-flex items-center gap-2 overflow-hidden rounded-full px-0 text-xs font-medium shadow-[0_20px_42px_-26px_rgba(15,23,42,0.6)] transition-all"
-          style={{
-            backgroundColor: appearance.launcherColor,
-            color: textColor,
-            height: size,
-            width: size,
-            justifyContent: "center",
-          }}
+          className={cn(
+            "group relative inline-flex items-center gap-2 rounded-full px-0 text-xs font-medium shadow-[0_20px_42px_-26px_rgba(15,23,42,0.6)] transition-all",
+            appearance.launcherAttention !== "none" &&
+              `launcher-attn--${appearance.launcherAttention}`
+          )}
+          style={
+            {
+              "--launcher-glow": `color-mix(in srgb, ${appearance.launcherColor} 50%, transparent)`,
+              backgroundColor: appearance.launcherColor,
+              color: textColor,
+              height: size,
+              width: size,
+              justifyContent: "center",
+            } as CSSProperties
+          }
         >
+          {appearance.launcherPromptEnabled &&
+          appearance.launcherBadgeEnabled ? (
+            <span className="launcher-badge absolute -top-0.5 -right-0.5 z-10 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-red-500 px-1 text-[8px] font-bold text-white ring-2 ring-white">
+              1
+            </span>
+          ) : null}
           {imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -748,6 +809,7 @@ export const WidgetLivePreview = ({
               {effectiveScreen === "launcher" ? (
                 <LauncherMock
                   appearance={appearance}
+                  theme={theme}
                   voiceOnly={voiceOnly}
                   scale={0.9}
                 />

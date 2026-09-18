@@ -18,7 +18,10 @@ import {
 } from "@/modules/widget/atoms/widget-atoms"
 import { useEffect, useRef, useState } from "react"
 import { api } from "@workspace/backend/_generated/api"
-import { mergeWidgetAppearance } from "@workspace/ui/lib/widget-customization"
+import {
+  mergeWidgetAppearance,
+  mergeWidgetTheme,
+} from "@workspace/ui/lib/widget-customization"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { useEnsureVoiceContactSession } from "../../hooks/use-ensure-voice-contact-session"
 import { useStartWidgetConversation } from "../../hooks/use-start-widget-conversation"
@@ -179,8 +182,22 @@ export const WidgetLoadingScreen = ({
       widgetSettings?.geminiLiveSettings?.enabled
     )
 
+    // Who the invitation bubble on the host page speaks as. The logo is made
+    // absolute because the host page would resolve a relative path against
+    // its own origin, not the widget's.
+    const theme = mergeWidgetTheme(widgetSettings?.theme)
+    const teaser = {
+      name: theme.assistantName,
+      avatarUrl: theme.logoUrl
+        ? new URL(theme.logoUrl, window.location.origin).href
+        : "",
+    }
+
     window.parent.postMessage(
-      { type: "widget-settings", payload: { appearance, liveVoiceEnabled } },
+      {
+        type: "widget-settings",
+        payload: { appearance, liveVoiceEnabled, teaser },
+      },
       "*"
     )
   }, [mode, widgetSettings])
