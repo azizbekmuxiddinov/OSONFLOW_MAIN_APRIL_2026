@@ -604,6 +604,25 @@ export const WidgetChatScreen = () => {
     return true
   }
 
+  // Suggestion chips and workflow choices are one-shot: picking one spends
+  // the whole row. Checked synchronously, because two quick taps on different
+  // chips both land before React re-renders and hides the row, and their
+  // different texts slip past the per-message duplicate guard above.
+  const choiceLockRef = useRef(false)
+
+  const pickChoice = async (send: () => Promise<void>) => {
+    if (choiceLockRef.current) {
+      return
+    }
+
+    choiceLockRef.current = true
+    try {
+      await send()
+    } finally {
+      choiceLockRef.current = false
+    }
+  }
+
   const finishSend = (sendKey: string) => {
     inFlightSendsRef.current.delete(sendKey)
 
@@ -1210,10 +1229,10 @@ export const WidgetChatScreen = () => {
     }
   }
 
-  const submitWorkflowChoice = async (button: {
-    id: string
-    label: string
-  }) => {
+  const submitWorkflowChoice = (button: { id: string; label: string }) =>
+    pickChoice(() => sendWorkflowChoice(button))
+
+  const sendWorkflowChoice = async (button: { id: string; label: string }) => {
     const threadId = conversation?.threadId
     if (!threadId || !contactSessionId) {
       return
@@ -1503,7 +1522,9 @@ export const WidgetChatScreen = () => {
           )}
         </AIConversationContent>
       </AIConversation>
-      {choiceRowButtons.length > 0 ? (
+      {/* Both rows step aside while a pick is on its way, so the spent
+          choices cannot be tapped again before the reply arrives. */}
+      {choiceRowButtons.length > 0 && !showOptimisticUserMessage ? (
         <AISuggestions className="owc-suggestions">
           {choiceRowButtons.map((button) => (
             <AISuggestion
@@ -1515,6 +1536,7 @@ export const WidgetChatScreen = () => {
           ))}
         </AISuggestions>
       ) : !workflowChoices?.buttons?.length &&
+        !showOptimisticUserMessage &&
         visibleMessages.length === 1 &&
         visibleHeldMessages.length === 0 ? (
         <AISuggestions className="owc-suggestions">
@@ -1527,14 +1549,16 @@ export const WidgetChatScreen = () => {
               <AISuggestion
                 className="owc-suggestion"
                 key={suggestion}
-                onClick={() => {
-                  form.setValue("message", suggestion, {
-                    shouldValidate: true,
-                    shouldDirty: true,
-                    shouldTouch: true,
+                onClick={() =>
+                  void pickChoice(async () => {
+                    form.setValue("message", suggestion, {
+                      shouldValidate: true,
+                      shouldDirty: true,
+                      shouldTouch: true,
+                    })
+                    await form.handleSubmit(onSubmit)()
                   })
-                  form.handleSubmit(onSubmit)()
-                }}
+                }
                 suggestion={suggestion}
               />
             )
