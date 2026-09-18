@@ -116,6 +116,8 @@ const NOTIFICATION_SOUND_PATH = "/sounds/notification.mp3"
   let canPlayNotificationSound = false
   let isListeningForHostUserActivation = false
   let launcherBadge: HTMLSpanElement | null = null
+  // Replies the visitor has not seen yet, as reported by the widget.
+  let unreadCount = 0
   let isLauncherPromptVisible = false
   let launcherPromptTypingTimer: number | null = null
   // Attention motion stops for good once the visitor has opened the widget:
@@ -730,17 +732,22 @@ const NOTIFICATION_SOUND_PATH = "/sounds/notification.mp3"
     }, delayMs)
   }
 
-  /** The "1" on the launcher, shown while the invitation is waiting. */
+  /**
+   * The launcher's badge: the number of unread replies, or a "1" while the
+   * invitation is waiting. A real unread count always shows; the invitation
+   * "1" only when the organization turned the badge on.
+   */
   function syncLauncherBadge() {
     if (!button) {
       return
     }
 
+    const hasUnread = unreadCount > 0
     const shouldShow =
-      launcherAppearance.launcherBadgeEnabled &&
-      isLauncherPromptVisible &&
       !isOpen &&
-      !isLiveVoiceEnabled
+      !isLiveVoiceEnabled &&
+      (hasUnread ||
+        (launcherAppearance.launcherBadgeEnabled && isLauncherPromptVisible))
 
     if (!shouldShow) {
       launcherBadge?.remove()
@@ -751,13 +758,38 @@ const NOTIFICATION_SOUND_PATH = "/sounds/notification.mp3"
       launcherBadge = document.createElement("span")
       launcherBadge.className = "echo-widget-badge"
       launcherBadge.setAttribute("aria-hidden", "true")
-      launcherBadge.textContent = "1"
     }
+
+    const label = hasUnread ? (unreadCount > 9 ? "9+" : String(unreadCount)) : "1"
+    if (launcherBadge.textContent !== label) {
+      launcherBadge.textContent = label
+      // Replay the pop so a new reply is noticed, not just a changed digit.
+      launcherBadge.style.animation = "none"
+      void launcherBadge.offsetWidth
+      launcherBadge.style.animation = ""
+    }
+
+    // Centred on the launcher's outline where it meets the 45° diagonal from
+    // the top-right corner: hugging the icon rather than floating off its
+    // bounding box. The same corner geometry holds for the round launcher
+    // and the pill, whose ends have a radius of half the launcher's height.
+    const cornerInset = launcherSize * (1 - Math.SQRT1_2) * 0.5
+    const badgeHalf = 9
+    launcherBadge.style.top = `${Math.round(cornerInset - badgeHalf)}px`
+    launcherBadge.style.right = `${Math.round(cornerInset - badgeHalf)}px`
 
     // `applyLauncherAppearance` rewrites the button's markup, so re-attach.
     if (launcherBadge.parentElement !== button) {
       button.appendChild(launcherBadge)
     }
+  }
+
+  /** Tells the widget whether the visitor can see it, for read receipts. */
+  function announceVisibility() {
+    iframe?.contentWindow?.postMessage(
+      { type: "host-visibility", payload: { open: isOpen } },
+      new URL(EMBED_CONFIG.WIDGET_URL).origin
+    )
   }
 
   /** Toggles the idle motion class; stops once the widget has been opened. */
@@ -1126,8 +1158,7 @@ const NOTIFICATION_SOUND_PATH = "/sounds/notification.mp3"
 
       #echo-widget-button .echo-widget-badge {
         position: absolute;
-        top: -3px;
-        right: -3px;
+        z-index: 2;
         display: grid;
         place-items: center;
         min-width: 18px;
@@ -1989,6 +2020,7 @@ const NOTIFICATION_SOUND_PATH = "/sounds/notification.mp3"
 
     switch (type) {
       case "widget-ready":
+        announceVisibility()
         // The widget may have mounted after the visitor already interacted with
         // this page, so repeat the announcement it missed.
         if (canPlayNotificationSound) {
@@ -2003,6 +2035,13 @@ const NOTIFICATION_SOUND_PATH = "/sounds/notification.mp3"
       case "close":
         hide()
         break
+      case "unread-count": {
+        const count = Number(payload?.count)
+        unreadCount =
+          Number.isFinite(count) && count > 0 ? Math.floor(count) : 0
+        syncLauncherBadge()
+        break
+      }
       // "resize" is no longer honoured: the panel size is an organization
       // setting now, and older widget builds posted a fixed 640px that would
       // override it.
@@ -2234,6 +2273,7 @@ const NOTIFICATION_SOUND_PATH = "/sounds/notification.mp3"
       container.style.display = "block"
       syncContainerTransformOrigin()
       isOpen = true
+      announceVisibility()
       applyContainerAnimationState("closed", { immediate: true })
       syncLauncherVisibility()
       // Trigger animation
@@ -2254,6 +2294,7 @@ const NOTIFICATION_SOUND_PATH = "/sounds/notification.mp3"
       const shouldRevealStandardLauncherNow = !isLiveVoiceEnabled
 
       isOpen = false
+      announceVisibility()
       const shouldDelayLauncherReveal = isLiveVoiceEnabled
       if (!shouldDelayLauncherReveal) {
         revealStandardClosedLauncher()
@@ -2297,6 +2338,7 @@ const NOTIFICATION_SOUND_PATH = "/sounds/notification.mp3"
       button = null
     }
     launcherBadge = null
+    unreadCount = 0
     isLauncherPromptVisible = false
     hasOpenedWidget = false
     if (hideTimer !== null) {

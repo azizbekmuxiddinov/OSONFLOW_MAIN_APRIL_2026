@@ -18,6 +18,7 @@ import {
   workflowOnlyAtom,
   contactSessionIdAtomFamily,
   conversationIdAtom,
+  isWidgetVisibleAtom,
   organizationIdAtom,
   pendingInitialMessageAtom,
   screenAtom,
@@ -529,9 +530,13 @@ export const WidgetChatScreen = () => {
   // enabled once the thread is escalated to a human. While the conversation is
   // still unresolved the assistant messages are AI replies to something the
   // visitor just typed, which should not chime.
+  const isWidgetVisible = useAtomValue(isWidgetVisibleAtom)
+  // While the widget is closed the launcher's unread count chimes for this
+  // thread instead, so staying quiet here avoids a double chime.
   useNotifyOnNewMessages(visibleMessages, {
     notifyForRole: "assistant",
     enabled:
+      isWidgetVisible &&
       conversation?.status === "escalated" &&
       appearance.notificationSoundEnabled,
   })
@@ -1306,6 +1311,12 @@ export const WidgetChatScreen = () => {
   }
 
   useEffect(() => {
+    // Not while the embed has the widget closed: the visitor has not seen
+    // the reply, and it must stay unread so the launcher can count it.
+    if (!isWidgetVisible) {
+      return
+    }
+
     if (!conversationId || !contactSessionId || !conversation) {
       return
     }
@@ -1318,7 +1329,13 @@ export const WidgetChatScreen = () => {
       conversationId,
       contactSessionId,
     })
-  }, [contactSessionId, conversation, conversationId, markConversationAsRead])
+  }, [
+    contactSessionId,
+    conversation,
+    conversationId,
+    isWidgetVisible,
+    markConversationAsRead,
+  ])
 
   return (
     <>

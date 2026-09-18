@@ -46,6 +46,15 @@ export const contactSessionIdAtomFamily = atomFamily(
 
 export const errorMessageAtom = atom<string | null>(null)
 export const conversationIdAtom = atom<Id<"conversations"> | null>(null)
+/**
+ * Whether the visitor can see the widget. The iframe stays mounted while the
+ * embed has it closed, so without this a reply arriving then would be marked
+ * read and never counted on the launcher. Opened directly (not embedded), the
+ * page is always visible; embedded, it starts closed until the host says so.
+ */
+export const isWidgetVisibleAtom = atom(
+  typeof window === "undefined" || window.parent === window
+)
 export const chatReturnScreenAtom = atom<ChatReturnScreen>("selection")
 
 /**

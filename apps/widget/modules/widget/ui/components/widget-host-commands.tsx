@@ -1,18 +1,20 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { useAtomValue } from "jotai"
+import { useAtomValue, useSetAtom } from "jotai"
 import { mergeWidgetAppearance } from "@workspace/ui/lib/widget-customization"
 import {
+  isWidgetVisibleAtom,
   screenAtom,
   widgetSettingsAtom,
 } from "@/modules/widget/atoms/widget-atoms"
 import { useStartWidgetConversation } from "../../hooks/use-start-widget-conversation"
 
 /**
- * Carries out requests the embed script makes from the host page — today, a
- * visitor tapping a quick reply under the invitation bubble, which opens the
- * widget and sends that reply as their first message.
+ * Carries out requests the embed script makes from the host page: a visitor
+ * tapping a quick reply under the invitation bubble, which opens the widget
+ * and sends that reply as their first message, and the host reporting whether
+ * the widget is currently open.
  *
  * Only a reply the organization configured is accepted. Any page can embed the
  * widget and post to it, so free text from the host would let that page speak
@@ -22,6 +24,7 @@ export const WidgetHostCommands = () => {
   const screen = useAtomValue(screenAtom)
   const widgetSettings = useAtomValue(widgetSettingsAtom)
   const { startConversation } = useStartWidgetConversation()
+  const setIsWidgetVisible = useSetAtom(isWidgetVisibleAtom)
   // The reply waits in a ref; the counter only tells the effect below that a
   // new one arrived.
   const pendingReplyRef = useRef<string | null>(null)
@@ -43,9 +46,17 @@ export const WidgetHostCommands = () => {
       if (
         event.source !== hostWindow ||
         !event.origin ||
-        event.origin === "null" ||
-        event.data?.type !== "start-chat"
+        event.origin === "null"
       ) {
+        return
+      }
+
+      if (event.data?.type === "host-visibility") {
+        setIsWidgetVisible(event.data.payload?.open === true)
+        return
+      }
+
+      if (event.data?.type !== "start-chat") {
         return
       }
 
@@ -58,7 +69,7 @@ export const WidgetHostCommands = () => {
 
     window.addEventListener("message", onHostMessage)
     return () => window.removeEventListener("message", onHostMessage)
-  }, [])
+  }, [setIsWidgetVisible])
 
   useEffect(() => {
     // Held until the widget has loaded its settings and left the splash, so

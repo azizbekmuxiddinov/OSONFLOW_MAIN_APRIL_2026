@@ -729,7 +729,7 @@ export const AppearanceFormFields = ({ form }: AppearanceFormFieldsProps) => {
                       />
                     </FormControl>
                   }
-                  description="A red “1” on the launcher while the invitation is waiting, like an unread message."
+                  description="Adds a red “1” to the launcher while the invitation is waiting. Unread replies always show their count there, whatever this is set to."
                   label="Notification badge"
                 />
               </FormItem>

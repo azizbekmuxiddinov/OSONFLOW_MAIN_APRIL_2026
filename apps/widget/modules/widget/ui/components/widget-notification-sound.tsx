@@ -7,6 +7,7 @@ import { api } from "@workspace/backend/_generated/api"
 import {
   contactSessionIdAtomFamily,
   conversationIdAtom,
+  isWidgetVisibleAtom,
   organizationIdAtom,
   screenAtom,
   widgetSettingsAtom,
@@ -26,6 +27,7 @@ export const WidgetNotificationSound = () => {
     contactSessionIdAtomFamily(organizationId || "")
   )
   const widgetSettings = useAtomValue(widgetSettingsAtom)
+  const isWidgetVisible = useAtomValue(isWidgetVisibleAtom)
   const isNotificationSoundEnabled = mergeWidgetAppearance(
     widgetSettings?.appearance
   ).notificationSoundEnabled
@@ -79,7 +81,10 @@ export const WidgetNotificationSound = () => {
 
   // The open chat thread is excluded rather than muting the widget entirely, so
   // a reply in another conversation still chimes while reading a different one.
-  const openConversationId = screen === "chat" ? conversationId : null
+  // A chat left on screen when the widget was closed is not being read, so its
+  // replies count too.
+  const openConversationId =
+    screen === "chat" && isWidgetVisible ? conversationId : null
 
   const unreadSummary = useQuery(
     api.public.conversations.getUnreadSummary,
@@ -95,6 +100,19 @@ export const WidgetNotificationSound = () => {
     enabled: isNotificationSoundEnabled,
     resetKey: `${screen}:${openConversationId ?? ""}`,
   })
+
+  // The launcher on the host page shows this count as a badge.
+  const unreadMessageCount = unreadSummary?.unreadMessageCount ?? 0
+  useEffect(() => {
+    if (typeof window === "undefined" || window.parent === window) {
+      return
+    }
+
+    window.parent.postMessage(
+      { type: "unread-count", payload: { count: unreadMessageCount } },
+      "*"
+    )
+  }, [unreadMessageCount])
 
   return null
 }
