@@ -229,7 +229,10 @@ export const WidgetLoadingScreen = ({
 
         if (!startingWorkflowRef.current) {
           startingWorkflowRef.current = true
-          void startConversation({ returnScreen: "selection" })
+          void startConversation({
+            returnScreen: "selection",
+            createImmediately: true,
+          })
         }
 
         return

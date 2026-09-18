@@ -50,3 +50,8 @@ reports/
 apps/embed/osonflow-landing-export/*
 !apps/embed/osonflow-landing-export/build-export.mjs
 apps/embed/osonflow-landing-export.zip
+
+# Golden Pages scraper session + crawl output (cookies / PII)
+scripts/goldenpages/auth-state.json
+scripts/goldenpages/data/
+scripts/goldenpages/proxies.txt

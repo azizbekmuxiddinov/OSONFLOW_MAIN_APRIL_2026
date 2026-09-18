@@ -45,14 +45,25 @@ export const useStartWidgetConversation = () => {
   const [isPending, setIsPending] = useState(false)
   const shouldCaptureDetailsInChat = widgetMode !== "voice" && !hasAnyVoice
 
+  /**
+   * Opens the chat screen. Nothing is written for the conversation itself
+   * until the visitor sends their first message — the chat screen creates it
+   * then — so a visitor who opens a chat and leaves never leaves an empty
+   * conversation behind in the operator inbox or their own history.
+   *
+   * `createImmediately` is for a published workflow, which speaks first and
+   * so needs its conversation to exist before the visitor has said anything.
+   */
   const startConversation = async ({
     initialMessage,
     returnScreen = "selection",
     contactSessionId: providedSessionId,
+    createImmediately = false,
   }: {
     initialMessage?: string
     returnScreen?: ChatReturnScreen
     contactSessionId?: Id<"contactSessions">
+    createImmediately?: boolean
   } = {}) => {
     if (!organizationId) {
       setScreen("error")
@@ -82,18 +93,24 @@ export const useStartWidgetConversation = () => {
         setContactSessionId(sessionId)
       }
 
-      const result = await createConversation({
-        contactSessionId: sessionId,
-        organizationId,
-        agentId: agentId ?? undefined,
-        metadata: getWidgetMetadata("chat_widget"),
-      })
+      let conversationId: Id<"conversations"> | null = null
+
+      if (createImmediately) {
+        const result = await createConversation({
+          contactSessionId: sessionId,
+          organizationId,
+          agentId: agentId ?? undefined,
+          metadata: getWidgetMetadata("chat_widget"),
+        })
+        conversationId = result.conversationId
+        setContactSessionId(result.contactSessionId)
+      }
+
       const trimmedMessage = initialMessage?.trim()
       setPendingStartChat(null)
-      setContactSessionId(result.contactSessionId)
       setPendingInitialMessage(trimmedMessage ? trimmedMessage : null)
       setChatReturnScreen(returnScreen)
-      setConversationId(result.conversationId)
+      setConversationId(conversationId)
       setScreen("chat")
     } catch {
       setPendingInitialMessage(null)

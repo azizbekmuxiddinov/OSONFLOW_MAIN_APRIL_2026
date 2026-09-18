@@ -218,6 +218,7 @@ export const create = mutation({
   ): Promise<{
     conversationId: Id<"conversations">
     contactSessionId: Id<"contactSessions">
+    threadId: string
     source: "workflow" | "widget"
   }> => {
     const activeWorkflow = await ctx.db
@@ -347,6 +348,7 @@ export const create = mutation({
     return {
       conversationId,
       contactSessionId: session._id,
+      threadId,
       source: hasActiveWorkflow ? ("workflow" as const) : ("widget" as const),
     }
   },

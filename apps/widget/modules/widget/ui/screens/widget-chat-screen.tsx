@@ -13,6 +13,7 @@ import { Button } from "@workspace/ui/components/button"
 import { useAtomValue, useSetAtom } from "jotai"
 import { ArrowLeftIcon, CheckCircle2Icon, ImagePlusIcon } from "lucide-react"
 import {
+  agentIdAtom,
   chatReturnScreenAtom,
   workflowOnlyAtom,
   contactSessionIdAtomFamily,
@@ -64,6 +65,7 @@ import { useNotifyOnNewMessages } from "@workspace/ui/hooks/use-notify-on-new-me
 import { InfiniteScrollTrigger } from "@workspace/ui/components/infinite-scroll-trigger"
 import { DicebearAvatar } from "@workspace/ui/components/dicebear-avatar"
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -77,6 +79,7 @@ import {
 } from "@workspace/ui/lib/widget-customization"
 import { cn } from "@workspace/ui/lib/utils"
 import { WidgetEmailCapture } from "../components/widget-email-capture"
+import { getWidgetMetadata } from "../../lib/widget-metadata"
 
 // The composer can also be sent with images and no text, so emptiness is
 // checked at submit time against the attachment tray rather than by the schema.
@@ -317,9 +320,17 @@ export const WidgetChatScreen = () => {
   const copy = mergeWidgetCopy(widgetSettings?.widgetCopy)
   const canDownloadChatHistory = appearance.showChatHistoryDownload
   const organizationId = useAtomValue(organizationIdAtom)
+  const agentId = useAtomValue(agentIdAtom)
   const contactSessionId = useAtomValue(
     contactSessionIdAtomFamily(organizationId || "")
   )
+  const setContactSessionId = useSetAtom(
+    contactSessionIdAtomFamily(organizationId || "")
+  )
+  // A new chat opens as a draft: the greeting is shown locally and the
+  // conversation is only created once the visitor actually sends something, so
+  // opening a chat and walking away records nothing.
+  const isDraft = conversationId === null
 
   const contactSessionDetails = useQuery(
     api.public.contactSessions.getDetails,
@@ -449,15 +460,42 @@ export const WidgetChatScreen = () => {
   }, [conversationAttachments])
   // A message carrying only images has no text, so emptiness alone no longer
   // means there is nothing to show.
-  const visibleMessages = useMemo(
-    () =>
-      uiMessages.filter(
-        (message) =>
-          getUiMessageText(message).trim().length > 0 ||
-          attachmentsByMessageId.has(message.id)
-      ),
-    [attachmentsByMessageId, uiMessages]
-  )
+  // Set once a draft is turned into a real conversation, so the local greeting
+  // stays up until the server's copy of it has loaded instead of blinking out.
+  const [createdFromDraft, setCreatedFromDraft] = useState(false)
+  const draftGreetingText =
+    widgetSettings?.greetMessage || "Hello, how can I help you today?"
+  const visibleMessages = useMemo(() => {
+    const threadMessages = uiMessages.filter(
+      (message) =>
+        getUiMessageText(message).trim().length > 0 ||
+        attachmentsByMessageId.has(message.id)
+    )
+
+    if (threadMessages.length > 0 || !(isDraft || createdFromDraft)) {
+      return threadMessages
+    }
+
+    const draftGreeting: (typeof uiMessages)[number] = {
+      id: "draft-greeting",
+      key: "draft-greeting",
+      role: "assistant",
+      parts: [{ type: "text", text: draftGreetingText }],
+      text: draftGreetingText,
+      order: -1,
+      stepOrder: 0,
+      status: "success",
+      _creationTime: 0,
+    }
+
+    return [draftGreeting]
+  }, [
+    attachmentsByMessageId,
+    createdFromDraft,
+    draftGreetingText,
+    isDraft,
+    uiMessages,
+  ])
 
   // Card and Carousel steps render their own buttons, so the choice row below
   // the thread must not repeat them.
@@ -692,8 +730,11 @@ export const WidgetChatScreen = () => {
   >(null)
 
   useEffect(() => {
+    // Not until the real thread is loaded: a draft's local greeting would
+    // otherwise pin the watermark at zero and replay the server's copy of it.
     if (
       liveFromCreationTime !== null ||
+      !conversation?.threadId ||
       messages.status === "LoadingFirstPage"
     ) {
       return
@@ -711,7 +752,12 @@ export const WidgetChatScreen = () => {
     )
 
     return () => window.clearTimeout(timeoutId)
-  }, [liveFromCreationTime, messages.status, visibleMessages])
+  }, [
+    conversation?.threadId,
+    liveFromCreationTime,
+    messages.status,
+    visibleMessages,
+  ])
 
   const { topElementRef, handleLoadMore, canLoadMore, isLoadingMore } =
     useInfiniteScroll({
@@ -737,6 +783,77 @@ export const WidgetChatScreen = () => {
   const markConversationAsRead = useMutation(
     api.public.conversations.markAsRead
   )
+  const createConversation = useMutation(api.public.conversations.create)
+
+  // The create call for a draft, shared so that everything sent while it is in
+  // flight — a double Enter, held messages, an image — lands in one
+  // conversation rather than each starting its own.
+  const draftCreationRef = useRef<Promise<{
+    conversationId: Id<"conversations">
+    threadId: string
+  }> | null>(null)
+
+  // Whether a send has somewhere to go: a loaded conversation, a draft that
+  // will be created on demand, or one just created that is still loading.
+  const canResolveConversation = Boolean(
+    contactSessionId &&
+      (conversation?.threadId || isDraft || createdFromDraft)
+  )
+
+  /**
+   * The conversation the next message belongs to, creating it first when the
+   * chat is still a draft. This is the only place the widget creates a chat
+   * conversation, so none exists until the visitor sends something.
+   */
+  const resolveConversation = useCallback(async () => {
+    if (conversationId && conversation?.threadId) {
+      return { conversationId, threadId: conversation.threadId }
+    }
+
+    if (draftCreationRef.current) {
+      return await draftCreationRef.current
+    }
+
+    if (!isDraft || !contactSessionId || !organizationId) {
+      throw new Error("Conversation is not ready")
+    }
+
+    const creation = createConversation({
+      contactSessionId,
+      organizationId,
+      agentId: agentId ?? undefined,
+      metadata: getWidgetMetadata("chat_widget"),
+    }).then((result) => {
+      setCreatedFromDraft(true)
+      setContactSessionId(result.contactSessionId)
+      setConversationId(result.conversationId)
+
+      return {
+        conversationId: result.conversationId,
+        threadId: result.threadId,
+      }
+    })
+
+    draftCreationRef.current = creation
+    // A failed create must not wedge the draft: the next send tries again.
+    creation.catch(() => {
+      if (draftCreationRef.current === creation) {
+        draftCreationRef.current = null
+      }
+    })
+
+    return await creation
+  }, [
+    agentId,
+    contactSessionId,
+    conversation?.threadId,
+    conversationId,
+    createConversation,
+    isDraft,
+    organizationId,
+    setContactSessionId,
+    setConversationId,
+  ])
 
   const [attachmentNotice, setAttachmentNotice] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -745,17 +862,21 @@ export const WidgetChatScreen = () => {
   const canAttachImages =
     appearance.imageUploadsEnabled &&
     !isComposerDisabled &&
-    Boolean(conversationId && contactSessionId)
+    canResolveConversation
 
   const attachments = useChatImageAttachments({
     enabled: canAttachImages,
     maxPerMessage: appearance.imageUploadMaxPerMessage,
     maxSizeBytes: appearance.imageUploadMaxSizeMb * 1024 * 1024,
     onError: setAttachmentNotice,
+    // An upload has to belong to a conversation, so picking an image in a
+    // draft is what creates it.
     requestUploadUrl: async () => {
-      if (!conversationId || !contactSessionId) {
+      if (!contactSessionId) {
         throw new Error("Missing session")
       }
+
+      const { conversationId } = await resolveConversation()
 
       return await generateAttachmentUploadUrl({
         conversationId,
@@ -763,9 +884,11 @@ export const WidgetChatScreen = () => {
       })
     },
     attachUpload: async ({ storageId, filename, width, height }) => {
-      if (!conversationId || !contactSessionId) {
+      if (!contactSessionId) {
         throw new Error("Missing session")
       }
+
+      const { conversationId } = await resolveConversation()
 
       return await attachUploadedImage({
         conversationId,
@@ -842,12 +965,11 @@ export const WidgetChatScreen = () => {
 
   // Once the visitor is identified, deliver any messages typed beforehand.
   useEffect(() => {
-    const threadId = conversation?.threadId
     if (
       needsEmail !== false ||
       !heldMessages ||
       heldMessages.messages.length === 0 ||
-      !threadId ||
+      !canResolveConversation ||
       !contactSessionId ||
       isFlushingHeldMessagesRef.current
     ) {
@@ -865,6 +987,8 @@ export const WidgetChatScreen = () => {
     beginSend(sendKey)
 
     const flush = async () => {
+      const { threadId } = await resolveConversation()
+
       for (const held of batch) {
         await createMessage({
           threadId,
@@ -899,11 +1023,12 @@ export const WidgetChatScreen = () => {
       })
   }, [
     assistantMessageCount,
+    canResolveConversation,
     contactSessionId,
-    conversation?.threadId,
     createMessage,
     heldMessages,
     needsEmail,
+    resolveConversation,
   ])
 
   // Drop held state once every held message is confirmed by the server.
@@ -916,8 +1041,7 @@ export const WidgetChatScreen = () => {
 
   useEffect(() => {
     const prompt = pendingInitialMessage?.trim()
-    const threadId = conversation?.threadId
-    if (!prompt || !threadId || !contactSessionId) {
+    if (!prompt || !canResolveConversation || !contactSessionId) {
       return
     }
 
@@ -948,11 +1072,14 @@ export const WidgetChatScreen = () => {
     })
     setPendingAssistantMessageCount(assistantMessageCount + 1)
 
-    void createMessage({
-      threadId,
-      prompt,
-      contactSessionId,
-    })
+    void resolveConversation()
+      .then(({ threadId }) =>
+        createMessage({
+          threadId,
+          prompt,
+          contactSessionId,
+        })
+      )
       .catch(() => {
         setOptimisticUserMessage(null)
         form.setValue("message", prompt, {
@@ -966,20 +1093,20 @@ export const WidgetChatScreen = () => {
       })
   }, [
     assistantMessageCount,
+    canResolveConversation,
     latestUserOrder,
     contactSessionId,
-    conversation?.threadId,
     createMessage,
     form,
     isInputLockedForEmail,
     needsEmail,
     pendingInitialMessage,
+    resolveConversation,
     setPendingInitialMessage,
   ])
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    const threadId = conversation?.threadId
-    if (!threadId || !contactSessionId) {
+    if (!canResolveConversation || !contactSessionId) {
       return
     }
 
@@ -1047,6 +1174,8 @@ export const WidgetChatScreen = () => {
     setPendingAssistantMessageCount(assistantMessageCount + 1)
 
     try {
+      const { threadId } = await resolveConversation()
+
       await createMessage({
         threadId,
         prompt,
