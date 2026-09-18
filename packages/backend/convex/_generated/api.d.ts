@@ -17,6 +17,7 @@ import type * as lib_attachmentUploads from "../lib/attachmentUploads.js";
 import type * as lib_chatAttachments from "../lib/chatAttachments.js";
 import type * as lib_chatReply from "../lib/chatReply.js";
 import type * as lib_contactSessionIdentity from "../lib/contactSessionIdentity.js";
+import type * as lib_conversationPriority from "../lib/conversationPriority.js";
 import type * as lib_extractTextContent from "../lib/extractTextContent.js";
 import type * as lib_firecrawl from "../lib/firecrawl.js";
 import type * as lib_googleCalendarAuth from "../lib/googleCalendarAuth.js";
@@ -137,6 +138,7 @@ declare const fullApi: ApiFromModules<{
   "lib/chatAttachments": typeof lib_chatAttachments;
   "lib/chatReply": typeof lib_chatReply;
   "lib/contactSessionIdentity": typeof lib_contactSessionIdentity;
+  "lib/conversationPriority": typeof lib_conversationPriority;
   "lib/extractTextContent": typeof lib_extractTextContent;
   "lib/firecrawl": typeof lib_firecrawl;
   "lib/googleCalendarAuth": typeof lib_googleCalendarAuth;
