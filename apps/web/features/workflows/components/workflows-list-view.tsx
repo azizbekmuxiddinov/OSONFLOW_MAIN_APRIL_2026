@@ -134,7 +134,8 @@ export const WorkflowsListView = () => {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-6 p-8">
+    // The dashboard shell clips its children, so this page owns its scroll.
+    <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-8">
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight">Workflows</h1>
