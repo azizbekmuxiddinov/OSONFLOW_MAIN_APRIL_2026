@@ -213,12 +213,68 @@ type CreatedConversation = {
 }
 
 /**
+ * The contact's still-open conversation on the same surface, if there is one
+ * a new chat should continue instead of starting over. Without this a visitor
+ * who presses "Start chat" again lands in the operator inbox once per restart.
+ *
+ * A resolved or archived conversation is finished, so the next chat is a new
+ * one. So is a conversation from a different assistant or surface, or a
+ * workflow conversation whose flow has ended or that ran a workflow no longer
+ * live — resuming it would drop the visitor into a dead flow.
+ */
+const findReusableConversation = async (
+  ctx: MutationCtx,
+  {
+    contactSessionId,
+    agentId,
+    activeWorkflowId,
+  }: {
+    contactSessionId: Id<"contactSessions">
+    agentId: string
+    activeWorkflowId: Id<"workflows"> | null
+  }
+) => {
+  const source = activeWorkflowId ? "workflow" : "widget"
+  const recent = await ctx.db
+    .query("conversations")
+    .withIndex("by_contact_session_id", (q) =>
+      q.eq("contactSessionId", contactSessionId)
+    )
+    .order("desc")
+    .take(20)
+
+  const candidate = recent.find(
+    (conversation) =>
+      conversation.status !== "resolved" &&
+      !conversation.isArchived &&
+      (conversation.agentId ?? "default") === agentId &&
+      (conversation.source ?? "widget") === source
+  )
+
+  if (!candidate) return null
+  if (!activeWorkflowId) return candidate
+  if (candidate.workflowId !== activeWorkflowId) return null
+
+  const workflowSession = await ctx.db
+    .query("workflowSessions")
+    .withIndex("by_conversation_id", (q) =>
+      q.eq("conversationId", candidate._id)
+    )
+    .unique()
+
+  return workflowSession && workflowSession.status !== "ended"
+    ? candidate
+    : null
+}
+
+/**
  * Opens a conversation for a contact. Called once the contact has a real
  * message to send — never merely because a chat window was opened.
  *
  * Shared by the widget and the developer API. The API is held to its own
  * configured limits rather than the widget's per-visitor one, and may leave
- * the greeting out of the transcript when its own interface shows none.
+ * the greeting out of the transcript when its own interface shows none. The
+ * widget passes `reuseOpenConversation` so a visitor keeps one open chat.
  */
 export const createConversationForContact = async (
   ctx: MutationCtx,
@@ -230,7 +286,12 @@ export const createConversationForContact = async (
   {
     enforceWidgetRateLimit,
     includeGreeting = true,
-  }: { enforceWidgetRateLimit: boolean; includeGreeting?: boolean }
+    reuseOpenConversation = false,
+  }: {
+    enforceWidgetRateLimit: boolean
+    includeGreeting?: boolean
+    reuseOpenConversation?: boolean
+  }
 ): Promise<CreatedConversation> => {
   const activeWorkflow = await ctx.db
     .query("workflows")
@@ -257,6 +318,30 @@ export const createConversationForContact = async (
     })
   }
 
+  const agentId = args.agentId?.trim() || "default"
+
+  if (reuseOpenConversation) {
+    const open = await findReusableConversation(ctx, {
+      contactSessionId,
+      agentId,
+      activeWorkflowId: hasActiveWorkflow ? (activeWorkflow?._id ?? null) : null,
+    })
+
+    if (open) {
+      // Continuing a chat creates nothing, so it is not rate limited.
+      await ctx.runMutation(internal.system.contactSessions.refresh, {
+        contactSessionId,
+      })
+
+      return {
+        conversationId: open._id,
+        contactSessionId: session._id,
+        threadId: open.threadId,
+        source: open.source ?? "widget",
+      }
+    }
+  }
+
   if (enforceWidgetRateLimit) {
     await enforceRateLimit(ctx, "widgetConversationCreateBySession", {
       key: `${args.organizationId}:${contactSessionId}`,
@@ -270,7 +355,6 @@ export const createConversationForContact = async (
     contactSessionId,
   })
 
-  const agentId = args.agentId?.trim() || "default"
   const widgetSettings = await ctx.db
     .query("widgetSettings")
     .withIndex("by_organization_id_and_agent_id", (q) =>
@@ -376,5 +460,6 @@ export const create = mutation({
   handler: async (ctx, args): Promise<CreatedConversation> =>
     await createConversationForContact(ctx, args, {
       enforceWidgetRateLimit: true,
+      reuseOpenConversation: true,
     }),
 })
