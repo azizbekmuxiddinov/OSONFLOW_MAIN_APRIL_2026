@@ -1,4 +1,4 @@
-import { type CSSProperties, useEffect } from "react"
+import { type CSSProperties } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -29,7 +29,6 @@ import { mergeWidgetTheme } from "@workspace/ui/lib/widget-customization"
 import { useStartWidgetConversation } from "../../hooks/use-start-widget-conversation"
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
-const DEFAULT_WIDGET_HEIGHT = 640
 
 const formSchema = z.object({
   name: z
@@ -88,20 +87,6 @@ export const WidgetAuthScreen = () => {
   const closeWidget = () => {
     window.parent?.postMessage({ type: "close" }, "*")
   }
-
-  useEffect(() => {
-    if (typeof window === "undefined" || window.parent === window) return
-
-    window.parent.postMessage(
-      {
-        type: "resize",
-        payload: {
-          height: DEFAULT_WIDGET_HEIGHT,
-        },
-      },
-      "*"
-    )
-  }, [])
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (!organizationId) {

@@ -32,6 +32,8 @@ type WidgetAppearancePayload = {
   launcherOffsetX?: number
   launcherOffsetY?: number
   launcherSize?: number
+  widgetWidth?: number
+  widgetHeight?: number
   autoOpenEnabled?: boolean
   autoOpenDelaySeconds?: number
   autoOpenFrequency?: WidgetAutoOpenFrequency
@@ -79,6 +81,8 @@ const LAUNCHER_ATTENTIONS: readonly WidgetLauncherAttention[] = [
 ]
 const WIDGET_CONTAINER_WIDTH = 380
 const WIDGET_CONTAINER_STANDARD_HEIGHT = 640
+const WIDGET_CONTAINER_WIDTH_RANGE = { min: 340, max: 560 }
+const WIDGET_CONTAINER_HEIGHT_RANGE = { min: 520, max: 880 }
 const WIDGET_CONTAINER_VOICE_HEIGHT = 470
 const WIDGET_CONTAINER_VOICE_CLOSED_TRANSFORM =
   "translate3d(0, 26px, 0) scale(0.975)"
@@ -197,6 +201,10 @@ const NOTIFICATION_SOUND_PATH = "/sounds/notification.mp3"
   let launcherOffsetX = LAUNCHER_EDGE_OFFSET
   let launcherOffsetY = LAUNCHER_EDGE_OFFSET
   let launcherSize = LAUNCHER_BUTTON_SIZE
+  // The open panel's size, set by the organization. The container's
+  // max-width/max-height still cap it to the visitor's viewport.
+  let widgetWidth = WIDGET_CONTAINER_WIDTH
+  let widgetHeight = WIDGET_CONTAINER_STANDARD_HEIGHT
   let autoOpenEnabled = false
   let autoOpenDelaySeconds = 0
   let autoOpenFrequency: WidgetAutoOpenFrequency = "session"
@@ -1618,6 +1626,22 @@ const NOTIFICATION_SOUND_PATH = "/sounds/notification.mp3"
       )
     }
 
+    if (typeof appearance.widgetWidth === "number") {
+      widgetWidth = clampNumber(
+        appearance.widgetWidth,
+        WIDGET_CONTAINER_WIDTH_RANGE.min,
+        WIDGET_CONTAINER_WIDTH_RANGE.max
+      )
+    }
+
+    if (typeof appearance.widgetHeight === "number") {
+      widgetHeight = clampNumber(
+        appearance.widgetHeight,
+        WIDGET_CONTAINER_HEIGHT_RANGE.min,
+        WIDGET_CONTAINER_HEIGHT_RANGE.max
+      )
+    }
+
     if (typeof appearance.notificationSoundEnabled === "boolean") {
       isNotificationSoundEnabled = appearance.notificationSoundEnabled
     }
@@ -1781,8 +1805,8 @@ const NOTIFICATION_SOUND_PATH = "/sounds/notification.mp3"
           : `left: ${launcherOffsetX}px;`
       }
       bottom: ${launcherOffsetY}px;
-      width: ${WIDGET_CONTAINER_WIDTH}px;
-      height: ${WIDGET_CONTAINER_STANDARD_HEIGHT}px;
+      width: ${widgetWidth}px;
+      height: ${widgetHeight}px;
       max-width: calc(100vw - 40px);
       max-height: calc(100vh - ${getContainerMaxHeightGutter()}px);
       z-index: 999998;
@@ -1979,11 +2003,9 @@ const NOTIFICATION_SOUND_PATH = "/sounds/notification.mp3"
       case "close":
         hide()
         break
-      case "resize":
-        if (payload.height && container) {
-          container.style.height = `${payload.height}px`
-        }
-        break
+      // "resize" is no longer honoured: the panel size is an organization
+      // setting now, and older widget builds posted a fixed 640px that would
+      // override it.
       case "widget-settings":
         if (payload) {
           const settingsPayload = payload as WidgetSettingsPayload
@@ -2074,7 +2096,7 @@ const NOTIFICATION_SOUND_PATH = "/sounds/notification.mp3"
     }
 
     const shouldReserveCloseButtonSpace = isOpen && !isLiveVoiceEnabled
-    container.style.width = `${WIDGET_CONTAINER_WIDTH}px`
+    container.style.width = `${widgetWidth}px`
     container.style.bottom = `${
       shouldReserveCloseButtonSpace
         ? getStandardOpenContainerBottom()
@@ -2088,7 +2110,7 @@ const NOTIFICATION_SOUND_PATH = "/sounds/notification.mp3"
     container.style.height = `${
       isLiveVoiceEnabled
         ? WIDGET_CONTAINER_VOICE_HEIGHT
-        : WIDGET_CONTAINER_STANDARD_HEIGHT
+        : widgetHeight
     }px`
   }
 

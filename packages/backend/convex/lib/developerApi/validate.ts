@@ -391,6 +391,8 @@ export const APPEARANCE_SHAPE: Shape = {
   launcherOffsetX: "number",
   launcherOffsetY: "number",
   launcherSize: "number",
+  widgetWidth: "number",
+  widgetHeight: "number",
   autoOpenEnabled: "boolean",
   autoOpenDelaySeconds: "number",
   autoOpenFrequency: ["session", "visitor", "always"],

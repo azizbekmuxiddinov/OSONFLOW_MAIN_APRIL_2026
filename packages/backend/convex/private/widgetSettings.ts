@@ -56,6 +56,8 @@ const DEFAULT_APPEARANCE = {
   launcherOffsetX: 20,
   launcherOffsetY: 20,
   launcherSize: 48,
+  widgetWidth: 380,
+  widgetHeight: 640,
   autoOpenEnabled: false,
   autoOpenDelaySeconds: 8,
   autoOpenFrequency: "session" as const,
@@ -214,6 +216,8 @@ const appearanceValidator = v.object({
   launcherOffsetX: v.optional(v.number()),
   launcherOffsetY: v.optional(v.number()),
   launcherSize: v.optional(v.number()),
+  widgetWidth: v.optional(v.number()),
+  widgetHeight: v.optional(v.number()),
   autoOpenEnabled: v.optional(v.boolean()),
   autoOpenDelaySeconds: v.optional(v.number()),
   autoOpenFrequency: v.optional(
@@ -297,6 +301,8 @@ type WidgetAppearance = {
   launcherOffsetX?: number
   launcherOffsetY?: number
   launcherSize?: number
+  widgetWidth?: number
+  widgetHeight?: number
   autoOpenEnabled?: boolean
   autoOpenDelaySeconds?: number
   autoOpenFrequency?: "session" | "visitor" | "always"
@@ -525,6 +531,12 @@ const clampLauncherOffset = (value?: number) =>
 const clampLauncherSize = (value?: number) =>
   clampNumber(value, 40, 76, DEFAULT_APPEARANCE.launcherSize)
 
+const clampWidgetWidth = (value?: number) =>
+  clampNumber(value, 340, 560, DEFAULT_APPEARANCE.widgetWidth)
+
+const clampWidgetHeight = (value?: number) =>
+  clampNumber(value, 520, 880, DEFAULT_APPEARANCE.widgetHeight)
+
 const clampAutoOpenDelaySeconds = (value?: number) =>
   clampNumber(value, 0, 300, DEFAULT_APPEARANCE.autoOpenDelaySeconds)
 
@@ -683,6 +695,8 @@ const mergeAppearance = (
     incoming?.launcherOffsetY ?? base?.launcherOffsetY
   ),
   launcherSize: clampLauncherSize(incoming?.launcherSize ?? base?.launcherSize),
+  widgetWidth: clampWidgetWidth(incoming?.widgetWidth ?? base?.widgetWidth),
+  widgetHeight: clampWidgetHeight(incoming?.widgetHeight ?? base?.widgetHeight),
   autoOpenEnabled:
     incoming?.autoOpenEnabled ??
     base?.autoOpenEnabled ??

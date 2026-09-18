@@ -1,6 +1,6 @@
 "use client"
 
-import { type CSSProperties, type ReactNode, useEffect, useState } from "react"
+import { type CSSProperties, type ReactNode, useState } from "react"
 import { formatDistanceToNow } from "date-fns"
 import { useAtomValue, useSetAtom } from "jotai"
 import { ChevronRightIcon, SparklesIcon, XIcon } from "lucide-react"
@@ -91,9 +91,11 @@ const HomeBrandMark = ({ theme }: { theme: WidgetThemeSettings }) => {
     </p>
   )
 }
-const DEFAULT_WIDGET_HEIGHT = 640
-const HOME_BACKGROUND_HEIGHT = DEFAULT_WIDGET_HEIGHT * 0.58
-const RECENT_HOME_CONTENT_HEIGHT = DEFAULT_WIDGET_HEIGHT * 0.75
+// Fractions of the panel, not fixed pixels, so the hero keeps its proportions
+// at whatever size the organization opens the widget. Inside the iframe the
+// viewport is the panel, so `vh` measures the panel's height.
+const HOME_BACKGROUND_HEIGHT = "58vh"
+const RECENT_HOME_CONTENT_HEIGHT = "75vh"
 const homeActionButtonClassName =
   "flex min-h-14 w-full items-center justify-between rounded-[16px] border border-white/70 bg-white/72 px-4 py-3.5 text-left text-sm font-semibold shadow-[0_8px_24px_-22px_rgba(15,23,42,0.34)] transition-[background-color,box-shadow,transform] duration-200 ease-out hover:-translate-y-px hover:bg-white/88 hover:shadow-[0_12px_28px_-24px_rgba(15,23,42,0.42)] active:translate-y-0"
 const headerChatButtonClassName =
@@ -296,20 +298,6 @@ export const WidgetSelectionScreen = () => {
           "linear-gradient(to bottom, transparent 0, black 56px, black 100%)",
       }
     : undefined
-  useEffect(() => {
-    if (typeof window === "undefined" || window.parent === window) return
-
-    window.parent.postMessage(
-      {
-        type: "resize",
-        payload: {
-          height: DEFAULT_WIDGET_HEIGHT,
-        },
-      },
-      "*"
-    )
-  }, [])
-
   const closeWidget = () => {
     window.parent?.postMessage({ type: "close" }, "*")
   }

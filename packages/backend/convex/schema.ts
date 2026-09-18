@@ -185,6 +185,8 @@ const appearanceValidator = v.object({
   launcherOffsetX: v.optional(v.number()),
   launcherOffsetY: v.optional(v.number()),
   launcherSize: v.optional(v.number()),
+  widgetWidth: v.optional(v.number()),
+  widgetHeight: v.optional(v.number()),
   autoOpenEnabled: v.optional(v.boolean()),
   autoOpenDelaySeconds: v.optional(v.number()),
   autoOpenFrequency: v.optional(

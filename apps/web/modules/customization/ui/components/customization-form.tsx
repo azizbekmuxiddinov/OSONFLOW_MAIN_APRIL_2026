@@ -77,6 +77,8 @@ import {
   clampLauncherOffset,
   clampLauncherPromptDelaySeconds,
   clampLauncherSize,
+  clampWidgetHeight,
+  clampWidgetWidth,
   DEFAULT_WIDGET_APPEARANCE,
   DEFAULT_WIDGET_COPY,
   mergeWidgetAppearance,
@@ -1092,6 +1094,8 @@ export const CustomizationForm = ({
           Number(values.appearance.launcherOffsetY)
         ),
         launcherSize: clampLauncherSize(Number(values.appearance.launcherSize)),
+        widgetWidth: clampWidgetWidth(Number(values.appearance.widgetWidth)),
+        widgetHeight: clampWidgetHeight(Number(values.appearance.widgetHeight)),
         autoOpenDelaySeconds: clampAutoOpenDelaySeconds(
           Number(values.appearance.autoOpenDelaySeconds)
         ),

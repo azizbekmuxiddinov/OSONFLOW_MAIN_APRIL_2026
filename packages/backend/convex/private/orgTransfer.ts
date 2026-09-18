@@ -231,6 +231,8 @@ const pickAppearance = (value: unknown) => {
     launcherOffsetX: pickNumber(value.launcherOffsetX),
     launcherOffsetY: pickNumber(value.launcherOffsetY),
     launcherSize: pickNumber(value.launcherSize),
+    widgetWidth: pickNumber(value.widgetWidth),
+    widgetHeight: pickNumber(value.widgetHeight),
     autoOpenEnabled: pickBoolean(value.autoOpenEnabled),
     autoOpenDelaySeconds: pickNumber(value.autoOpenDelaySeconds),
     autoOpenFrequency:

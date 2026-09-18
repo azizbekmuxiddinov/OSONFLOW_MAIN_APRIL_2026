@@ -61,6 +61,9 @@ export type WidgetAppearanceSettings = {
   launcherOffsetX: number
   launcherOffsetY: number
   launcherSize: number
+  /** Size in px of the open chat panel; the embed caps it to the viewport. */
+  widgetWidth: number
+  widgetHeight: number
   autoOpenEnabled: boolean
   autoOpenDelaySeconds: number
   autoOpenFrequency: WidgetAutoOpenFrequency
@@ -123,6 +126,8 @@ export const DEFAULT_WIDGET_APPEARANCE: WidgetAppearanceSettings = {
   launcherOffsetX: 20,
   launcherOffsetY: 20,
   launcherSize: 48,
+  widgetWidth: 380,
+  widgetHeight: 640,
   autoOpenEnabled: false,
   autoOpenDelaySeconds: 8,
   autoOpenFrequency: "session",
@@ -210,6 +215,9 @@ export const normalizeLauncherQuickReplies = (value: unknown): string[] => {
 export const LAUNCHER_OFFSET_RANGE = { min: 0, max: 160 } as const
 /** Diameter in px of the round launcher button. */
 export const LAUNCHER_SIZE_RANGE = { min: 40, max: 76 } as const
+/** Open panel size in px. Wider than 560 stops reading as a chat widget. */
+export const WIDGET_WIDTH_RANGE = { min: 340, max: 560 } as const
+export const WIDGET_HEIGHT_RANGE = { min: 520, max: 880 } as const
 export const AUTO_OPEN_DELAY_RANGE = { min: 0, max: 300 } as const
 /** Per-image ceiling a moderator can set for visitor attachments, in MB. */
 export const IMAGE_UPLOAD_SIZE_RANGE = { min: 1, max: 20 } as const
@@ -240,6 +248,20 @@ export const clampLauncherSize = (value: number): number =>
     Number(value),
     LAUNCHER_SIZE_RANGE,
     DEFAULT_WIDGET_APPEARANCE.launcherSize
+  )
+
+export const clampWidgetWidth = (value: number): number =>
+  clampToRange(
+    Number(value),
+    WIDGET_WIDTH_RANGE,
+    DEFAULT_WIDGET_APPEARANCE.widgetWidth
+  )
+
+export const clampWidgetHeight = (value: number): number =>
+  clampToRange(
+    Number(value),
+    WIDGET_HEIGHT_RANGE,
+    DEFAULT_WIDGET_APPEARANCE.widgetHeight
   )
 
 export const clampAutoOpenDelaySeconds = (value: number): number =>
@@ -472,6 +494,8 @@ export const mergeWidgetAppearance = (
     launcherOffsetX: clampLauncherOffset(merged.launcherOffsetX),
     launcherOffsetY: clampLauncherOffset(merged.launcherOffsetY),
     launcherSize: clampLauncherSize(merged.launcherSize),
+    widgetWidth: clampWidgetWidth(merged.widgetWidth),
+    widgetHeight: clampWidgetHeight(merged.widgetHeight),
     autoOpenEnabled: Boolean(merged.autoOpenEnabled),
     autoOpenDelaySeconds: clampAutoOpenDelaySeconds(
       merged.autoOpenDelaySeconds

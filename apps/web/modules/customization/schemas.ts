@@ -143,6 +143,8 @@ export const widgetSettingsSchema = z.object({
     launcherOffsetX: z.coerce.number().min(0).max(160),
     launcherOffsetY: z.coerce.number().min(0).max(160),
     launcherSize: z.coerce.number().min(40).max(76),
+    widgetWidth: z.coerce.number().min(340).max(560),
+    widgetHeight: z.coerce.number().min(520).max(880),
     autoOpenEnabled: z.boolean(),
     autoOpenDelaySeconds: z.coerce.number().min(0).max(300),
     autoOpenFrequency: z.enum(["session", "visitor", "always"]),

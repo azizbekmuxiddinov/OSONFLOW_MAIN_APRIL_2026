@@ -27,6 +27,8 @@ import { Switch } from "@workspace/ui/components/switch"
 import {
   getContrastingTextColor,
   LAUNCHER_QUICK_REPLY_LIMITS,
+  WIDGET_HEIGHT_RANGE,
+  WIDGET_WIDTH_RANGE,
   type WidgetAnimation,
   type WidgetLauncherAttention,
   type WidgetAutoOpenFrequency,
@@ -143,6 +145,61 @@ const AttentionSample = ({
       {icon}
     </span>
   </span>
+)
+
+const panelSizePresets = [
+  { value: "compact", label: "Compact", width: 360, height: 560 },
+  { value: "standard", label: "Standard", width: 380, height: 640 },
+  { value: "large", label: "Large", width: 440, height: 720 },
+  { value: "xl", label: "Extra large", width: 500, height: 800 },
+] as const
+
+type PanelSizePreset = (typeof panelSizePresets)[number]["value"]
+
+/** The open panel drawn to scale inside a card, for the preset picker. */
+const PanelSizeSample = ({ width, height }: { width: number; height: number }) => (
+  <span className="flex h-12 w-full items-end justify-center rounded-[8px] bg-muted/40 pb-1">
+    <span
+      className="rounded-[4px] border border-foreground/15 bg-background shadow-sm"
+      style={{ height: height / 20, width: width / 20 }}
+    />
+  </span>
+)
+
+/**
+ * A laptop-sized page (1440×900) with the open panel drawn to scale, so the
+ * merchant sees how much of their site the widget covers.
+ */
+const PanelSizePreview = ({
+  width,
+  height,
+  position,
+  color,
+}: {
+  width: number
+  height: number
+  position: WidgetLauncherPosition
+  color: string
+}) => (
+  <div className="console-inset relative aspect-[16/10] w-full overflow-hidden bg-muted/40">
+    <div className="absolute inset-0 flex flex-col gap-1.5 p-3 opacity-40">
+      <span className="h-1.5 w-1/2 rounded-full bg-foreground/25" />
+      <span className="h-1 w-3/4 rounded-full bg-foreground/15" />
+      <span className="h-1 w-2/3 rounded-full bg-foreground/15" />
+    </div>
+    <span
+      aria-hidden
+      className="absolute flex flex-col overflow-hidden rounded-[5px] border border-foreground/10 bg-background shadow-[0_10px_24px_-14px_rgba(15,23,42,0.55)] transition-all duration-200"
+      style={{
+        bottom: `${(84 / 900) * 100}%`,
+        [position === "bottom-right" ? "right" : "left"]: `${(20 / 1440) * 100}%`,
+        height: `${(Math.min(height, 900 - 104) / 900) * 100}%`,
+        width: `${(width / 1440) * 100}%`,
+      }}
+    >
+      <span className="h-[14%] w-full" style={{ backgroundColor: color }} />
+    </span>
+  </div>
 )
 
 const positionOptions: Array<{
@@ -436,6 +493,107 @@ export const AppearanceFormFields = ({ form }: AppearanceFormFieldsProps) => {
             <p className="text-[11px] leading-relaxed text-muted-foreground">
               Raise the bottom offset to clear a cookie banner or a sticky
               checkout bar.
+            </p>
+          </div>
+        </div>
+      </SettingsGroup>
+
+      <SettingsDivider />
+
+      <SettingsGroup
+        description="How big the chat opens on your site. On a small screen it shrinks to fit, so phones are never overflowed."
+        icon={MaximizeIcon}
+        title="Chat window size"
+      >
+        <div className="grid gap-3 lg:grid-cols-2">
+          <div className="min-w-0 space-y-3">
+            <OptionCards<PanelSizePreset | "custom">
+              columns={2}
+              onChange={(value) => {
+                const preset = panelSizePresets.find(
+                  (option) => option.value === value
+                )
+                if (!preset) return
+
+                const options = { shouldDirty: true, shouldValidate: true }
+                form.setValue("appearance.widgetWidth", preset.width, options)
+                form.setValue("appearance.widgetHeight", preset.height, options)
+              }}
+              options={panelSizePresets.map((preset) => ({
+                value: preset.value,
+                label: preset.label,
+                hint: `${preset.width} × ${preset.height}`,
+                preview: (
+                  <PanelSizeSample
+                    height={preset.height}
+                    width={preset.width}
+                  />
+                ),
+              }))}
+              value={
+                panelSizePresets.find(
+                  (preset) =>
+                    preset.width === Number(appearance.widgetWidth) &&
+                    preset.height === Number(appearance.widgetHeight)
+                )?.value ?? "custom"
+              }
+            />
+
+            <div className="console-inset grid gap-4 px-3.5 py-3.5 sm:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="appearance.widgetWidth"
+                render={({ field }) => (
+                  <FormItem className="min-w-0 space-y-0">
+                    <FormControl>
+                      <NumberScrubber
+                        label="Width"
+                        max={WIDGET_WIDTH_RANGE.max}
+                        min={WIDGET_WIDTH_RANGE.min}
+                        onChange={field.onChange}
+                        unit="px"
+                        value={Number(field.value)}
+                      />
+                    </FormControl>
+                    <FormMessage className="mt-1.5" />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="appearance.widgetHeight"
+                render={({ field }) => (
+                  <FormItem className="min-w-0 space-y-0">
+                    <FormControl>
+                      <NumberScrubber
+                        label="Height"
+                        max={WIDGET_HEIGHT_RANGE.max}
+                        min={WIDGET_HEIGHT_RANGE.min}
+                        onChange={field.onChange}
+                        unit="px"
+                        value={Number(field.value)}
+                      />
+                    </FormControl>
+                    <FormMessage className="mt-1.5" />
+                  </FormItem>
+                )}
+              />
+            </div>
+          </div>
+
+          <div className="min-w-0 space-y-2">
+            <p className="text-xs font-medium text-foreground">
+              On a laptop screen
+            </p>
+            <PanelSizePreview
+              color={appearance.launcherColor}
+              height={Number(appearance.widgetHeight)}
+              position={appearance.launcherPosition}
+              width={Number(appearance.widgetWidth)}
+            />
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              Shown on a 1440 × 900 page. A taller window fits more of the
+              conversation; a wider one gives long answers and tables room.
             </p>
           </div>
         </div>
