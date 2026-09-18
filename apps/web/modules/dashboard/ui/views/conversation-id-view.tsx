@@ -45,6 +45,7 @@ import {
 import {
   AIMessage,
   AIMessageContent,
+  AIMessageTime,
 } from "@workspace/ui/components/ai/message"
 import {
   AIAttachmentTray,
@@ -807,6 +808,7 @@ export const ConversationIdView = ({
                   from={message.role === "user" ? "assistant" : "user"}
                   key={message.id}
                 >
+                  <AIMessageTime timestamp={message._creationTime} />
                   <AIMessageContent className="shadow-[0_14px_34px_-22px_rgba(15,23,42,0.35)]">
                     {messageText.trim() ? (
                       <AIResponse>{messageText}</AIResponse>

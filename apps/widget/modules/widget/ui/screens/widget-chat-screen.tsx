@@ -49,6 +49,7 @@ import { Form, FormField } from "@workspace/ui/components/form"
 import {
   AIMessage,
   AIMessageContent,
+  AIMessageTime,
 } from "@workspace/ui/components/ai/message"
 
 import { AIResponse } from "@workspace/ui/components/ai/response"
@@ -1396,6 +1397,13 @@ export const WidgetChatScreen = () => {
                 // finished text.
                 key={message.key}
               >
+                {/* The draft greeting has not been sent yet, so it has no time. */}
+                {message._creationTime > 0 ? (
+                  <AIMessageTime
+                    className="owc-time"
+                    timestamp={message._creationTime}
+                  />
+                ) : null}
                 <AIMessageContent
                   className={cn(
                     BUBBLE_CLASS,

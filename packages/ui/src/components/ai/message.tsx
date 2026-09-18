@@ -44,6 +44,60 @@ export const AIMessageContent = ({
   </div>
 )
 
+const isSameDay = (a: Date, b: Date) =>
+  a.getFullYear() === b.getFullYear() &&
+  a.getMonth() === b.getMonth() &&
+  a.getDate() === b.getDate()
+
+export type AIMessageTimeProps = HTMLAttributes<HTMLTimeElement> & {
+  timestamp: number
+}
+
+/**
+ * When a message was sent, revealed while its row is hovered (or pressed, on
+ * touch screens). Place it before `AIMessageContent` so it sits on the inner
+ * side of the bubble for either speaker. Formatted in the viewer's own locale;
+ * the tooltip carries the full date and time to the second.
+ */
+export const AIMessageTime = ({
+  timestamp,
+  className,
+  ...props
+}: AIMessageTimeProps) => {
+  const date = new Date(timestamp)
+  const time = date.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  })
+  const label = isSameDay(date, new Date())
+    ? time
+    : `${date.toLocaleDateString(undefined, {
+        day: "numeric",
+        month: "short",
+        ...(date.getFullYear() === new Date().getFullYear()
+          ? {}
+          : { year: "numeric" }),
+      })}, ${time}`
+
+  return (
+    <time
+      className={cn(
+        "shrink-0 self-center whitespace-nowrap text-[11px] tabular-nums text-muted-foreground",
+        "opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-active:opacity-100",
+        className
+      )}
+      dateTime={date.toISOString()}
+      title={date.toLocaleString(undefined, {
+        dateStyle: "full",
+        timeStyle: "medium",
+      })}
+      {...props}
+    >
+      {label}
+    </time>
+  )
+}
+
 export type AIMessageAvatarProps = ComponentProps<typeof Avatar> & {
   src: string
   name?: string
