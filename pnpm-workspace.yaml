@@ -1,3 +1,8 @@
 packages:
   - "apps/*"
   - "packages/*"
+
+overrides:
+  # @vercel/functions pulls in a pinned zod 4.1 through @vercel/oidc, which
+  # otherwise becomes the hoisted zod and breaks @hookform/resolvers' types.
+  "@vercel/cli-config>zod": "4.4.3"

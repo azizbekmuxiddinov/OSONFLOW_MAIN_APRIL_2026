@@ -16,8 +16,9 @@ import {
   type WidgetMode,
   type VoiceProvider,
 } from "@/modules/widget/atoms/widget-atoms"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { api } from "@workspace/backend/_generated/api"
+import { withReachableConvexUrls } from "@workspace/ui/lib/convex-url"
 import {
   mergeWidgetAppearance,
   mergeWidgetTheme,
@@ -154,11 +155,17 @@ export const WidgetLoadingScreen = ({
   ])
 
   // Step 3: load widget settings
-  const widgetSettings = useQuery(
+  const rawWidgetSettings = useQuery(
     api.public.widgetSettings.getByOrganizationId,
     organizationId
       ? { organizationId, agentId: agentId?.trim() || undefined }
       : "skip"
+  )
+  // Uploaded images (logo, banner, launcher icon) are Convex storage URLs, and
+  // this is also what the host page receives for the launcher and teaser.
+  const widgetSettings = useMemo(
+    () => withReachableConvexUrls(rawWidgetSettings),
+    [rawWidgetSettings]
   )
 
   useEffect(() => {

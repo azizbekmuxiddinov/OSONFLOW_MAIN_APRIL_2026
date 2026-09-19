@@ -12,6 +12,8 @@
  * magic number after it lands.
  */
 
+import { toReachableConvexUrl } from "@workspace/ui/lib/convex-url"
+
 /**
  * What the file picker offers. Wider than what is stored: HEIC and AVIF are
  * accepted from the camera roll and converted below, so an iPhone photo works
@@ -229,7 +231,7 @@ export const uploadPreparedImage = async (
   uploadUrl: string,
   prepared: PreparedChatImage
 ): Promise<string> => {
-  const response = await fetch(uploadUrl, {
+  const response = await fetch(toReachableConvexUrl(uploadUrl), {
     method: "POST",
     headers: { "Content-Type": prepared.mediaType },
     body: prepared.blob,

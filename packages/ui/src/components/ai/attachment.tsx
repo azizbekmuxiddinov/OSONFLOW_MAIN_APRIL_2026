@@ -13,6 +13,7 @@ import { createPortal } from "react-dom"
 
 import type { ChatAttachmentDraft } from "@workspace/ui/hooks/use-chat-image-attachments"
 import { formatFileSize } from "@workspace/ui/lib/chat-attachments"
+import { toReachableConvexUrl } from "@workspace/ui/lib/convex-url"
 import { cn } from "@workspace/ui/lib/utils"
 
 export type ChatMessageAttachment = {
@@ -94,7 +95,7 @@ const AttachmentLightbox = ({
         alt={attachment.filename}
         className="max-h-full max-w-full rounded-lg object-contain shadow-2xl"
         onClick={(event) => event.stopPropagation()}
-        src={attachment.url}
+        src={toReachableConvexUrl(attachment.url)}
       />
     </div>,
     document.body
@@ -205,7 +206,7 @@ const VoiceAttachmentPlayer = ({
         }
         preload="metadata"
         ref={audioRef}
-        src={attachment.url}
+        src={toReachableConvexUrl(attachment.url)}
       />
     </div>
   )
@@ -279,7 +280,7 @@ export const AIMessageAttachments = ({
                   draggable={false}
                   height={attachment.height}
                   loading="lazy"
-                  src={attachment.url}
+                  src={toReachableConvexUrl(attachment.url)}
                   width={attachment.width}
                 />
                 <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-opacity duration-200 group-hover/attachment:bg-black/20 group-hover/attachment:opacity-100">
