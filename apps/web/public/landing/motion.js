@@ -83,7 +83,7 @@
 
     /* ---------- 2 · stagger children of grids & lists ---------- */
     var GROUPS = [
-      ".plans", ".bento", ".proof__stats", ".opsboard__rail", ".pipeline__steps",
+      ".plans", ".bento", ".proof__stats", ".opsboard__rail", ".pipeline__steps", ".wfb__tabs",
       ".accordion", ".footer__grid", ".tile__list", ".opsintent__list"
     ].join(",");
 

@@ -747,6 +747,102 @@ const $ = (s, c) => (c || document).querySelector(s);
     loadSample("shop");
   }
 
+  /* ---------------- Workflow builder showcase ---------------- */
+  /* The rail's fill animation IS the clock: the next tab is chosen on its
+     animationend, so anything that pauses the animation — a hover, a focus,
+     or motion.css resting the section off screen — pauses the carousel too,
+     with no timer left running behind the page. */
+  const wfb = $("[data-wfb]");
+  if (wfb) {
+    const wfbTabs = $$(".wfb__tab", wfb);
+    const wfbPanes = $$(".wfb__pane", wfb);
+    let wfbHovered = false;
+    let wfbSeen = false;
+    let wfbTouched = false;   // a tab the visitor picked themselves is never overruled
+
+    const wfbSyncPause = () => { wfb.dataset.paused = String(wfbHovered || !wfbSeen); };
+
+    function wfbCount(pane) {
+      $$("[data-wfb-count]", pane).forEach((el) => {
+        const to = parseInt(el.dataset.wfbCount, 10);
+        const thousands = el.dataset.wfbFmt === "k";
+        const paint = (n) => { el.textContent = thousands ? (n / 1000).toFixed(1) + "k" : String(Math.round(n)); };
+        if (reduceMotion) { paint(to); return; }
+        const t0 = performance.now();
+        const tick = (now) => {
+          const p = Math.min(1, (now - t0) / 1200);
+          paint(to * (1 - Math.pow(1 - p, 3)));
+          if (p < 1 && el.isConnected) requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      });
+    }
+
+    function wfbShow(index) {
+      const i = ((index % wfbTabs.length) + wfbTabs.length) % wfbTabs.length;
+      wfb.dataset.active = String(i);
+      wfbTabs.forEach((tab, n) => {
+        const on = n === i;
+        tab.classList.toggle("is-active", on);
+        tab.setAttribute("aria-selected", String(on));
+        tab.tabIndex = on ? 0 : -1;
+      });
+      wfbPanes.forEach((pane) => pane.classList.remove("is-active"));
+      const pane = wfbPanes[i];
+      void pane.offsetWidth;  // reflow, so re-picking the open tab replays its entrance
+      pane.classList.add("is-active");
+      wfbCount(pane);
+    }
+
+    wfbTabs.forEach((tab) => {
+      tab.addEventListener("click", () => {
+        wfbTouched = true;
+        wfbShow(parseInt(tab.dataset.wfbTab, 10));
+      }, { signal });
+    });
+
+    wfb.addEventListener("keydown", (e) => {
+      const dir = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+      if (!dir) return;
+      e.preventDefault();
+      wfbTouched = true;
+      const next = (parseInt(wfb.dataset.active, 10) || 0) + dir;
+      wfbShow(next);
+      wfbTabs[parseInt(wfb.dataset.active, 10)].focus();
+    }, { signal });
+
+    wfb.addEventListener("animationend", (e) => {
+      if (reduceMotion || e.animationName !== "wfbFill") return;
+      wfbShow((parseInt(wfb.dataset.active, 10) || 0) + 1);
+    }, { signal });
+
+    ["pointerenter", "focusin"].forEach((evt) => {
+      wfb.addEventListener(evt, () => { wfbHovered = true; wfbSyncPause(); }, { signal });
+    });
+    ["pointerleave", "focusout"].forEach((evt) => {
+      wfb.addEventListener(evt, () => { wfbHovered = false; wfbSyncPause(); }, { signal });
+    });
+
+    if ("IntersectionObserver" in window) {
+      wfbSyncPause();
+      const wfbIo = trackObserver(new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          const first = entry.isIntersecting && !wfbSeen;
+          wfbSeen = entry.isIntersecting;
+          wfbSyncPause();
+          // Play the opening pane from its first frame, not from wherever it
+          // sat while the section was still below the fold.
+          if (first && !wfbTouched) wfbShow(0);
+        });
+      }, { threshold: 0.25 }));
+      wfbIo.observe(wfb);
+    } else {
+      wfbSeen = true;
+      wfbSyncPause();
+      wfbShow(0);
+    }
+  }
+
   /* ---------------- FAQ accordion ---------------- */
   $$(".acc").forEach((acc) => {
     const q = $(".acc__q", acc), a = $(".acc__a", acc);
@@ -783,6 +879,223 @@ const $ = (s, c) => (c || document).querySelector(s);
   /* ---------------- Embed code copy (channels) ---------------- */
   const copyBtn = $("#copyBtn");
   if (copyBtn) copyBtn.addEventListener("click", () => copyText('<!-- Osonflow widget -->\n<script src="https://widget.osonflow.uz/widget.js"\n        data-id="osf_live_7f3a9c"></' + "script>", copyBtn), { signal });
+
+
+  /* ---------------- Omnichannel deck ----------------
+     One conversation fanned across five channel screens. The layout maths
+     mirror a coverflow: the card in focus sits dead centre at full size,
+     its neighbours step outward and shrink, and anything past the second
+     ring is hidden rather than drawn. Only the front card plays its
+     transcript; the rest hold a finished conversation so the fan looks
+     alive without five timers running at once. */
+  (function initOmniDeck() {
+    const deck = $("[data-omni-deck]");
+    if (!deck) return;
+    const stage = $("[data-omni-stage]", deck);
+    const cards = $$("[data-omni-card]", deck);
+    const dots = $$("[data-omni-dot]", deck);
+    const live = $("[data-omni-live]", deck);
+    if (!stage || cards.length === 0) return;
+
+    const DESIGN_W = 380;
+    const DESIGN_H = 771;
+    const BEZEL = 7;            // .omni-card__frame--device padding, per side
+    // paced so a whole conversation lands inside one HOLD, with a beat to spare
+    const HOLD = 7600;          // how long a channel keeps the focus
+    const STEP = 400;           // gap between turns while a transcript plays
+    const TYPE = 500;           // how long the agent "types" before answering
+    const n = cards.length;
+
+    let active = 0;
+    let visible = false;
+    let paused = false;         // a click hands control to the reader for good
+    let advanceTimer = null;
+    let playTimers = [];
+
+    /* ---- layout: widths, offsets, depth ---- */
+    function layout() {
+      const stageW = stage.clientWidth || deck.clientWidth || 960;
+      // a phone has no room for a five-card fan: it keeps one neighbour a side
+      const narrow = stageW < 640;
+      const cardW = narrow
+        ? Math.max(170, Math.min(230, Math.round(stageW * 0.56)))
+        : Math.max(220, Math.min(300, Math.round(stageW * 0.27)));
+      const ring = narrow ? 1 : 2;
+      const mediaH = Math.round((cardW * DESIGN_H) / DESIGN_W);
+      const step1 = Math.round(cardW * (narrow ? 0.62 : 0.82));
+      const step2 = step1 + Math.round(cardW * 0.55);
+      const step3 = step2 + Math.round(cardW * 0.5);
+
+      deck.style.setProperty("--omni-k", (cardW / DESIGN_W).toFixed(4));
+      // a bezelled card shows its screen inside the padding, so it scales to
+      // the interior — scaling to the full card width would slice the screen's
+      // right edge and its composer off the bottom
+      deck.style.setProperty("--omni-k-device", ((cardW - BEZEL * 2) / DESIGN_W).toFixed(4));
+      deck.style.setProperty("--omni-media-h", mediaH + "px");
+
+      // the chevrons follow the fan, but never past the edge of the deck
+      const reach = (ring === 1 ? step1 + Math.round(cardW * 0.42) : step2 + Math.round(cardW * 0.37)) + 8;
+      const chevX = Math.min(reach, Math.round(stageW / 2) - 24);
+      const prev = $("[data-omni-prev]", deck);
+      const next = $("[data-omni-next]", deck);
+      if (prev) { prev.style.left = "calc(50% - " + chevX + "px)"; prev.style.top = mediaH / 2 + "px"; }
+      if (next) { next.style.left = "calc(50% + " + chevX + "px)"; next.style.top = mediaH / 2 + "px"; }
+
+      cards.forEach((card, i) => {
+        let rel = (i - active + n) % n;
+        if (rel > n / 2) rel -= n;
+        const abs = Math.abs(rel);
+        const front = rel === 0;
+        const near = abs === 1;
+        const shown = abs <= ring;
+        const dx = front ? 0 : near ? rel * step1 : (rel < 0 ? -1 : 1) * (abs === 2 ? step2 : step3);
+        const scale = front ? 1 : near ? 0.86 : 0.74;
+
+        card.style.width = cardW + "px";
+        card.style.transform = "translateX(calc(-50% + " + dx + "px)) scale(" + scale + ")";
+        card.style.zIndex = String(front ? 6 : near ? 4 : shown ? 2 : 1);
+        card.style.opacity = shown ? "1" : "0";
+        card.style.pointerEvents = shown ? "" : "none";
+        card.classList.toggle("is-front", front);
+        card.tabIndex = front ? -1 : 0;
+        if (front) card.setAttribute("aria-current", "true");
+        else card.removeAttribute("aria-current");
+      });
+    }
+
+    /* the call card runs its own clock, restarted each time the call is
+       the card in focus, so the line never reads as a 40-minute hold */
+    const timerEl = $("[data-omni-timer]", deck);
+    let seconds = 9;
+    const paintTimer = () => {
+      if (!timerEl) return;
+      timerEl.textContent =
+        String(Math.floor(seconds / 60)).padStart(2, "0") + ":" + String(seconds % 60).padStart(2, "0");
+    };
+    if (timerEl && !reduceMotion) {
+      trackInterval(() => {
+        if (!visible || !timerEl.closest(".omni-card").classList.contains("is-front")) return;
+        seconds += 1;
+        paintTimer();
+      }, 1000);
+    }
+
+    /* ---- transcript playback ---- */
+    function clearPlay() {
+      playTimers.forEach(clearTimeout);
+      playTimers = [];
+    }
+    function after(ms, fn) { playTimers.push(setTimeout(fn, ms)); }
+
+    function settle(card) {
+      // a finished conversation: every turn in, nothing pending
+      $$("[data-omni-msg]", card).forEach((m) => {
+        m.classList.add("is-in");
+        m.classList.remove("omni-msg--pending");
+      });
+    }
+
+    function play(card) {
+      if (timerEl && card.contains(timerEl)) { seconds = 9; paintTimer(); }
+      const msgs = $$("[data-omni-msg]", card);
+      if (!msgs.length) return;
+      if (reduceMotion) { settle(card); return; }
+
+      msgs.forEach((m) => m.classList.remove("is-in", "omni-msg--pending"));
+
+      let t = 260;
+      msgs.forEach((m) => {
+        const agent = m.classList.contains("omni-msg--agent");
+        if (agent) {
+          // the assistant thinks visibly before it answers
+          after(t, () => m.classList.add("omni-msg--pending", "is-in"));
+          t += TYPE;
+          after(t, () => m.classList.remove("omni-msg--pending"));
+        } else {
+          after(t, () => m.classList.add("is-in"));
+        }
+        t += STEP;
+      });
+    }
+
+    /* ---- state ---- */
+    function syncDots() {
+      dots.forEach((d, i) => {
+        const on = i === active;
+        d.classList.toggle("is-active", on);
+        if (on) d.setAttribute("aria-current", "true");
+        else d.removeAttribute("aria-current");
+      });
+      if (live) {
+        const tag = $(".omni-card__tag", cards[active]);
+        live.textContent = tag ? tag.textContent + " — the same conversation" : "";
+      }
+    }
+
+    function schedule() {
+      clearTimeout(advanceTimer);
+      if (paused || !visible || n < 2 || reduceMotion) return;
+      advanceTimer = setTimeout(() => go(active + 1, true), HOLD);
+    }
+
+    function go(index, auto) {
+      if (!auto) { paused = true; clearTimeout(advanceTimer); }
+      const previous = cards[active];
+      active = ((index % n) + n) % n;
+      if (previous && previous !== cards[active]) settle(previous);
+      layout();
+      syncDots();
+      clearPlay();
+      if (visible) play(cards[active]);
+      schedule();
+    }
+
+    /* ---- wiring ---- */
+    cards.forEach((card, i) => {
+      card.addEventListener("click", () => { if (i !== active) go(i, false); }, { signal });
+    });
+    dots.forEach((dot, i) => {
+      dot.addEventListener("click", () => go(i, false), { signal });
+    });
+    const prevBtn = $("[data-omni-prev]", deck);
+    const nextBtn = $("[data-omni-next]", deck);
+    if (prevBtn) prevBtn.addEventListener("click", () => go(active - 1, false), { signal });
+    if (nextBtn) nextBtn.addEventListener("click", () => go(active + 1, false), { signal });
+
+    deck.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowLeft") { e.preventDefault(); go(active - 1, false); }
+      else if (e.key === "ArrowRight") { e.preventDefault(); go(active + 1, false); }
+    }, { signal });
+
+    // the fan pauses while the reader hovers it, then picks up again
+    deck.addEventListener("pointerenter", () => clearTimeout(advanceTimer), { signal });
+    deck.addEventListener("pointerleave", schedule, { signal });
+
+    cards.forEach((card, i) => { if (i !== active) settle(card); });
+    layout();
+    syncDots();
+
+    if (typeof ResizeObserver !== "undefined") {
+      const ro = new ResizeObserver(layout);
+      ro.observe(stage);
+      observers.push({ disconnect: () => ro.disconnect() });
+    }
+    window.addEventListener("resize", layout, { signal });
+
+    if ("IntersectionObserver" in window) {
+      trackObserver(new IntersectionObserver((entries) => {
+        entries.forEach((e) => {
+          visible = e.isIntersecting;
+          if (visible) { play(cards[active]); schedule(); }
+          else { clearTimeout(advanceTimer); clearPlay(); }
+        });
+      }, { rootMargin: "200px" })).observe(deck);
+    } else {
+      visible = true;
+      play(cards[active]);
+      schedule();
+    }
+  })();
 
   /* ---------------- Card tilt micro-interaction ---------------- */
   if (!reduceMotion && window.matchMedia("(pointer:fine)").matches) {
