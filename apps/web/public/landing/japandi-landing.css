@@ -562,6 +562,272 @@ html:has(.japandi-landing) { scroll-behavior: smooth; -webkit-text-size-adjust: 
   pointer-events: auto;
 }
 
+/* ============ NAV MEGA MENU ============
+   Platform and Resources open a wide panel under the bar on hover (click on
+   touch and keyboard): a featured card, then two lists, split by hairlines.
+   It hangs from .nav__shell so it tracks the bar's width as it tightens on
+   scroll. Scoped under .japandi-landing so the landing's link reset
+   (`a { color: inherit }`) can't flatten its colours. */
+.nav__shell { position: relative; }
+
+.japandi-landing .nav__trigger {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 9px 8px 11px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color 0.25s ease,
+    padding 0.40s cubic-bezier(0.22, 1, 0.36, 1),
+    font-size 0.40s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.japandi-landing .nav.is-scrolled .nav__trigger { padding: 7px 7px 7px 9px; font-size: 13.5px; }
+.japandi-landing .nav__trigger:hover .nav__chevron { opacity: 1; }
+.japandi-landing .nav__trigger:focus-visible { outline: 2px solid var(--moss-400); outline-offset: 1px; }
+.japandi-landing .nav__chevron {
+  width: 14px;
+  height: 14px;
+  opacity: 0.6;
+  transition: transform 0.3s var(--ease-soft), opacity 0.2s ease;
+}
+.japandi-landing .nav__trigger[aria-expanded="true"] .nav__chevron { transform: rotate(180deg); opacity: 1; }
+
+.japandi-landing .nav-mega {
+  position: absolute;
+  top: calc(100% + 12px);
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  width: 100%;
+  max-width: var(--maxw);
+  pointer-events: auto;
+  transform-origin: top center;
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  box-shadow: var(--elev-3);
+  overflow: hidden;
+  transition: max-width 0.40s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.japandi-landing .nav.is-scrolled .nav-mega { max-width: 1080px; }
+/* An invisible bridge over the gap, so the pointer can travel from the bar
+   into the panel without the panel reading that as leaving. */
+.japandi-landing .nav-mega::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: 14px;
+}
+
+.japandi-landing .nav-mega__grid {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr 1fr;
+}
+.japandi-landing .nav-mega__grid[data-menu="resources"] { grid-template-columns: 1.05fr 1.15fr 0.8fr; }
+.japandi-landing .nav-mega__col { min-width: 0; padding: 26px 30px 30px; }
+.japandi-landing .nav-mega__col + .nav-mega__col { border-left: 1px solid var(--linen-200); }
+.japandi-landing .nav-mega__heading {
+  margin-bottom: 18px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+/* featured */
+.japandi-landing .nav-mega__featured { display: grid; gap: 0; color: var(--ink); }
+.japandi-landing .nav-mega__featured-media,
+.japandi-landing .nav-mega__thumb {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  background: var(--linen-150);
+  isolation: isolate;
+}
+.japandi-landing .nav-mega__featured-media { aspect-ratio: 16 / 9; border-radius: 14px; }
+.japandi-landing .nav-mega__featured-media img,
+.japandi-landing .nav-mega__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.7s var(--ease-soft);
+}
+.japandi-landing .nav-mega__featured:hover .nav-mega__featured-media img,
+.japandi-landing .nav-mega__read-item:hover .nav-mega__thumb img { transform: scale(1.04); }
+.japandi-landing .nav-mega__badge {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: 7px 13px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 10px 30px -12px rgba(15, 23, 42, 0.5);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.japandi-landing .nav-mega__featured-title {
+  margin-top: 18px;
+  max-width: 24ch;
+  font-family: var(--font-serif);
+  font-size: 20px;
+  line-height: 1.3;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+  text-wrap: balance;
+}
+.japandi-landing .nav-mega__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  font-size: 14.5px;
+  font-weight: 500;
+  color: var(--moss-600);
+}
+.japandi-landing .nav-mega__cta svg { width: 14px; height: 14px; transition: transform 0.25s var(--ease-soft); }
+.japandi-landing a:hover .nav-mega__cta { color: var(--moss-800); }
+.japandi-landing a:hover .nav-mega__cta svg { transform: translateX(3px); }
+
+/* read (thumbnail rows) */
+.japandi-landing .nav-mega__read { list-style: none; margin: -4px 0 0; padding: 0; }
+.japandi-landing .nav-mega__read li + li { border-top: 1px solid var(--linen-200); }
+.japandi-landing .nav-mega__read-item {
+  display: grid;
+  grid-template-columns: 124px minmax(0, 1fr);
+  gap: 20px;
+  padding: 16px 0;
+  color: var(--ink);
+}
+.japandi-landing .nav-mega__thumb { aspect-ratio: 4 / 3; border-radius: 12px; align-self: start; }
+.japandi-landing .nav-mega__thumb-badge {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+}
+.japandi-landing .nav-mega__read-body { display: grid; align-content: start; }
+.japandi-landing .nav-mega__read-title {
+  font-family: var(--font-serif);
+  font-size: 19px;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.japandi-landing .nav-mega__read-desc {
+  margin-top: 6px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+.japandi-landing .nav-mega__read-body .nav-mega__cta { margin-top: 10px; }
+
+/* list (icon, title, one line) */
+.japandi-landing .nav-mega__list { list-style: none; margin: -10px -12px 0; padding: 0; display: grid; gap: 2px; }
+.japandi-landing .nav-mega__item {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  padding: 10px 12px;
+  border-radius: 14px;
+  color: var(--ink);
+  transition: background-color 0.2s ease;
+}
+.japandi-landing .nav-mega__item:hover,
+.japandi-landing .nav-mega__item:focus-visible { background: var(--linen-50); }
+.japandi-landing .nav-mega__item:focus-visible { outline: 2px solid var(--moss-400); outline-offset: -2px; }
+.japandi-landing .nav-mega__item-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  background: var(--linen-150);
+  color: var(--ink);
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+.japandi-landing .nav-mega__item-icon svg { width: 17px; height: 17px; stroke-width: 1.7; }
+.japandi-landing .nav-mega__item:hover .nav-mega__item-icon { background: var(--moss-100); color: var(--moss-700); }
+.japandi-landing .nav-mega__item-title { display: block; font-size: 14.5px; font-weight: 600; line-height: 1.35; color: var(--ink); }
+.japandi-landing .nav-mega__item-desc { display: block; margin-top: 2px; font-size: 13px; line-height: 1.45; color: var(--ink-soft); }
+
+/* links (two short columns of icon + label). Flex rather than a fixed grid:
+   a label that no longer fits half the column once translated
+   ("Конфиденциальность") takes a row of its own instead of running into its
+   neighbour, while short labels keep pairing up. */
+.japandi-landing .nav-mega__links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 18px;
+}
+.japandi-landing .nav-mega__links > li { flex: 1 0 calc(50% - 9px); min-width: max-content; }
+.japandi-landing .nav-mega__quick {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 15px;
+  color: var(--ink-soft);
+  transition: color 0.2s ease;
+}
+.japandi-landing .nav-mega__quick svg { width: 14px; height: 14px; stroke-width: 1.8; flex: none; }
+.japandi-landing .nav-mega__quick:hover { color: var(--ink); }
+
+@media (max-width: 1180px) {
+  .japandi-landing .nav-mega__col { padding: 22px 22px 26px; }
+  .japandi-landing .nav-mega__read-item { grid-template-columns: 96px minmax(0, 1fr); gap: 14px; }
+  .japandi-landing .nav-mega__links > li { flex-basis: 100%; }
+}
+
+/* mobile sheet: each menu becomes an expandable group */
+.nav__mobile-group { border-bottom: 1px solid var(--linen-200); }
+.nav__mobile-group summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 13px 8px;
+  color: var(--ink);
+  font-weight: 500;
+  list-style: none;
+  cursor: pointer;
+}
+.nav__mobile-group summary::-webkit-details-marker { display: none; }
+.japandi-landing .nav__mobile-group[open] .nav__chevron { transform: rotate(180deg); opacity: 1; }
+.nav__mobile-sub { display: grid; padding: 0 8px 12px 16px; }
+.japandi-landing .nav__mobile-sub a { padding: 8px 0; font-size: 14.5px; color: var(--ink-soft); }
+.japandi-landing .nav__mobile-sub a:hover { color: var(--ink); }
+
 /* ============ HERO ============ */
 .hero {
   position: relative;
@@ -1305,7 +1571,11 @@ html:has(.japandi-landing) { scroll-behavior: smooth; -webkit-text-size-adjust: 
   font-family: var(--font-sans);
   color: var(--moss-700);
 }
-.srcdemo__file { flex: 1; min-width: 0; overflow: hidden; font-size: 12px; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; color: var(--ink); }
+/* The sheet header wraps: when "Page 2 of 4" (longer once translated) and the
+   file name cannot share a row, the counter drops below instead of squeezing
+   the file name away. */
+.srcdemo__head { flex-wrap: wrap; row-gap: 2px; }
+.srcdemo__file { flex: 1 1 0; min-width: min(100% - 28px, 8.5em); overflow: hidden; font-size: 12px; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; color: var(--ink); }
 .srcdemo__page { font-size: 11px; color: var(--ink-faint); white-space: nowrap; }
 .srcdemo__h { font-size: 15px; color: var(--ink); }
 .srcdemo__doc mark {
@@ -3603,6 +3873,7 @@ html:has(.japandi-landing) { scroll-behavior: smooth; -webkit-text-size-adjust: 
   }
   .nav__menu { display: none; }
   .nav__links { display: none; }
+  .japandi-landing .nav-mega { display: none; }
   .nav__auth { display: none; }
   .nav__toggle { display: block; }
   .nav__actions {
@@ -3951,6 +4222,8 @@ html:has(.japandi-landing) { scroll-behavior: smooth; -webkit-text-size-adjust: 
   .lede__title { font-size: clamp(24px, 7vw, 32px); }
   .modal__dialog { padding: 20px; }
   .nav__mobile > a { padding: 14px 0; font-size: 15px; }
+  .nav__mobile-group summary { padding: 14px 0; font-size: 15px; }
+  .nav__mobile-sub { padding-left: 12px; }
 }
 
 /* ============ WORKFLOW BUILDER SHOWCASE ============
@@ -4205,11 +4478,14 @@ html:has(.japandi-landing) { scroll-behavior: smooth; -webkit-text-size-adjust: 
 .wfb__lights i { width: 9px; height: 9px; border-radius: 50%; background: var(--surface-4); }
 .wfb__crumb {
   display: flex; align-items: center; gap: 7px;
+  min-width: 0;
   font-size: 12.5px; font-weight: 600; color: var(--muted);
 }
-.wfb__crumb-flow { color: var(--ink); }
+/* Translated flow names run longer than English: the crumb gives way with an
+   ellipsis so the Run and Publish buttons always keep their full labels. */
+.wfb__crumb-flow { color: var(--ink); min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .wfb__crumb-sep { color: var(--line-2); font-weight: 400; }
-.wfb__chrome-side { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.wfb__chrome-side { display: flex; flex: none; align-items: center; gap: 8px; margin-left: auto; }
 .wfb__window .collaboration-strip { display: flex; }
 .wfb__window .collaborator-avatar {
   width: 26px; height: 26px; border-radius: 50%;
@@ -5081,6 +5357,13 @@ html:has(.japandi-landing) { scroll-behavior: smooth; -webkit-text-size-adjust: 
   .wfb__window .run-log-row:nth-child(n+5) { display: none; }
   /* the filler "checking…" turn goes, so the question and its answer both fit */
   .wfb__window .chat-message:nth-child(2), .wfb__window .chat-choice-list { display: none; }
+}
+@media (max-width: 480px) {
+  /* "Запустить" + "Опубликовать" alone overflow a phone-width title bar, so Run
+     keeps only its play icon here; Publish stays labelled. */
+  .wfb__lights { display: none; }
+  .wfb__window .action-button.run { padding: 0 8px; }
+  .wfb__window .action-button.run .action-button__label { display: none; }
 }
 
 /* Reduced motion: the panes still switch, nothing moves on its own. */

@@ -1,5 +1,7 @@
 import type { ReactNode } from "react"
 
+import { LegalDate } from "./legal-date"
+
 export type LegalSection = {
   heading: string
   body: ReactNode
@@ -38,14 +40,7 @@ export const LegalDocument = ({
         <h1 className="legal-hero__title">{title}</h1>
         <p className="legal-hero__lead">{summary}</p>
         <p className="legal-hero__meta">
-          Last updated{" "}
-          <time dateTime={lastUpdated}>
-            {new Date(lastUpdated).toLocaleDateString("en-GB", {
-              day: "numeric",
-              month: "long",
-              year: "numeric",
-            })}
-          </time>
+          Last updated <LegalDate iso={lastUpdated} />
         </p>
       </div>
     </section>

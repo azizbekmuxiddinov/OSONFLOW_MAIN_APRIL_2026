@@ -1,0 +1,59 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Workflows list — builds on report.css, the same ruled-row grammar as Leads
+   and the Knowledge base, so the tab reads as part of one console.
+
+   Status dots reuse the report's outcome colours: green is "answering now",
+   blue is "ready on the side", and a hollow ring is "not published yet" —
+   hollow for the same reason the report draws its open outcome hollow, so the
+   shape still separates the states for colour-blind readers.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+.workflows-row {
+  border-bottom: 1px solid var(--report-rule);
+  transition: background-color 160ms var(--motion-snappy);
+}
+
+.workflows-row:hover,
+.workflows-row:focus-within {
+  background: color-mix(in srgb, var(--foreground) 3.5%, transparent);
+}
+
+.workflows-row-link {
+  border-radius: 6px;
+  outline: none;
+}
+
+.workflows-row-link:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 40%, transparent);
+}
+
+.workflows-medallion {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 20%, transparent);
+}
+
+.workflows-status-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  flex-shrink: 0;
+  border-radius: 999px;
+}
+
+.workflows-status-dot[data-status="live"] {
+  background: var(--outcome-resolved);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--outcome-resolved) 22%, transparent);
+}
+
+.workflows-status-dot[data-status="published"] {
+  background: var(--outcome-handed);
+}
+
+.workflows-status-dot[data-status="draft"] {
+  box-shadow: inset 0 0 0 1.5px var(--muted-foreground);
+}

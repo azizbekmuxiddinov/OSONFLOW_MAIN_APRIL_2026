@@ -9,11 +9,11 @@ import type {
   ComponentNodeData,
   ConditionNodeData,
   CustomActionNodeData,
+  EndNodeData,
   GenericNodeData,
   ImageNodeData,
   JavascriptNodeData,
   MessageNodeData,
-  NodeType,
   IntegrationNodeData,
   ListenNodeData,
   McpNodeData,
@@ -27,17 +27,10 @@ import {
 } from '../lib/types';
 import Icon from './StepIcon';
 import NodeText from './NodeText';
-import { STEP_ICONS } from './nodeIcon';
+import { STEP_ICONS, stepLabel } from './nodeIcon';
 import SourceHandle from './SourceHandle';
 
 
-const STEP_LABELS: Partial<Record<NodeType, string>> = {
-  setVariable: 'Set',
-  kbSearch: 'KB search',
-  callForward: 'Call forward',
-  customAction: 'Custom action',
-  javascript: 'JavaScript',
-};
 
 const plainText = (html: string) => html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 
@@ -113,6 +106,13 @@ const stepSummary = (step: BlockStep): string => {
       return (data as ComponentNodeData).workflowName || 'No workflow selected';
     case 'customAction':
       return (data as CustomActionNodeData).actionName || 'custom_action';
+    case 'end': {
+      const end = data as EndNodeData;
+      const goodbye = typeof end.message === 'string' ? end.message : end.description;
+      return plainText(goodbye || '') || 'Ends the conversation';
+    }
+    case 'callForward':
+      return plainText((data as GenericNodeData).description || '') || 'Hands over to your team';
     default:
       return (data as GenericNodeData).description?.trim() || '';
   }
@@ -131,7 +131,7 @@ const StepRow = ({
 }) => {
   // Only the last step can branch, so only it contributes ports.
   const ports = isLast ? stepPorts(step) : [];
-  const title = step.data.customName?.trim() || STEP_LABELS[step.type] || step.data.label || step.type;
+  const title = step.data.customName?.trim() || stepLabel(step.type);
 
   return (
     <div className={`block-step ${isSelected ? 'selected' : ''}`}>

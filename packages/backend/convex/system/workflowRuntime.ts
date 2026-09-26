@@ -857,11 +857,10 @@ const executeFromNode = async (
       }
 
       case "callForward": {
+        // The author's own words, or nothing: a canned English line would
+        // land in the middle of an Uzbek or Russian conversation.
         const message = renderTemplate(
-          stripHtml(
-            asString(data.description) ||
-              "Connecting you with a human operator now."
-          ),
+          stripHtml(asString(data.description)),
           variables
         )
 
@@ -897,17 +896,23 @@ const executeFromNode = async (
         // The one exit that counts as the flow completing; everything else
         // that stops a run is a drop-off as far as the heatmap is concerned.
         reachedEnd = true
+        // The goodbye is whatever the author wrote — `message`, or the
+        // `description` older and AI-drafted End steps kept it in. Nothing is
+        // sent when it is empty: an English "Conversation ended." used to
+        // close every Uzbek and Russian conversation that had no goodbye.
         const endMessage = renderTemplate(
-          stripHtml(asString(data.message) || asString(data.description)),
+          stripHtml(
+            typeof data.message === "string" && data.message.trim()
+              ? data.message
+              : typeof data.message === "string"
+                ? ""
+                : asString(data.description)
+          ),
           variables
         )
 
         if (
-          await saveAssistantMessage(
-            ctx,
-            args.conversation.threadId,
-            endMessage || "Conversation ended."
-          )
+          await saveAssistantMessage(ctx, args.conversation.threadId, endMessage)
         ) {
           assistantMessagesSent += 1
         }

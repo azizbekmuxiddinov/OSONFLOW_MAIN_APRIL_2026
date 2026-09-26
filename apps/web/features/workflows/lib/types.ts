@@ -370,6 +370,8 @@ export type JavascriptNodeData = NodeVisual & {
 export type EndNodeData = NodeVisual & {
   label: 'End';
   message?: string;
+  /** Where older and AI-drafted End steps kept their goodbye. */
+  description?: string;
 };
 
 export type ToolArgument = {

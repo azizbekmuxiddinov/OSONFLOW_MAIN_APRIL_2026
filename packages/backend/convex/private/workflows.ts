@@ -26,6 +26,7 @@ import { runApiStep } from "../lib/workflowApiStep"
 import { exitMessages, runAgentTurn } from "../lib/workflowAgentTurn"
 import { buildToolArgs } from "../system/workflowToolSteps"
 import { OPENAI_CHAT_MODEL } from "../lib/openai"
+import { enforceRateLimit } from "../lib/rateLimits"
 
 const PRESENCE_STALE_MS = 45_000
 const PRESENCE_CLEANUP_MS = 5 * 60_000
@@ -845,12 +846,11 @@ export const publishWorkflowForOrganization = async (
     await Promise.all(
       activeWorkflows
         .filter((activeWorkflow) => activeWorkflow._id !== args.workflowId)
+        // Only the live flag moves. Bumping updatedAt here would read as an
+        // edit and light the "unpublished changes" dot on a workflow nobody
+        // touched.
         .map((activeWorkflow) =>
-          ctx.db.patch(activeWorkflow._id, {
-            isActive: false,
-            updatedAt: now,
-            updatedBy: actorId,
-          })
+          ctx.db.patch(activeWorkflow._id, { isActive: false })
         )
     )
   }
@@ -987,18 +987,17 @@ export const removeWorkflowForOrganization = async (
     })
   }
 
+  // Read through the workflow's own index. Scanning every session in the org
+  // (each carrying its execution trace) and filtering here ran into the
+  // per-mutation read limit on a busy organization, so the delete failed.
   const sessions = await ctx.db
     .query("workflowSessions")
-    .withIndex("by_organization_id", (q) =>
-      q.eq("organizationId", organizationId)
+    .withIndex("by_workflow_id_and_started_at", (q) =>
+      q.eq("workflowId", args.workflowId)
     )
     .collect()
 
-  await Promise.all(
-    sessions
-      .filter((session) => session.workflowId === args.workflowId)
-      .map((session) => ctx.db.delete(session._id))
-  )
+  await Promise.all(sessions.map((session) => ctx.db.delete(session._id)))
 
   const presence = await ctx.db
     .query("workflowPresence")
@@ -1027,14 +1026,11 @@ export const deactivateWorkflowForOrganization = async (
   actorId: string | undefined,
   args: { workflowId: Id<"workflows"> }
 ) => {
-  const now = Date.now()
   await assertWorkflowAccess(ctx, args.workflowId, organizationId)
 
-  await ctx.db.patch(args.workflowId, {
-    isActive: false,
-    updatedAt: now,
-    updatedBy: actorId,
-  })
+  // Taking a workflow offline changes whether it answers, not what it says,
+  // so updatedAt stays put and the builder does not report unpublished edits.
+  await ctx.db.patch(args.workflowId, { isActive: false })
 
   const deactivated = await ctx.db.get(args.workflowId)
   return toWorkflowRecord(deactivated!)
@@ -1052,6 +1048,98 @@ export const deactivate = mutation({
       identity.subject,
       args
     )
+  },
+})
+
+/** Image and Card steps keep their picture in storage, never in the graph. */
+const MAX_WORKFLOW_IMAGE_SIZE_BYTES = 5 * 1024 * 1024
+
+export const generateImageUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const { identity } = await getOrganizationIdentity(ctx)
+    await enforceRateLimit(ctx, "workflowImageUploadByUser", {
+      key: identity.subject,
+      message: "Too many image uploads. Please wait a moment and try again.",
+    })
+    return await ctx.storage.generateUploadUrl()
+  },
+})
+
+/**
+ * Claims an uploaded image for this organization and hands back its public
+ * URL. Step images used to be inlined as data URLs, which pushed an ordinary
+ * photo past Convex's 1 MB document limit and broke every save after it.
+ */
+export const resolveUploadedImage = mutation({
+  args: {
+    storageId: v.id("_storage"),
+  },
+  returns: v.object({ url: v.string() }),
+  handler: async (ctx, args) => {
+    const { identity, organizationId } = await getOrganizationIdentity(ctx)
+    const metadata = await ctx.db.system.get(args.storageId)
+
+    if (!metadata) {
+      throw new ConvexError({
+        code: "NOT_FOUND",
+        message: "Uploaded image not found",
+      })
+    }
+
+    // Storage ids are not tenant-scoped, so ownership is recorded beside them.
+    const existingOwner = await ctx.db
+      .query("storageObjects")
+      .withIndex("by_storage_id", (q) => q.eq("storageId", args.storageId))
+      .unique()
+
+    if (
+      existingOwner &&
+      (existingOwner.organizationId !== organizationId ||
+        existingOwner.purpose !== "workflow_image")
+    ) {
+      throw new ConvexError({
+        code: "FORBIDDEN",
+        message: "Uploaded image not found",
+      })
+    }
+
+    const reject = async (message: string) => {
+      await ctx.storage.delete(args.storageId)
+      if (existingOwner) {
+        await ctx.db.delete(existingOwner._id)
+      }
+      throw new ConvexError({ code: "INVALID_INPUT", message })
+    }
+
+    if (!metadata.contentType?.startsWith("image/")) {
+      await reject("Please choose an image file.")
+    }
+
+    if (metadata.size > MAX_WORKFLOW_IMAGE_SIZE_BYTES) {
+      await reject("Images must be 5 MB or smaller.")
+    }
+
+    const url = await ctx.storage.getUrl(args.storageId)
+
+    if (!url) {
+      throw new ConvexError({
+        code: "NOT_FOUND",
+        message: "Uploaded image URL is not available",
+      })
+    }
+
+    if (!existingOwner) {
+      await ctx.db.insert("storageObjects", {
+        storageId: args.storageId,
+        organizationId,
+        uploadedBy: identity.subject,
+        purpose: "workflow_image",
+        createdAt: Date.now(),
+      })
+    }
+
+    return { url }
   },
 })
 

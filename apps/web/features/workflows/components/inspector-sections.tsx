@@ -21,7 +21,7 @@ export const InspectorSection = ({
   children: ReactNode
   flush?: boolean
 }) => (
-  <section className={`inspector-section${flush ? " flush" : ""}`}>
+  <section className={`inspector-section${flush ? "flush" : ""}`}>
     {children}
   </section>
 )
@@ -31,33 +31,110 @@ export const InspectorListSection = ({
   title,
   onAdd,
   addLabel,
+  onRemove,
+  removeLabel,
   children,
   empty,
 }: {
   title: string
   onAdd?: () => void
   addLabel?: string
+  /** Removes the whole section's subject, e.g. one card of a carousel. */
+  onRemove?: () => void
+  removeLabel?: string
   children?: ReactNode
   empty?: string
 }) => (
   <section className="inspector-section">
     <div className="inspector-section-head">
       <h3>{title}</h3>
-      {onAdd ? (
-        <button
-          type="button"
-          className="inspector-add"
-          onClick={onAdd}
-          aria-label={addLabel ?? `Add to ${title}`}
-          title={addLabel ?? `Add to ${title}`}
-        >
-          <Icon name="plus" size={16} />
-        </button>
+      {onAdd || onRemove ? (
+        <span className="inspector-section-actions">
+          {onRemove ? (
+            <button
+              type="button"
+              className="inspector-remove"
+              onClick={onRemove}
+              aria-label={removeLabel ?? `Remove ${title}`}
+              title={removeLabel ?? `Remove ${title}`}
+            >
+              <Icon name="trash" size={14} />
+            </button>
+          ) : null}
+          {onAdd ? (
+            <button
+              type="button"
+              className="inspector-add"
+              onClick={onAdd}
+              aria-label={addLabel ?? `Add to ${title}`}
+              title={addLabel ?? `Add to ${title}`}
+            >
+              <Icon name="plus" size={16} />
+            </button>
+          ) : null}
+        </span>
       ) : null}
     </div>
     {children}
     {empty ? <p className="inspector-section-empty">{empty}</p> : null}
   </section>
+)
+
+/**
+ * One captioned field: the caption above, the control flush beneath it, and
+ * an optional sentence of guidance under that. Every plain input in a step
+ * editor is one of these, so captions, spacing and hints match everywhere.
+ */
+export const InspectorField = ({
+  label,
+  hint,
+  action,
+  compound = false,
+  children,
+}: {
+  label: ReactNode
+  hint?: ReactNode
+  /** A small control beside the caption, e.g. "open full window". */
+  action?: ReactNode
+  /**
+   * The control is not one native input — a rich text box with its own
+   * toolbar, a pill editor, or several controls in a row. Those must not sit
+   * inside a <label>: a click anywhere in a label is forwarded to its first
+   * button or input, so clicking into the text pressed Bold.
+   */
+  compound?: boolean
+  children: ReactNode
+}) => {
+  const caption = action ? (
+    <span className="inspector-field-label label-with-action">
+      {label}
+      {action}
+    </span>
+  ) : (
+    <span className="inspector-field-label">{label}</span>
+  )
+  const hintLine = hint ? (
+    <span className="inspector-field-hint">{hint}</span>
+  ) : null
+
+  return compound || action ? (
+    <div className="inspector-field">
+      {caption}
+      {children}
+      {hintLine}
+    </div>
+  ) : (
+    <label className="inspector-field">
+      {caption}
+      {children}
+      {hintLine}
+    </label>
+  )
+}
+
+/** A sentence of guidance that belongs to the section, not to one field. */
+export const InspectorNote = ({ children }: { children: ReactNode }) => (
+  <p className="inspector-section-empty">{children}</p>
 )
 
 /**
@@ -78,7 +155,7 @@ export const InspectorToggleRow = ({
   disabled?: boolean
   hint?: string
 }) => (
-  <label className={`inspector-toggle-row${disabled ? " blocked" : ""}`}>
+  <label className={`inspector-toggle-row${disabled ? "blocked" : ""}`}>
     <span className="inspector-toggle-label">
       {label}
       {hint ? <em>{hint}</em> : null}

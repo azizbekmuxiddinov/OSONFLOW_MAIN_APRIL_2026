@@ -870,7 +870,8 @@ const $ = (s, c) => (c || document).querySelector(s);
   $("#modalCompany") && $("#modalCompany").addEventListener("input", (e) => { e.target.value = e.target.value.toLowerCase().replace(/\s+/g, "-"); renderSnippet(); }, { signal });
   $("#modalTheme") && $("#modalTheme").addEventListener("change", renderSnippet, { signal });
   function copyText(text, btn) {
-    const done = () => { const o = btn.textContent; btn.textContent = "Copied"; btn.classList.add("is-copied"); setTimeout(() => { btn.textContent = o; btn.classList.remove("is-copied"); }, 1600); };
+    // Both labels are English source text so the page translator localises each state.
+    const done = () => { btn.textContent = "Copied"; btn.classList.add("is-copied"); setTimeout(() => { btn.textContent = "Copy"; btn.classList.remove("is-copied"); }, 1600); };
     if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, done); else done();
   }
   $("#modalCopy") && $("#modalCopy").addEventListener("click", (e) => copyText(plainSnippet(), e.currentTarget), { signal });
@@ -1026,10 +1027,9 @@ const $ = (s, c) => (c || document).querySelector(s);
         if (on) d.setAttribute("aria-current", "true");
         else d.removeAttribute("aria-current");
       });
-      if (live) {
-        const tag = $(".omni-card__tag", cards[active]);
-        live.textContent = tag ? tag.textContent + " — the same conversation" : "";
-      }
+      // The card's own label is a whole phrase the page translator already
+      // localised, so announce that rather than gluing English onto the tag.
+      if (live) live.textContent = cards[active].getAttribute("aria-label") || "";
     }
 
     function schedule() {

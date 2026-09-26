@@ -947,7 +947,7 @@ export const generateWorkflowDraft = action({
         case "end":
           return {
             label: "End",
-            description: text(node.text) || "Conversation ended.",
+            message: text(node.text),
             accent: "logic",
           }
         case "start":

@@ -1812,13 +1812,26 @@ export function normalizeTranslatableText(value: string) {
   return value.replace(/\s+/g, " ").trim()
 }
 
-export function translateText(value: string, language: Language) {
+/**
+ * `context` disambiguates a short English word that means different things in
+ * different places (a menu heading "Run" vs a builder button "Run"). An entry
+ * keyed `"<context>|<text>"` wins inside elements marked
+ * `data-i18n-context="<context>"`; everything else falls back to the plain key.
+ */
+export function translateText(
+  value: string,
+  language: Language,
+  context?: string | null
+) {
   if (language === "en") {
     return value
   }
 
   const normalized = normalizeTranslatableText(value)
   const translated =
+    (context
+      ? landingTranslations[`${context}|${normalized}`]?.[language]
+      : undefined) ??
     landingTranslations[normalized]?.[language] ??
     translations[normalized]?.[language] ??
     supplementalTranslations[normalized]?.[language]

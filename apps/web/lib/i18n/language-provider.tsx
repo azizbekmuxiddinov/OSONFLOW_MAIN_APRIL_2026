@@ -34,8 +34,19 @@ type LanguageContextValue = {
 
 const LanguageContext = createContext<LanguageContextValue | null>(null)
 
-const textNodeOriginals = new WeakMap<Text, string>()
+// What the translator last wrote into a node or attribute, next to the English
+// it came from. A value that no longer matches `written` was put there by the
+// app (React re-rendering, a script updating a label), so it is the new source
+// text — never overwrite it with the stale original.
+type TranslatedValue = { original: string; written: string }
+
+const textNodeState = new WeakMap<Text, TranslatedValue>()
+const attributeState = new WeakMap<Element, Map<string, TranslatedValue>>()
 let translatePassDepth = 0
+
+function sourceTextOf(current: string, state: TranslatedValue | undefined) {
+  return state && current === state.written ? state.original : current
+}
 
 const ATTRIBUTES_TO_TRANSLATE = [
   "aria-label",
@@ -78,9 +89,18 @@ function getInitialLanguage(): Language {
   return "en"
 }
 
+// Keeps the English node's surrounding spaces, except where the translation
+// is a fragment that must hug its neighbour: one opening with closing
+// punctuation (", …", "» …") joins the previous element, and one ending in an
+// opening quote or bracket ("… «") joins the next. Word order differs between
+// languages, so a sentence split around a <b> needs this to read naturally.
 function preserveSpacing(original: string, translated: string) {
-  const leading = original.match(/^\s*/)?.[0] ?? ""
-  const trailing = original.match(/\s*$/)?.[0] ?? ""
+  const leading = /^[.,;:!?)»”…]/.test(translated)
+    ? ""
+    : (original.match(/^\s*/)?.[0] ?? "")
+  const trailing = /[(«“]$/.test(translated)
+    ? ""
+    : (original.match(/\s*$/)?.[0] ?? "")
 
   return `${leading}${translated}${trailing}`
 }
@@ -97,6 +117,14 @@ function isTranslationOptedOut(node: Node) {
   return node.parentElement?.closest('[translate="no"]') != null
 }
 
+/** The nearest `data-i18n-context`, for words whose meaning depends on where they sit. */
+function translationContextOf(element: Element | null) {
+  return (
+    element?.closest("[data-i18n-context]")?.getAttribute("data-i18n-context") ??
+    null
+  )
+}
+
 function translateTextNode(node: Text, language: Language) {
   // Word-split headlines are handled as whole hosts — skip fragment nodes.
   if (isInsideMotionWord(node) || isTranslationOptedOut(node)) {
@@ -104,25 +132,27 @@ function translateTextNode(node: Text, language: Language) {
   }
 
   const currentValue = node.nodeValue ?? ""
-  const storedOriginal = textNodeOriginals.get(node)
-  const currentLooksTranslatable =
-    language !== "en" && translateText(currentValue, language) !== currentValue
-  const originalValue = currentLooksTranslatable
-    ? currentValue
-    : storedOriginal ?? currentValue
-  const normalized = normalizeTranslatableText(originalValue)
+  const originalValue = sourceTextOf(currentValue, textNodeState.get(node))
 
-  if (!normalized) {
+  if (!normalizeTranslatableText(originalValue)) {
     return
   }
 
   const nextValue =
     language === "en"
       ? originalValue
-      : preserveSpacing(originalValue, translateText(originalValue, language))
+      : preserveSpacing(
+          originalValue,
+          translateText(
+            originalValue,
+            language,
+            translationContextOf(node.parentElement)
+          )
+        )
+
+  textNodeState.set(node, { original: originalValue, written: nextValue })
 
   if (nextValue !== currentValue) {
-    textNodeOriginals.set(node, originalValue)
     node.nodeValue = nextValue
   }
 }
@@ -135,54 +165,45 @@ function translateElementAttributes(element: Element, language: Language) {
       continue
     }
 
-    const originalAttribute = `data-i18n-original-${attribute}`
-    const storedOriginal = element.getAttribute(originalAttribute)
-    const currentLooksTranslatable =
-      language !== "en" && translateText(value, language) !== value
-    const original = currentLooksTranslatable
-      ? value
-      : storedOriginal ?? value
-    const translated = translateText(original, language)
+    let states = attributeState.get(element)
 
-    if (!element.hasAttribute(originalAttribute)) {
-      element.setAttribute(originalAttribute, original)
+    if (!states) {
+      states = new Map()
+      attributeState.set(element, states)
     }
 
-    if (element.getAttribute(attribute) !== translated) {
+    const original = sourceTextOf(value, states.get(attribute))
+    const translated = translateText(
+      original,
+      language,
+      translationContextOf(element)
+    )
+
+    states.set(attribute, { original, written: translated })
+
+    if (value !== translated) {
       element.setAttribute(attribute, translated)
     }
   }
 }
 
+/** Translates a detached copy of English markup (a headline snapshot). */
 function translateSubtreeText(root: ParentNode, language: Language) {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
   let current = walker.nextNode()
 
   while (current) {
     const node = current as Text
+    const value = node.nodeValue ?? ""
 
-    if (isTranslationOptedOut(node)) {
-      current = walker.nextNode()
-      continue
-    }
+    if (
+      language !== "en" &&
+      !isTranslationOptedOut(node) &&
+      normalizeTranslatableText(value)
+    ) {
+      const nextValue = preserveSpacing(value, translateText(value, language))
 
-    const currentValue = node.nodeValue ?? ""
-    const storedOriginal = textNodeOriginals.get(node)
-    const currentLooksTranslatable =
-      language !== "en" && translateText(currentValue, language) !== currentValue
-    const originalValue = currentLooksTranslatable
-      ? currentValue
-      : storedOriginal ?? currentValue
-    const normalized = normalizeTranslatableText(originalValue)
-
-    if (normalized) {
-      const nextValue =
-        language === "en"
-          ? originalValue
-          : preserveSpacing(originalValue, translateText(originalValue, language))
-
-      if (nextValue !== currentValue) {
-        textNodeOriginals.set(node, originalValue)
+      if (nextValue !== value) {
         node.nodeValue = nextValue
       }
     }

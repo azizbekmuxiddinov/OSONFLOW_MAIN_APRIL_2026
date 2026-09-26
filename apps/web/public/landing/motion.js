@@ -47,7 +47,9 @@
       (function walk(node) {
         Array.prototype.slice.call(node.childNodes).forEach(function (child) {
           if (child.nodeType === 3) {
-            var parts = child.textContent.split(/(\s+)/);
+            // Split on breaking whitespace only: a no-break space (as
+            // translations put before a dash) keeps its words in one span.
+            var parts = child.textContent.split(/([^\S\u00a0]+)/);
             if (!parts.length) return;
             var frag = document.createDocumentFragment();
             parts.forEach(function (p) {

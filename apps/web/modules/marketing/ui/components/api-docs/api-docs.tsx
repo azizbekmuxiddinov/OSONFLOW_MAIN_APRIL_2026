@@ -2,11 +2,9 @@
 
 import {
   Fragment,
-  useEffect,
   useMemo,
   useState,
   useSyncExternalStore,
-  type ReactNode,
 } from "react"
 
 import {
@@ -23,71 +21,25 @@ import {
   type DeveloperApiParam,
 } from "@workspace/backend/lib/developerApi/catalog"
 
-import { copyTextToClipboard } from "@/lib/clipboard"
+import { useLanguage } from "@/lib/i18n/language-provider"
 import { appPath } from "@/lib/urls"
-import { JapandiPageShell } from "../japandi-page-shell"
+import { DocsHeroTabs } from "../docs/docs-tabs"
 import {
-  SAMPLE_LANGUAGES,
-  buildSample,
-  tokenize,
-  type SampleLanguage,
-} from "./samples"
+  Code,
+  CodePanel,
+  CopyButton,
+  Highlighted,
+  Section,
+  Table,
+  useActiveAnchor,
+} from "../docs/docs-primitives"
+import { JapandiPageShell } from "../japandi-page-shell"
+import { SAMPLE_LANGUAGES, buildSample, type SampleLanguage } from "./samples"
 import "./api-docs.css"
 
 const LANGUAGE_STORAGE_KEY = "osonflow-docs-language"
 
 /* ── small pieces ────────────────────────────────────────────────────────── */
-
-const Code = ({ children }: { children: ReactNode }) => (
-  <code className="api-docs__inline" translate="no">
-    {children}
-  </code>
-)
-
-const Highlighted = ({ code }: { code: string }) => (
-  <pre translate="no">
-    <code>
-      {tokenize(code).map((token, index) =>
-        token.kind === "plain" ? (
-          <Fragment key={index}>{token.text}</Fragment>
-        ) : (
-          <span data-token={token.kind} key={index}>
-            {token.text}
-          </span>
-        )
-      )}
-    </code>
-  </pre>
-)
-
-const CopyButton = ({ text }: { text: string }) => {
-  const [copied, setCopied] = useState(false)
-
-  return (
-    <button
-      className="api-code__copy"
-      onClick={async () => {
-        if (await copyTextToClipboard(text)) {
-          setCopied(true)
-          window.setTimeout(() => setCopied(false), 1500)
-        }
-      }}
-      type="button"
-    >
-      {copied ? "Copied" : "Copy"}
-    </button>
-  )
-}
-
-const CodePanel = ({ title, code }: { title: string; code: string }) => (
-  <div className="api-code">
-    <div className="api-code__bar">
-      <span className="api-code__title">{title}</span>
-      <CopyButton text={code} />
-    </div>
-    <Highlighted code={code} />
-  </div>
-)
 
 const LanguagePanel = ({
   title,
@@ -131,46 +83,14 @@ const LanguagePanel = ({
   )
 }
 
-const Table = ({
-  head,
-  rows,
-  numeric = [],
-}: {
-  head: string[]
-  rows: ReactNode[][]
-  numeric?: number[]
-}) => (
-  <div className="api-docs__table-wrap">
-    <table className="api-docs__table">
-      <thead>
-        <tr>
-          {head.map((cell, index) => (
-            <th
-              className={numeric.includes(index) ? "num" : undefined}
-              key={cell}
-            >
-              {cell}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row, rowIndex) => (
-          <tr key={rowIndex}>
-            {row.map((cell, index) => (
-              <td
-                className={numeric.includes(index) ? "num" : undefined}
-                key={index}
-              >
-                {cell}
-              </td>
-            ))}
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  </div>
-)
+/** Puts values into a translated sentence's `{name}` placeholders. */
+const fillTemplate = (
+  template: string,
+  values: Record<string, string | number>
+) =>
+  template.replace(/\{(\w+)\}/g, (match, name: string) =>
+    name in values ? String(values[name]) : match
+  )
 
 /** Renders `backticks` in catalog text as inline code. */
 const RichText = ({ text }: { text: string }) => (
@@ -185,24 +105,6 @@ const RichText = ({ text }: { text: string }) => (
         )
       )}
   </>
-)
-
-const Section = ({
-  id,
-  eyebrow,
-  title,
-  children,
-}: {
-  id: string
-  eyebrow: string
-  title: string
-  children: ReactNode
-}) => (
-  <section className="api-docs__section" data-docs-anchor id={id}>
-    <p className="api-docs__eyebrow">{eyebrow}</p>
-    <h2 className="api-docs__h2">{title}</h2>
-    <div className="api-docs__prose">{children}</div>
-  </section>
 )
 
 /* ── endpoint reference ──────────────────────────────────────────────────── */
@@ -222,7 +124,9 @@ const ParamList = ({
           <span className="api-param__name" translate="no">
             {param.name}
           </span>
-          <span className="api-param__type">{param.type}</span>
+          <span className="api-param__type" translate="no">
+            {param.type}
+          </span>
           {param.required ? (
             <span className="api-param__required">Required</span>
           ) : null}
@@ -288,7 +192,9 @@ const EndpointBlock = ({
         <div className="api-endpoint__meta">
           <span className="api-chip">
             Permission{" "}
-            <strong translate="no">{endpoint.scope ?? "any key"}</strong>
+            <strong translate={endpoint.scope ? "no" : undefined}>
+              {endpoint.scope ?? "any key"}
+            </strong>
           </span>
           <span className="api-chip">
             Counts toward <strong>{chargedLimits(endpoint).join(", ")}</strong>
@@ -520,38 +426,6 @@ const ERROR_EXAMPLE = `{
 
 /* ── page ────────────────────────────────────────────────────────────────── */
 
-const useActiveAnchor = () => {
-  const [active, setActive] = useState<string>("introduction")
-
-  useEffect(() => {
-    const anchors = Array.from(
-      document.querySelectorAll<HTMLElement>("[data-docs-anchor]")
-    )
-
-    if (!("IntersectionObserver" in window) || anchors.length === 0) {
-      return
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)
-
-        if (visible[0]) {
-          setActive(visible[0].target.id)
-        }
-      },
-      { rootMargin: "-110px 0px -65% 0px" }
-    )
-
-    anchors.forEach((anchor) => observer.observe(anchor))
-    return () => observer.disconnect()
-  }, [])
-
-  return active
-}
-
 const isSampleLanguage = (value: unknown): value is SampleLanguage =>
   SAMPLE_LANGUAGES.some((option) => option.id === value)
 
@@ -652,8 +526,11 @@ const NavContents = ({ active }: { active: string }) => (
 )
 
 export const ApiDocs = ({ baseUrl }: { baseUrl: string }) => {
-  const active = useActiveAnchor()
+  const active = useActiveAnchor("introduction")
   const [language, setLanguage] = useSampleLanguage()
+  const { language: pageLanguage, t } = useLanguage()
+  const formatNumber = (value: number) =>
+    value.toLocaleString(pageLanguage === "en" ? "en-US" : "ru-RU")
   const keysUrl = appPath("/developers")
   const rateLimits = DEVELOPER_API_LIMITS.filter(
     (limit) => limit.kind === "rate"
@@ -664,9 +541,13 @@ export const ApiDocs = ({ baseUrl }: { baseUrl: string }) => {
 
   return (
     <JapandiPageShell>
-      <div className="api-docs">
+      {/* Prose here is split around inline code, leaving tiny fragments such
+          as "is" or "to"; the translator looks those up as api|… keys so
+          they never change the same words elsewhere on the site. */}
+      <div className="api-docs" data-i18n-context="api">
         <section className="section api-docs-hero">
           <div className="container">
+            <DocsHeroTabs />
             <span className="eyebrow">Developers</span>
             <h1 className="api-docs-hero__title">Osonflow API</h1>
             <p className="api-docs-hero__lead">
@@ -861,7 +742,8 @@ export const ApiDocs = ({ baseUrl }: { baseUrl: string }) => {
                     Developer API page. They are shared by all of its keys.
                   </li>
                   <li>
-                    <strong>A key</strong> can be given tighter limits of its
+                    <strong>A key</strong>{" "}
+                    can be given tighter limits of its
                     own, counted separately — so one busy integration cannot use
                     up what the others need. A key&apos;s limits can never be
                     looser than its organization&apos;s.
@@ -886,8 +768,8 @@ export const ApiDocs = ({ baseUrl }: { baseUrl: string }) => {
                   rows={rateLimits.map((limit) => [
                     limit.label,
                     limit.description,
-                    limit.default.toLocaleString("en-US"),
-                    limit.max.toLocaleString("en-US"),
+                    formatNumber(limit.default),
+                    formatNumber(limit.max),
                   ])}
                 />
                 <p>
@@ -900,8 +782,12 @@ export const ApiDocs = ({ baseUrl }: { baseUrl: string }) => {
                   rows={sizeLimits.map((limit) => [
                     limit.label,
                     limit.description,
-                    `${limit.default.toLocaleString("en-US")} ${limit.unit}`,
-                    `${limit.max.toLocaleString("en-US")} ${limit.unit}`,
+                    <>
+                      {formatNumber(limit.default)} {limit.unit}
+                    </>,
+                    <>
+                      {formatNumber(limit.max)} {limit.unit}
+                    </>,
                   ])}
                 />
                 <p>
@@ -914,11 +800,17 @@ export const ApiDocs = ({ baseUrl }: { baseUrl: string }) => {
                   <a className="api-docs__link" href="#account.usage">
                     GET /v1/usage
                   </a>{" "}
-                  to see what is left for today. Every call is logged on the
-                  Developer API page for{" "}
-                  {DEVELOPER_API_LOG_RETENTION_DAYS.default} days by default
-                  (adjustable from {DEVELOPER_API_LOG_RETENTION_DAYS.min} to{" "}
-                  {DEVELOPER_API_LOG_RETENTION_DAYS.max}).
+                  to see what is left for today.{" "}
+                  {fillTemplate(
+                    t(
+                      "Every call is logged on the Developer API page for {days} days by default (adjustable from {min} to {max})."
+                    ),
+                    {
+                      days: DEVELOPER_API_LOG_RETENTION_DAYS.default,
+                      min: DEVELOPER_API_LOG_RETENTION_DAYS.min,
+                      max: DEVELOPER_API_LOG_RETENTION_DAYS.max,
+                    }
+                  )}
                 </p>
               </Section>
 
@@ -1005,7 +897,8 @@ export const ApiDocs = ({ baseUrl }: { baseUrl: string }) => {
                   after 15 seconds, 1 minute and 5 minutes — four attempts in
                   all. Other <Code>4xx</Code> answers are treated as final.
                   Because a delivery can arrive more than once, use the event{" "}
-                  <Code>id</Code> to ignore repeats. Recent deliveries and your
+                  <Code>id</Code>{" "}
+                  to ignore repeats. Recent deliveries and your
                   server&apos;s responses are listed by{" "}
                   <a className="api-docs__link" href="#webhooks.deliveries">
                     List deliveries

@@ -69,6 +69,11 @@ const rateLimits = {
     rate: 40,
     period: HOUR,
   },
+  workflowImageUploadByUser: {
+    kind: "fixed window",
+    rate: 60,
+    period: HOUR,
+  },
   // Convex upload URLs cannot carry a size limit, so the only bound on how many
   // bytes a visitor can push into storage is how often they are handed a URL.
   // These are deliberately tighter than the message limits above.

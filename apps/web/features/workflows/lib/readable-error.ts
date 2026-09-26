@@ -21,6 +21,17 @@ const NOISE_PREFIXES = [
 ];
 
 export const readableError = (error: unknown, fallback: string): string => {
+  // A ConvexError thrown with `{ code, message }` carries the sentence meant
+  // for people in `data`; its own `message` is that object as JSON.
+  const data = (error as { data?: unknown } | null)?.data;
+  if (
+    data &&
+    typeof data === "object" &&
+    typeof (data as { message?: unknown }).message === "string"
+  ) {
+    return (data as { message: string }).message;
+  }
+
   const raw =
     error instanceof Error
       ? error.message

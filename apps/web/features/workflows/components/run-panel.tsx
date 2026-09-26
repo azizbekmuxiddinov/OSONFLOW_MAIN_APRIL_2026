@@ -19,10 +19,12 @@ import { api } from "@workspace/backend/_generated/api"
 import { readableError } from "../lib/readable-error"
 import { untokenizeVariables } from "../lib/variable-tokens"
 import { isAgentStepType } from "../lib/types"
+import { stepLabel } from "../nodes/nodeIcon"
 import type { Id } from "@workspace/backend/_generated/dataModel"
 import type {
   ApiNodeData,
   BlockNodeData,
+  EndNodeData,
   ButtonOption,
   CarouselNodeData,
   CustomActionNodeData,
@@ -327,36 +329,7 @@ const formatDuration = (ms: number) =>
 /** Costs are fractions of a cent, so four decimals is the useful precision. */
 const formatCost = (usd: number) => `$${usd.toFixed(4)}`
 
-const nodeTypeLabel = (type?: string) => {
-  if (!type) return "step"
-  const labels: Record<string, string> = {
-    start: "Start",
-    message: "Message",
-    image: "Image",
-    card: "Card",
-    buttons: "Buttons",
-    choice: "Choice",
-    capture: "Capture",
-    setVariable: "Set",
-    condition: "Condition",
-    prompt: "Prompt",
-    kbSearch: "KB search",
-    playbook: "Playbook",
-    agent: "Agent",
-    crew: "Crew",
-    operator: "Operator",
-    callForward: "Handoff",
-    end: "End",
-    component: "Component",
-    carousel: "Carousel",
-    tool: "Tool",
-    api: "API",
-    javascript: "JavaScript",
-    function: "Function",
-    customAction: "Action",
-  }
-  return labels[type] ?? type
-}
+const nodeTypeLabel = (type?: string) => (type ? stepLabel(type) : "step")
 
 const RunnerIcon = ({ name }: { name: RunnerIconName }) => {
   const common = {
@@ -916,11 +889,16 @@ const RunPanel = ({
           nodeId: node.id,
           nodeType: stepType,
           title: `Enter ${nodeTypeLabel(stepType)}`,
-          detail: blockSteps
-            ? `Block step ${currentStepIndex + 1}`
-            : stepData.customName
-              ? `Custom name: ${stepData.customName}`
+          // Blocks are how the canvas stacks steps, not something the author
+          // names, so the log counts steps instead of saying "Block".
+          detail: [
+            stepData.customName?.trim(),
+            blockSteps && blockSteps.length > 1
+              ? `step ${currentStepIndex + 1} of ${blockSteps.length}`
               : undefined,
+          ]
+            .filter(Boolean)
+            .join(" · ") || undefined,
         })
 
         switch (stepType) {
@@ -937,20 +915,33 @@ const RunPanel = ({
           }
           case "message": {
             const data = stepData as MessageNodeData
-            const text = renderTemplate(data.text || "Message step.", vars)
-            nextBubbles.push({
-              id: createId("msg"),
-              kind: "assistant",
-              text,
-              nodeId: node.id,
-            })
+            // Same choice the published runtime makes: the text and its
+            // variants are alternates, one picked at random per run, and an
+            // empty message sends nothing rather than a placeholder.
+            const options = [data.text ?? "", ...(data.variants ?? [])].filter(
+              (option) => stripHtmlPreview(option).trim()
+            )
+            const chosen =
+              options[Math.floor(Math.random() * options.length)] ?? ""
+            const text = renderTemplate(chosen, vars)
+            if (text) {
+              nextBubbles.push({
+                id: createId("msg"),
+                kind: "assistant",
+                text,
+                nodeId: node.id,
+              })
+            }
             pushTrace(nextTrace, {
-              level: "output",
+              level: text ? "output" : "warn",
               step: steps,
               nodeId: node.id,
               nodeType: stepType,
-              title: "Sent message",
-              detail: stripHtmlPreview(text).slice(0, 160) || "(empty)",
+              title: text ? "Sent message" : "Message is empty",
+              detail: text
+                ? stripHtmlPreview(text).slice(0, 160) +
+                  (options.length > 1 ? ` (1 of ${options.length} variants)` : "")
+                : "Nothing was sent. Write something in this step.",
             })
             advance()
             break
@@ -958,13 +949,17 @@ const RunPanel = ({
           case "image": {
             const data = stepData as ImageNodeData
             const url = renderTemplate(data.url || "", vars)
-            nextBubbles.push({
-              id: createId("img"),
-              kind: url ? "image" : "assistant",
-              text: url || "Image step is missing a URL.",
-              alt: data.alt,
-              nodeId: node.id,
-            })
+            // Production sends nothing when there is no picture, so the
+            // preview says so in the log instead of in a fake chat bubble.
+            if (url) {
+              nextBubbles.push({
+                id: createId("img"),
+                kind: "image",
+                text: url,
+                alt: data.alt,
+                nodeId: node.id,
+              })
+            }
             pushTrace(nextTrace, {
               level: url ? "info" : "warn",
               step: steps,
@@ -1216,15 +1211,15 @@ const RunPanel = ({
           }
           case "callForward": {
             const data = stepData as GenericNodeData
-            const text =
-              data.description?.trim() ||
-              "Connecting you with a human operator now."
-            nextBubbles.push({
-              id: createId("msg"),
-              kind: "assistant",
-              text,
-              nodeId: node.id,
-            })
+            const text = renderTemplate(data.description?.trim() ?? "", vars)
+            if (text) {
+              nextBubbles.push({
+                id: createId("msg"),
+                kind: "assistant",
+                text,
+                nodeId: node.id,
+              })
+            }
             pushTrace(nextTrace, {
               level: "warn",
               step: steps,
@@ -1425,17 +1420,23 @@ const RunPanel = ({
             break
           }
           case "end": {
-            const data = stepData as GenericNodeData
-            // The published runtime always says something before it closes.
-            const message =
-              renderTemplate(data.description?.trim() ?? "", vars) ||
-              "Conversation ended."
-            nextBubbles.push({
-              id: createId("msg"),
-              kind: "assistant",
-              text: message,
-              nodeId: node.id,
-            })
+            const data = stepData as EndNodeData
+            // Same rule as the published runtime: the goodbye the author
+            // wrote (or the legacy description), and nothing when it is empty.
+            const message = renderTemplate(
+              typeof data.message === "string"
+                ? data.message.trim()
+                : (data.description?.trim() ?? ""),
+              vars
+            )
+            if (message) {
+              nextBubbles.push({
+                id: createId("msg"),
+                kind: "assistant",
+                text: message,
+                nodeId: node.id,
+              })
+            }
             pushTrace(nextTrace, {
               level: "done",
               step: steps,
@@ -2790,14 +2791,15 @@ const RunPanel = ({
                     ? trace.find((event) => event.nodeId === item.nodeId)
                         ?.nodeType
                     : undefined
+                  // A block is named after the step that spoke, never "Block".
                   const sourceName = !showSource
                     ? null
                     : ((sourceNode?.data as { customName?: string } | undefined)
                         ?.customName ??
-                      (sourceNode
-                        ? nodeTypeLabel(sourceNode.type)
-                        : tracedType
-                          ? nodeTypeLabel(tracedType)
+                      (tracedType
+                        ? nodeTypeLabel(tracedType)
+                        : sourceNode && sourceNode.type !== "block"
+                          ? nodeTypeLabel(sourceNode.type)
                           : null))
 
                   return (

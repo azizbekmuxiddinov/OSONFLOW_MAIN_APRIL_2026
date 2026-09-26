@@ -25,6 +25,7 @@ import {
   type SetVariableNodeData,
   type ToolNodeData,
 } from './types';
+import { stepLabel } from '../nodes/nodeIcon';
 
 export type ValidationLevel = 'error' | 'warning';
 
@@ -56,12 +57,19 @@ const stepHint = (step: BlockStep): string => {
   const pick = (value: unknown) =>
     typeof value === 'string' ? value.replace(/<[^>]*>/g, ' ').trim() : '';
 
+  // A picture is named by its title or file, never by its storage address,
+  // which is a long machine URL that tells the author nothing.
+  const url = pick(data.url);
+  const readableUrl = url && !/^https?:\/\/[^/]*convex\.(cloud|site)\//.test(url) ? url : '';
+
   const hint =
     pick(data.text) ||
+    pick(data.title) ||
     pick(data.prompt) ||
     pick(data.variableKey) ||
     pick(data.key) ||
-    pick(data.url) ||
+    pick(data.fileName) ||
+    readableUrl ||
     pick(data.toolName) ||
     pick(data.instructions) ||
     pick(data.query);
@@ -78,7 +86,7 @@ const stepName = (step: BlockStep) => {
 
   if (custom) return custom;
 
-  const label = (step.data.label as string | undefined)?.trim() || step.type;
+  const label = stepLabel(step.type);
   const hint = stepHint(step);
 
   return hint ? `${label}: ${hint}` : label;
@@ -98,7 +106,7 @@ const nodeName = (node: Node<NodeData>) => {
   if (custom) return custom;
 
   if (node.type !== 'block') {
-    return (node.data.label as string | undefined)?.trim() || node.type;
+    return stepLabel(node.type);
   }
 
   const steps = (node.data as BlockNodeData).steps ?? [];
@@ -171,7 +179,7 @@ export const validateWorkflow = (
     const lastStep = steps[steps.length - 1];
 
     steps.forEach((step, index) => {
-      const stepLabel = stepName(step);
+      const stepTitle = stepName(step);
       const isLast = index === steps.length - 1;
 
       // An agent with exits branches, so anything after it in a block is
@@ -184,7 +192,7 @@ export const validateWorkflow = (
         push({
           level: 'error',
           nodeId: node.id,
-          title: `"${stepLabel}" branches mid-block`,
+          title: `"${stepTitle}" branches mid-block`,
           detail:
             'An agent with exit conditions has to be the last step in its block.',
         });
@@ -195,7 +203,7 @@ export const validateWorkflow = (
         push({
           level: 'error',
           nodeId: node.id,
-          title: `"${stepLabel}" branches mid-block`,
+          title: `"${stepTitle}" branches mid-block`,
           detail: 'A branching step has to be the last step in its block.',
         });
       }
@@ -207,7 +215,7 @@ export const validateWorkflow = (
             push({
               level: 'warning',
               nodeId: node.id,
-              title: `"${stepLabel}" has no text`,
+              title: `"${stepTitle}" has no text`,
               detail: 'This step will send an empty message.',
             });
           }
@@ -218,7 +226,7 @@ export const validateWorkflow = (
             push({
               level: 'error',
               nodeId: node.id,
-              title: `"${stepLabel}" has no URL`,
+              title: `"${stepTitle}" has no URL`,
               detail: 'An API step without a URL fails at runtime.',
             });
           }
@@ -229,7 +237,7 @@ export const validateWorkflow = (
             push({
               level: 'error',
               nodeId: node.id,
-              title: `"${stepLabel}" has no tool selected`,
+              title: `"${stepTitle}" has no tool selected`,
               detail: 'Pick an assistant tool for this step.',
             });
           }
@@ -240,7 +248,7 @@ export const validateWorkflow = (
             push({
               level: 'error',
               nodeId: node.id,
-              title: `"${stepLabel}" has no paths`,
+              title: `"${stepTitle}" has no paths`,
               detail: 'A Function needs at least one named exit path.',
             });
           }
@@ -253,7 +261,7 @@ export const validateWorkflow = (
             push({
               level: 'error',
               nodeId: node.id,
-              title: `"${stepLabel}" has no workflow selected`,
+              title: `"${stepTitle}" has no workflow selected`,
               detail: 'Pick the workflow this component should run.',
             });
             break;
@@ -282,7 +290,7 @@ export const validateWorkflow = (
             push({
               level: 'warning',
               nodeId: node.id,
-              title: `"${stepLabel}" has no instructions`,
+              title: `"${stepTitle}" has no instructions`,
               detail: 'The agent will improvise with no brief of its own.',
             });
           }
@@ -294,7 +302,7 @@ export const validateWorkflow = (
               push({
                 level: 'warning',
                 nodeId: node.id,
-                title: `"${stepLabel}" has an unnamed exit`,
+                title: `"${stepTitle}" has an unnamed exit`,
                 detail: 'Name every exit so its path is readable on the canvas.',
               });
             }
@@ -335,7 +343,7 @@ export const validateWorkflow = (
             push({
               level: 'warning',
               nodeId: node.id,
-              title: `"${stepLabel}" checks no variable`,
+              title: `"${stepTitle}" checks no variable`,
               detail: data.elsePath
                 ? 'Every run will fall through to the else path.'
                 : 'With no filled-in path this step has no way out.',
@@ -354,7 +362,7 @@ export const validateWorkflow = (
             push({
               level: 'warning',
               nodeId: node.id,
-              title: `"${stepLabel}" sets no variable name`,
+              title: `"${stepTitle}" sets no variable name`,
               detail: 'Give this step a variable to write into.',
             });
           }
@@ -365,7 +373,7 @@ export const validateWorkflow = (
             push({
               level: 'warning',
               nodeId: node.id,
-              title: `"${stepLabel}" saves the reply nowhere`,
+              title: `"${stepTitle}" saves the reply nowhere`,
               detail: 'Name a variable so later steps can read the answer.',
             });
           }
@@ -378,7 +386,7 @@ export const validateWorkflow = (
             push({
               level: 'warning',
               nodeId: node.id,
-              title: `"${stepLabel}" runs no tool`,
+              title: `"${stepTitle}" runs no tool`,
               detail: 'Pick the tool this step should call.',
             });
           }
@@ -398,7 +406,7 @@ export const validateWorkflow = (
             push({
               level: 'warning',
               nodeId: node.id,
-              title: `"${stepLabel}" has no options`,
+              title: `"${stepTitle}" has no options`,
               detail: 'With nothing to choose, this step just passes through.',
             });
           }
