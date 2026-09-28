@@ -22,4 +22,14 @@ crons.interval(
   {}
 )
 
+// The week in one Telegram message for every team that asked for it, then the
+// questions customers asked that the assistant could not answer — each one
+// answerable by replying. 04:00 UTC is 09:00 in Tashkent.
+crons.weekly(
+  "weekly team digest",
+  { dayOfWeek: "monday", hourUTC: 4, minuteUTC: 0 },
+  (internal as any).system.teamAlerts.sendWeeklyDigests,
+  {}
+)
+
 export default crons

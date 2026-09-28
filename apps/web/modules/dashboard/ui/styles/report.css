@@ -1,9 +1,9 @@
 /* ─────────────────────────────────────────────────────────────────────────────
-   Report — the editorial layout shared by Analytics and Customer memory.
+   Report — the dense working layout shared by the data tabs.
 
-   Pages are set straight on the glass field instead of in a grid of tiles: one
-   hero sentence, a ruled row of figures, and sections whose headings stay
-   pinned beside their data. The only filled shapes are the data marks.
+   A one-line page bar, a ruled strip of key figures, then panels side by
+   side, so an owner sees most of a tab without scrolling. Nothing is pinned
+   beside a scrolling column. The only filled shapes are the data marks.
 
    Outcome colours are status colours (the mark *means* resolved / handed over /
    still open). Validated with the dataviz palette checker against the glass
@@ -31,32 +31,20 @@
   --mood-negative: #d95926;
 }
 
-/* ── hero ──────────────────────────────────────────────────────────────── */
+/* ── page bar ──────────────────────────────────────────────────────────── */
 
-.report-headline {
-  font-size: clamp(1.9rem, 1.2rem + 2.6vw, 3.4rem);
+.report-page-title {
+  font-size: clamp(1.35rem, 1.15rem + 0.6vw, 1.65rem);
   font-weight: 600;
-  line-height: 1.06;
-  letter-spacing: -0.035em;
-  text-wrap: balance;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
   color: var(--foreground);
 }
 
-.report-headline-figure {
-  font-variant-numeric: tabular-nums;
-  background: linear-gradient(
-    135deg,
-    var(--primary),
-    color-mix(in srgb, var(--primary) 55%, var(--outcome-handed))
-  );
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
+/* Prose inside panels; the page itself opens on data, not a sentence. */
 .report-lede {
-  font-size: clamp(0.95rem, 0.9rem + 0.25vw, 1.08rem);
-  line-height: 1.6;
+  font-size: 0.875rem;
+  line-height: 1.55;
   color: var(--muted-foreground);
   text-wrap: pretty;
 }
@@ -67,13 +55,93 @@
   color: var(--foreground);
 }
 
+/* ── figures ───────────────────────────────────────────────────────────── */
+
+.report-stat {
+  --stat-tone: var(--muted-foreground);
+}
+
+.report-stat-icon {
+  display: inline-flex;
+  width: 1.5rem;
+  height: 1.5rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  color: var(--stat-tone);
+  background: color-mix(in srgb, var(--stat-tone) 12%, transparent);
+}
+
+.report-stat-icon[data-tone="accent"] { --stat-tone: var(--primary); }
+.report-stat-icon[data-tone="positive"] { --stat-tone: var(--console-positive); }
+.report-stat-icon[data-tone="warning"] { --stat-tone: var(--console-warning); }
+.report-stat-icon[data-tone="critical"] { --stat-tone: var(--console-critical); }
+.report-stat-icon[data-tone="info"] { --stat-tone: var(--console-info); }
+.report-stat-icon[data-tone="neutral"] { --stat-tone: var(--muted-foreground); }
+
+.report-stat-value {
+  font-size: clamp(1.5rem, 1.3rem + 0.5vw, 1.85rem);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.035em;
+  font-variant-numeric: tabular-nums;
+  color: var(--foreground);
+}
+
+/* Nothing yet: the shape stays, the number steps back. */
+.report-stat-value[data-empty] {
+  color: color-mix(in srgb, var(--muted-foreground) 55%, transparent);
+}
+
+/* ── empty states ──────────────────────────────────────────────────────── */
+
+.report-empty {
+  border-radius: var(--console-radius-sm);
+  background: color-mix(in srgb, var(--muted) 45%, transparent);
+}
+
+.report-empty-icon {
+  display: inline-flex;
+  width: 2.25rem;
+  height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: var(--muted-foreground);
+  background: var(--card);
+  box-shadow:
+    0 0 0 1px var(--console-hairline-soft),
+    0 6px 14px -10px color-mix(in srgb, var(--shadow-color) 40%, transparent);
+}
+
+/* The figure strip's older, ruled form — still used for the connection index
+   on Setup & integrations. */
+.report-strip {
+  overflow: hidden;
+  border-radius: var(--console-radius);
+  border: 1px solid var(--console-hairline);
+  background: var(--card);
+  box-shadow: var(--console-shadow);
+}
+
+.report-strip > * {
+  box-shadow:
+    1px 0 0 var(--report-rule),
+    0 1px 0 var(--report-rule);
+}
+
+.report-strip.report-strip-flat {
+  box-shadow: none;
+}
+
 /* ── waffle ────────────────────────────────────────────────────────────── */
 
 .report-waffle {
   display: grid;
   grid-template-columns: repeat(10, minmax(0, 1fr));
   gap: 4px;
-  width: min(100%, 15.5rem);
+  width: min(100%, 9.5rem);
   aspect-ratio: 1;
 }
 
@@ -145,52 +213,22 @@
 
 /* ── figures ───────────────────────────────────────────────────────────── */
 
-.report-figures {
-  border-block: 1px solid var(--report-rule);
-}
-
-.report-figure + .report-figure {
-  border-left: 1px solid var(--report-rule);
-}
-
-@media (max-width: 767px) {
-  .report-figure:nth-child(odd) {
-    border-left: 0;
-  }
-
-  .report-figure:nth-child(n + 3) {
-    border-top: 1px solid var(--report-rule);
-  }
-}
-
 .report-figure-value {
-  font-size: clamp(1.6rem, 1.2rem + 1.3vw, 2.35rem);
+  font-size: 1.5rem;
   font-weight: 600;
   line-height: 1;
-  letter-spacing: -0.035em;
+  letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
   color: var(--foreground);
 }
 
-/* ── sections ──────────────────────────────────────────────────────────── */
-
-.report-section {
-  border-top: 1px solid var(--report-rule);
-}
-
-.report-section-index {
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  font-variant-numeric: tabular-nums;
-  color: var(--primary);
-}
+/* ── panels ────────────────────────────────────────────────────────────── */
 
 .report-section-title {
-  font-size: 1.2rem;
+  font-size: 0.95rem;
   font-weight: 600;
-  line-height: 1.2;
-  letter-spacing: -0.02em;
+  line-height: 1.25;
+  letter-spacing: -0.012em;
   color: var(--foreground);
 }
 
@@ -301,7 +339,7 @@
 }
 
 .report-gap-quote {
-  font-size: clamp(1rem, 0.94rem + 0.3vw, 1.18rem);
+  font-size: 0.9rem;
   line-height: 1.45;
   letter-spacing: -0.012em;
   color: var(--foreground);
@@ -309,7 +347,7 @@
 }
 
 .report-gap-count {
-  font-size: 1.6rem;
+  font-size: 1.05rem;
   font-weight: 600;
   line-height: 1;
   letter-spacing: -0.03em;

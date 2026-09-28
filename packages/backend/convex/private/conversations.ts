@@ -20,6 +20,7 @@ import {
 } from "../lib/agentMessageText"
 import { paginateArray } from "../lib/paginateArray"
 import { conversationPriorityValidator } from "../lib/conversationPriority"
+import { scheduleLearningOnResolve } from "../lib/learningHooks"
 
 const assignmentFilterValidator = v.union(
   v.literal("all"),
@@ -143,6 +144,10 @@ export const updateConversationStatusForOrganization = async (
           ? "human"
           : linkedAiVoiceConversation.resolutionSource,
     })
+  }
+
+  if (previousStatus !== status && status === "resolved") {
+    await scheduleLearningOnResolve(ctx, conversation)
   }
 
   if (previousStatus !== status) {

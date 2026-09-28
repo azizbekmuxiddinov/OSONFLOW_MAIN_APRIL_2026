@@ -9,8 +9,17 @@ import {
 import { SESSION_DURATION_MS } from "../constants"
 import { supportAgent } from "./ai/agents/supportAgent"
 import { SUPPORT_AGENT_PROMPT } from "./ai/constants"
-import { generateChannelReply } from "../lib/chatReply"
+import {
+  generateChannelReply,
+  replyToChannelVoiceNote,
+} from "../lib/chatReply"
 import { checkRateLimit } from "../lib/rateLimits"
+import { carryBroadcastIntoThread } from "../lib/broadcastContext"
+import {
+  VOICE_NOTE_PLACEHOLDER,
+  downloadTelegramAudio,
+  saveCustomerVoiceNote,
+} from "../lib/voiceNotes"
 
 type TelegramIntegration = {
   _id: any
@@ -30,9 +39,19 @@ type TelegramUser = {
   language_code?: string
 }
 
+/** A voice note, or an audio file sent as one. */
+type TelegramAudio = {
+  file_id?: string
+  duration?: number
+  mime_type?: string
+  file_size?: number
+}
+
 type TelegramMessage = {
   message_id?: number
   text?: string
+  voice?: TelegramAudio
+  audio?: TelegramAudio
   chat?: {
     id?: number | string
     type?: string
@@ -513,6 +532,8 @@ export const getOrCreateTelegramConversation = internalMutation({
       unreadForOperatorCount: 0,
     })
 
+    await carryBroadcastIntoThread(ctx, { contactSessionId, threadId })
+
     await ctx.db.patch(telegramContact._id, {
       activeConversationId: conversationId,
       updatedAt: now,
@@ -575,9 +596,13 @@ export const handleIncomingUpdate: any = internalAction({
     const update = args.update as TelegramUpdate
     const message = update.message ?? update.edited_message
     const text = message?.text?.trim()
+    // An edited voice note is not a new message, so only fresh ones count.
+    const voiceNote = text
+      ? undefined
+      : (update.message?.voice ?? update.message?.audio)
     const chatId = message?.chat?.id
 
-    if (chatId === undefined || !text) {
+    if (chatId === undefined || (!text && !voiceNote?.file_id)) {
       return { handled: false }
     }
 
@@ -594,7 +619,7 @@ export const handleIncomingUpdate: any = internalAction({
 
     const chatIdString = String(chatId)
 
-    if (text.startsWith("/start")) {
+    if (text?.startsWith("/start")) {
       const widgetSettings = await ctx.runQuery(
         internal.system.widgetSettings.getByOrganizationId,
         {
@@ -671,13 +696,47 @@ export const handleIncomingUpdate: any = internalAction({
     const enabledToolIds = widgetSettings?.enabledToolIds
 
     let replyText: string | null = null
+    let customerText = text ?? ""
 
-    if (status === "unresolved" && subscription?.status === "active") {
+    if (voiceNote?.file_id) {
+      const audio = await downloadTelegramAudio({
+        botToken: integration.botToken,
+        fileId: voiceNote.file_id,
+        mediaType: voiceNote.mime_type,
+        durationSeconds: voiceNote.duration,
+      })
+      const { messageId, transcript } = await saveCustomerVoiceNote(ctx, {
+        organizationId: integration.organizationId,
+        conversationId,
+        threadId,
+        contactSessionId,
+        audio,
+        transcribe: subscription?.status === "active",
+      })
+
+      customerText = transcript ?? VOICE_NOTE_PLACEHOLDER
+
+      if (status === "unresolved" && subscription?.status === "active") {
+        replyText = await replyToChannelVoiceNote(ctx, {
+          organizationId: integration.organizationId,
+          threadId,
+          promptMessageId: messageId,
+          transcript,
+          systemPrompt,
+          conversationStatus: status,
+          enabledToolIds,
+          greetMessage: widgetSettings?.greetMessage,
+        })
+      } else if (status === "unresolved") {
+        replyText =
+          "Rahmat, xabaringiz qabul qilindi. Operator tez orada javob beradi."
+      }
+    } else if (status === "unresolved" && subscription?.status === "active") {
       replyText =
         (await generateChannelReply(ctx, {
           organizationId: integration.organizationId,
           threadId,
-          text,
+          text: customerText,
           systemPrompt,
           conversationStatus: status,
           enabledToolIds,
@@ -685,7 +744,7 @@ export const handleIncomingUpdate: any = internalAction({
     } else {
       await saveMessage(ctx, components.agent, {
         threadId,
-        prompt: text,
+        prompt: customerText,
       })
 
       if (status === "unresolved") {
@@ -708,7 +767,7 @@ export const handleIncomingUpdate: any = internalAction({
           conversationId,
           threadId,
           contactSessionId,
-          prompt: text,
+          prompt: customerText,
           source: "telegram",
           telegramChatId: chatIdString,
           telegramUsername: from?.username,
@@ -801,5 +860,52 @@ export const sendConversationMessage: any = internalAction({
     }
 
     return { sent: true }
+  },
+})
+
+export const getContactById = internalQuery({
+  args: { telegramContactId: v.id("telegramContacts") },
+  handler: async (ctx, args) => await ctx.db.get(args.telegramContactId),
+})
+
+/**
+ * Writes to a Telegram contact outside any conversation — a broadcast. A bot
+ * may message anyone who has started it, which is everyone in this table.
+ */
+export const sendToContact: any = internalAction({
+  args: {
+    telegramContactId: v.id("telegramContacts"),
+    text: v.string(),
+  },
+  handler: async (ctx, args): Promise<{ sent: boolean; error?: string }> => {
+    const contact = await ctx.runQuery(
+      (internal as any).system.telegram.getContactById,
+      { telegramContactId: args.telegramContactId }
+    )
+    const integration = contact
+      ? ((await ctx.runQuery(
+          (internal as any).system.telegram.getIntegrationById,
+          { integrationId: contact.integrationId }
+        )) as TelegramIntegration | null)
+      : null
+
+    if (!contact || !integration?.isEnabled) {
+      return { sent: false, error: "Telegram is not connected" }
+    }
+
+    try {
+      await sendTelegramMessage({
+        botToken: integration.botToken,
+        chatId: contact.chatId,
+        text: args.text,
+      })
+
+      return { sent: true }
+    } catch (error) {
+      return {
+        sent: false,
+        error: error instanceof Error ? error.message : "Send failed",
+      }
+    }
   },
 })

@@ -43,19 +43,26 @@ import {
   EyeOffIcon,
   GaugeIcon,
   GlobeLockIcon,
+  LayoutGridIcon,
   Loader2Icon,
+  MessagesSquareIcon,
+  PhoneIcon,
   PlusIcon,
   ShieldCheckIcon,
   SlidersHorizontalIcon,
   Trash2Icon,
+  ZapIcon,
 } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 
-import { ConsolePage } from "@/modules/dashboard/ui/components/console"
+import { ConsolePage, Pill } from "@/modules/dashboard/ui/components/console"
 import {
+  FigureStrip,
+  PageBar,
   ReportFilter,
   ReportSection,
+  StripFigure,
 } from "@/modules/dashboard/ui/components/report"
 import {
   SetupPanelSkeleton,
@@ -204,33 +211,15 @@ const SAFEGUARDS = [
   },
 ]
 
-const Figure = ({
-  label,
-  value,
-  note,
-}: {
-  label: string
-  value: React.ReactNode
-  note: string
-}) => (
-  <div className="report-figure flex flex-col gap-3 px-1 py-5 sm:px-5 md:first:pl-0">
-    <p className="console-label">{label}</p>
-    <p className="report-figure-value">{value}</p>
-    <p className="text-xs leading-snug text-muted-foreground">{note}</p>
-  </div>
-)
-
 /** Drawn in the loaded page's grid so nothing jumps when tools arrive. */
 const ToolsSkeleton = () => (
   <ConsolePage width="wide">
-    <div aria-busy="true" className="report" role="status">
+    <div aria-busy="true" className="report flex flex-col gap-4" role="status">
       <span className="sr-only">Loading assistant tools</span>
       <SkeletonHero />
       <SkeletonFigures />
-      <div className="mt-10">
-        <SkeletonFilters count={3} />
-      </div>
-      <div className="grid gap-10 pt-8 lg:grid-cols-[19rem_minmax(0,1fr)] lg:gap-14">
+      <SkeletonFilters count={3} />
+      <div className="grid gap-4 lg:grid-cols-[19rem_minmax(0,1fr)]">
         <div className="space-y-3">
           <Skeleton className="h-9 w-full rounded-full" />
           <SkeletonRows avatar className="border-t-0" count={6} trailing={0} />
@@ -1260,14 +1249,6 @@ export const AssistantToolsView = () => {
   const voiceCount = tools.filter(
     (tool) => tool.isEnabled && tool.enabledForVoice
   ).length
-  const liveVendors = [
-    ...new Set(
-      liveTools
-        .filter((tool) => !tool.isBuiltin)
-        .map((tool) => resolveToolPresentation(tool).vendor)
-    ),
-  ]
-
   const goToLibrary = () => guardUnsaved(() => setSection("catalog"))
   const lowerFirst = (text: string) =>
     text.charAt(0).toLowerCase() + text.slice(1)
@@ -1301,162 +1282,93 @@ export const AssistantToolsView = () => {
   /* ── hero ──────────────────────────────────────────────────────────── */
 
   const hero = (
-    <section className="pt-2 pb-10">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="console-eyebrow">Assistant tools</p>
-        {section === "catalog" ? null : (
-          <Button onClick={goToLibrary} size="sm" type="button">
-            <PlusIcon data-icon="inline-start" />
-            Add a tool
-          </Button>
-        )}
-      </div>
+    <div className="flex flex-col gap-3">
+      <PageBar
+        actions={
+          section === "catalog" ? null : (
+            <Button onClick={goToLibrary} size="sm" type="button">
+              <PlusIcon data-icon="inline-start" />
+              Add a tool
+            </Button>
+          )
+        }
+        hint={
+          integrationTools.length
+            ? "What your assistant can look up and do in the apps you already use — while the customer is still chatting."
+            : "Connect the apps you already use and your assistant can check an order, book a meeting or add a lead — while the customer is still chatting."
+        }
+        meta={
+          attentionTools.length ? (
+            <Pill tone="warning">
+              {attentionTools.length}{" "}
+              {attentionTools.length === 1 ? "needs attention" : "need attention"}
+            </Pill>
+          ) : integrationTools.length && !liveTools.length ? (
+            <Pill tone="neutral">All connected apps switched off</Pill>
+          ) : null
+        }
+        title="Assistant tools"
+      />
 
       {attentionTools.length ? (
-        <>
-          <h1 className="report-headline mt-6 max-w-[22ch]">
-            <span className="report-headline-figure">
-              {attentionTools.length}{" "}
-              {attentionTools.length === 1 ? "tool" : "tools"}
-            </span>{" "}
-            {attentionTools.length === 1 ? "needs" : "need"} a minute of your
-            time.
-          </h1>
-          <p className="report-lede mt-5 max-w-[64ch]">
-            {attentionTools.slice(0, 3).map((tool, index) => (
-              <span key={tool._id}>
-                {index > 0 ? " " : null}
-                <button
-                  className="font-semibold text-foreground underline decoration-[var(--outcome-open)] decoration-2 underline-offset-4"
-                  onClick={() => openToolAndReveal(tool)}
-                  type="button"
-                >
-                  {toolDisplayName(tool)}
-                </button>
-                : {lowerFirst(statuses.get(tool._id)?.label ?? "")}.
-              </span>
-            ))}
-            {attentionTools.length > 3
-              ? ` And ${attentionTools.length - 3} more.`
-              : null}{" "}
-            Until then your assistant can&apos;t use{" "}
-            {attentionTools.length === 1 ? "it" : "them"}
-            {liveTools.length ? (
-              <>
-                {" "}
-                — the other <strong>{liveTools.length}</strong>{" "}
-                {liveTools.length === 1 ? "is" : "are"} working normally.
-              </>
-            ) : (
-              "."
-            )}
-          </p>
-        </>
-      ) : integrationTools.length && liveTools.length ? (
-        <>
-          <h1 className="report-headline mt-6 max-w-[22ch]">
-            Your assistant can{" "}
-            <span className="report-headline-figure">
-              do {liveTools.length}{" "}
-              {liveTools.length === 1 ? "thing" : "things"}
-            </span>{" "}
-            for your customers.
-          </h1>
-          <p className="report-lede mt-5 max-w-[64ch]">
-            {liveVendors.length ? (
-              <>
-                It looks things up and takes action in{" "}
-                {liveVendors.slice(0, 3).map((vendor, index, list) => (
-                  <span key={vendor}>
-                    {index > 0
-                      ? index === list.length - 1
-                        ? " and "
-                        : ", "
-                      : null}
-                    <strong>{vendor}</strong>
-                  </span>
-                ))}
-                {liveVendors.length > 3
-                  ? ` and ${liveVendors.length - 3} more`
-                  : null}
-                , while the customer is still talking to it.{" "}
-              </>
-            ) : null}
-            <strong>{chatCount}</strong>{" "}
-            {chatCount === 1 ? "tool works" : "tools work"} in chat and{" "}
-            <strong>{voiceCount}</strong> on voice calls.
-          </p>
-        </>
-      ) : integrationTools.length ? (
-        <>
-          <h1 className="report-headline mt-6 max-w-[22ch]">
-            Your connected apps are all switched off.
-          </h1>
-          <p className="report-lede mt-5 max-w-[64ch]">
-            Your assistant still searches your knowledge base and passes chats
-            to your team, but it won&apos;t use any of the{" "}
-            <strong>{integrationTools.length}</strong> apps you connected until
-            you turn one back on.
-          </p>
-        </>
-      ) : (
-        <>
-          <h1 className="report-headline mt-6 max-w-[20ch]">
-            Let your assistant{" "}
-            <span className="report-headline-figure">get things done</span>, not
-            just answer.
-          </h1>
-          <p className="report-lede mt-5 max-w-[64ch]">
-            Right now it can search your knowledge base, pass a chat to your
-            team and close finished conversations. Connect the apps you already
-            use and it can check an order, book a meeting or add a lead to your
-            CRM — while the customer is still chatting.
-          </p>
-          {section === "catalog" ? null : (
-            <Button
-              className="mt-7"
-              onClick={goToLibrary}
-              type="button"
-              variant="outline"
-            >
-              Browse {ADDABLE_BLUEPRINTS.length} ready-made tools
-              <ArrowRightIcon data-icon="inline-end" />
-            </Button>
-          )}
-        </>
-      )}
-    </section>
+        <p className="console-card flex flex-wrap items-center gap-x-4 gap-y-1 border-[var(--outcome-open)]/40 px-4 py-2.5 text-sm text-muted-foreground">
+          {attentionTools.slice(0, 4).map((tool) => (
+            <span key={tool._id}>
+              <button
+                className="font-semibold text-foreground underline decoration-[var(--outcome-open)] decoration-2 underline-offset-4"
+                onClick={() => openToolAndReveal(tool)}
+                type="button"
+              >
+                {toolDisplayName(tool)}
+              </button>
+              : {lowerFirst(statuses.get(tool._id)?.label ?? "")}
+            </span>
+          ))}
+          {attentionTools.length > 4 ? (
+            <span>+{attentionTools.length - 4}</span>
+          ) : null}
+        </p>
+      ) : null}
+    </div>
   )
 
   const figures = (
-    <div className="report-figures grid grid-cols-2 md:grid-cols-4">
-      <Figure
+    <FigureStrip className="md:grid-cols-4">
+      <StripFigure
+        icon={ZapIcon}
+        tone="positive"
         label="Working now"
         note={`Out of ${tools.length} ${tools.length === 1 ? "tool" : "tools"}`}
         value={liveTools.length}
       />
-      <Figure
+      <StripFigure
+        icon={MessagesSquareIcon}
+        tone="info"
         label="In chat"
         note="Website widget and messaging apps"
         value={chatCount}
       />
-      <Figure
+      <StripFigure
+        icon={PhoneIcon}
+        tone="accent"
         label="On voice calls"
         note="Your voice assistant"
         value={voiceCount}
       />
-      <Figure
+      <StripFigure
+        icon={LayoutGridIcon}
+        tone="warning"
         label="Ready to add"
         note={`From ${ADDABLE_VENDOR_COUNT} apps`}
         value={ADDABLE_BLUEPRINTS.length}
       />
-    </div>
+    </FigureStrip>
   )
 
   /* ── editor: overview ──────────────────────────────────────────────── */
 
   const overviewTab = (
-    <div className="space-y-12">
+    <div className="space-y-8">
       <section>
         <h3 className="report-section-title">
           {isToolReady ? "Ready to use" : "Finish setting up"}
@@ -2237,7 +2149,7 @@ export const AssistantToolsView = () => {
   )
 
   const developerDetails = (
-    <div className="mt-12 border-t border-[var(--report-rule)]">
+    <div className="mt-8 border-t border-[var(--report-rule)]">
       {selectedToolType === "api_request" ? (
         <Disclosure summary="For developers: request body">
           {(editor.config.method ?? "POST") === "POST" ? (
@@ -2406,7 +2318,7 @@ export const AssistantToolsView = () => {
         Type what a customer might tell your assistant, run the tool, and read
         exactly what comes back.
       </p>
-      <div className="mt-8">
+      <div className="mt-4">
         <ToolTestConsole
           blockedReason={testBlockedReason}
           key={`test-${String(selectedToolId ?? "new")}`}
@@ -2554,7 +2466,7 @@ export const AssistantToolsView = () => {
       </div>
 
       <div
-        className="tools-savebar mt-12 flex flex-wrap items-center gap-2 py-2 pr-2 pl-5"
+        className="tools-savebar mt-6 flex flex-wrap items-center gap-2 py-2 pr-2 pl-5"
         data-dirty={isDirty || undefined}
       >
         <p
@@ -2613,23 +2525,23 @@ export const AssistantToolsView = () => {
   /* ── nothing selected ──────────────────────────────────────────────── */
 
   const startPanel = (
-    <div className="setup-panel min-w-0 pb-10" key="start">
-      <h2 className="setup-panel-title max-w-[22ch]">
+    <div className="setup-panel min-w-0" key="start">
+      <h2 className="setup-panel-title">
         Pick a tool on the left to change what it does.
       </h2>
-      <p className="report-lede mt-5 max-w-[60ch]">
+      <p className="report-lede mt-1.5">
         Or give your assistant something new to do. These are where most
         businesses start:
       </p>
 
-      <ul className="mt-8">
+      <ul className="mt-4">
         {FEATURED_BLUEPRINTS.slice(0, 5).map((blueprint) => {
           const needsGoogle = blueprint.requiresGoogle && !isGoogleConnected
           const installed = installedCounts[blueprint.id] ?? 0
 
           return (
             <li
-              className="setup-row grid grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-4 px-2 py-3.5"
+              className="setup-row grid grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-3 px-2 py-2.5"
               key={blueprint.id}
             >
               <BrandMark brand={blueprint.brand} icon={blueprint.icon} />
@@ -2666,8 +2578,9 @@ export const AssistantToolsView = () => {
       </ul>
 
       <Button
-        className="mt-7"
+        className="mt-4"
         onClick={goToLibrary}
+        size="sm"
         type="button"
         variant="outline"
       >
@@ -2681,12 +2594,12 @@ export const AssistantToolsView = () => {
 
   return (
     <ConsolePage width="wide">
-      <div className="report setup tools">
+      <div className="report setup tools flex flex-col gap-4">
         {hero}
         {figures}
 
         <div
-          className="mt-10 border-b border-[var(--report-rule)]"
+          className="border-b border-[var(--report-rule)]"
           ref={sectionsRef}
         >
           <div
@@ -2714,7 +2627,7 @@ export const AssistantToolsView = () => {
         </div>
 
         {section === "tools" ? (
-          <div className="grid gap-10 pt-8 lg:grid-cols-[19rem_minmax(0,1fr)] lg:gap-14">
+          <div className="grid items-start gap-4 lg:grid-cols-[19rem_minmax(0,1fr)]">
             <ToolIndex
               draft={
                 isNewTool
@@ -2735,14 +2648,17 @@ export const AssistantToolsView = () => {
               tools={tools}
             />
 
-            <div className="min-w-0 scroll-mt-6" ref={panelRef}>
+            <div
+              className="console-card min-w-0 scroll-mt-6 p-5"
+              ref={panelRef}
+            >
               {showEditor ? editorPanel : startPanel}
             </div>
           </div>
         ) : null}
 
         {section === "catalog" ? (
-          <div className="pt-8">
+          <div>
             <ToolCatalog
               category={catalogCategory}
               installedCounts={installedCounts}
@@ -2758,9 +2674,8 @@ export const AssistantToolsView = () => {
         ) : null}
 
         {section === "connections" ? (
-          <div className="pb-6">
+          <div className="grid items-start gap-4 xl:grid-cols-2">
             <ReportSection
-              index={1}
               lede="Sign in once here. Every tool that uses the account shares the same connection."
               title="Connected accounts"
             >
@@ -2794,7 +2709,6 @@ export const AssistantToolsView = () => {
             </ReportSection>
 
             <ReportSection
-              index={2}
               lede="Every outside address your tools reach, the key each one uses, and whether that key has actually been filled in."
               title="Apps your assistant calls"
             >
@@ -2805,17 +2719,17 @@ export const AssistantToolsView = () => {
             </ReportSection>
 
             <ReportSection
-              index={3}
+              className="xl:col-span-2"
               lede="What happens between your assistant deciding to use a tool and the answer coming back."
               title="How tool calls stay safe"
             >
-              <ul className="grid gap-x-10 md:grid-cols-2">
+              <ul className="grid gap-x-8 md:grid-cols-2 2xl:grid-cols-3">
                 {SAFEGUARDS.map((entry) => {
                   const SafeguardIcon = entry.icon
 
                   return (
                     <li
-                      className="tools-field flex items-start gap-4 py-5"
+                      className="tools-field flex items-start gap-3 py-3"
                       key={entry.title}
                     >
                       <span className="setup-glyph size-9">

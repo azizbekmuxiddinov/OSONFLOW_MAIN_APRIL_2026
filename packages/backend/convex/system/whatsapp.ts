@@ -8,9 +8,18 @@ import {
 } from "../_generated/server"
 import { SESSION_DURATION_MS } from "../constants"
 import { checkRateLimit } from "../lib/rateLimits"
+import { carryBroadcastIntoThread } from "../lib/broadcastContext"
 import { supportAgent } from "./ai/agents/supportAgent"
 import { SUPPORT_AGENT_PROMPT } from "./ai/constants"
-import { generateChannelReply } from "../lib/chatReply"
+import {
+  generateChannelReply,
+  replyToChannelVoiceNote,
+} from "../lib/chatReply"
+import {
+  VOICE_NOTE_PLACEHOLDER,
+  downloadWhatsAppAudio,
+  saveCustomerVoiceNote,
+} from "../lib/voiceNotes"
 
 type WhatsAppIntegration = {
   _id: any
@@ -32,6 +41,12 @@ type WhatsAppMessage = {
   timestamp?: string
   text?: {
     body?: string
+  }
+  /** Voice notes arrive as `audio` with `voice: true`; files as plain audio. */
+  audio?: {
+    id?: string
+    mime_type?: string
+    voice?: boolean
   }
 }
 
@@ -496,6 +511,8 @@ export const getOrCreateWhatsAppConversation = internalMutation({
       unreadForOperatorCount: 0,
     })
 
+    await carryBroadcastIntoThread(ctx, { contactSessionId, threadId })
+
     await ctx.db.patch(whatsappContact._id, {
       activeConversationId: conversationId,
       updatedAt: now,
@@ -560,11 +577,13 @@ const handleIncomingMessage = async ({
   message: WhatsAppMessage
   contact?: WhatsAppContact
 }) => {
-  const text = message.text?.body?.trim()
+  const text =
+    message.type === "text" ? message.text?.body?.trim() : undefined
+  const audioId = message.type === "audio" ? message.audio?.id : undefined
   const waId = contact?.wa_id || message.from
   const profileName = contact?.profile?.name?.trim()
 
-  if (!text || !waId || message.type !== "text") {
+  if (!waId || (!text && !audioId)) {
     return { handled: false }
   }
 
@@ -624,13 +643,46 @@ const handleIncomingMessage = async ({
   const enabledToolIds = widgetSettings?.enabledToolIds
 
   let replyText: string | null = null
+  let customerText = text ?? ""
 
-  if (status === "unresolved" && subscription?.status === "active") {
+  if (audioId) {
+    const audio = await downloadWhatsAppAudio({
+      accessToken: integration.accessToken,
+      mediaId: audioId,
+      graphApiVersion: WHATSAPP_GRAPH_API_VERSION,
+    })
+    const { messageId, transcript } = await saveCustomerVoiceNote(ctx, {
+      organizationId: integration.organizationId,
+      conversationId,
+      threadId,
+      contactSessionId,
+      audio,
+      transcribe: subscription?.status === "active",
+    })
+
+    customerText = transcript ?? VOICE_NOTE_PLACEHOLDER
+
+    if (status === "unresolved" && subscription?.status === "active") {
+      replyText = await replyToChannelVoiceNote(ctx, {
+        organizationId: integration.organizationId,
+        threadId,
+        promptMessageId: messageId,
+        transcript,
+        systemPrompt,
+        conversationStatus: status,
+        enabledToolIds,
+        greetMessage: widgetSettings?.greetMessage,
+      })
+    } else if (status === "unresolved") {
+      replyText =
+        "Rahmat, xabaringiz qabul qilindi. Operator tez orada javob beradi."
+    }
+  } else if (status === "unresolved" && subscription?.status === "active") {
     replyText =
       (await generateChannelReply(ctx, {
         organizationId: integration.organizationId,
         threadId,
-        text,
+        text: customerText,
         systemPrompt,
         conversationStatus: status,
         enabledToolIds,
@@ -638,7 +690,7 @@ const handleIncomingMessage = async ({
   } else {
     await saveMessage(ctx, components.agent, {
       threadId,
-      prompt: text,
+      prompt: customerText,
     })
 
     if (status === "unresolved") {
@@ -661,7 +713,7 @@ const handleIncomingMessage = async ({
         conversationId,
         threadId,
         contactSessionId,
-        prompt: text,
+        prompt: customerText,
         source: "whatsapp",
         whatsappPhoneNumber: waId,
         whatsappProfileName: profileName,
@@ -770,5 +822,55 @@ export const sendConversationMessage: any = internalAction({
     }
 
     return { sent: true }
+  },
+})
+
+export const getContactById = internalQuery({
+  args: { whatsappContactId: v.id("whatsappContacts") },
+  handler: async (ctx, args) => await ctx.db.get(args.whatsappContactId),
+})
+
+/**
+ * Writes to a WhatsApp contact outside any conversation — a broadcast. A free
+ * text message is only allowed within 24 hours of the person's last message,
+ * which the broadcast audience already respects; later ones need an approved
+ * template, which Osonflow does not send.
+ */
+export const sendToContact: any = internalAction({
+  args: {
+    whatsappContactId: v.id("whatsappContacts"),
+    text: v.string(),
+  },
+  handler: async (ctx, args): Promise<{ sent: boolean; error?: string }> => {
+    const contact = await ctx.runQuery(
+      (internal as any).system.whatsapp.getContactById,
+      { whatsappContactId: args.whatsappContactId }
+    )
+    const integration = contact
+      ? ((await ctx.runQuery(
+          (internal as any).system.whatsapp.getIntegrationById,
+          { integrationId: contact.integrationId }
+        )) as WhatsAppIntegration | null)
+      : null
+
+    if (!contact || !integration?.isEnabled) {
+      return { sent: false, error: "WhatsApp is not connected" }
+    }
+
+    try {
+      await sendWhatsAppMessage({
+        accessToken: integration.accessToken,
+        phoneNumberId: integration.phoneNumberId,
+        recipientPhone: contact.waId,
+        text: args.text,
+      })
+
+      return { sent: true }
+    } catch (error) {
+      return {
+        sent: false,
+        error: error instanceof Error ? error.message : "Send failed",
+      }
+    }
   },
 })

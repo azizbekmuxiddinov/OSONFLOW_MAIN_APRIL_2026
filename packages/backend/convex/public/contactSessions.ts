@@ -6,6 +6,7 @@ import { internal } from "../_generated/api"
 import type { Id } from "../_generated/dataModel"
 import { enforceRateLimit } from "../lib/rateLimits"
 import { ANONYMOUS_EMAIL_DOMAIN } from "../lib/contactSessionIdentity"
+import { scheduleTeamAlert } from "../lib/teamAlertHooks"
 
 export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 export const NAME_MAX_LENGTH = 40
@@ -254,6 +255,11 @@ export const createRecord = internalMutation({
       }
     )
 
+    await scheduleTeamAlert(ctx, args.organizationId, {
+      kind: "lead",
+      contactSessionId,
+    })
+
     return contactSessionId
   },
 })
@@ -423,6 +429,14 @@ export const identifyRecord = internalMutation({
         },
       }
     )
+
+    // Only a visitor becoming known is news; re-entering details is not.
+    if (session.isAnonymous) {
+      await scheduleTeamAlert(ctx, args.organizationId, {
+        kind: "lead",
+        contactSessionId: args.contactSessionId,
+      })
+    }
 
     return { name, email }
   },

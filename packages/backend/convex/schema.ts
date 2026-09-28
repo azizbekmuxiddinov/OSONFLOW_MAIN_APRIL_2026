@@ -407,6 +407,54 @@ const aiSetupPlanValidator = v.object({
   knowledgeDocs: v.array(aiSetupKnowledgeDocValidator),
 })
 
+/* ── team alerts, learned answers, follow-ups, replays ─────────────────── */
+
+/** The dashboard languages; bot messages and replay notes follow the person. */
+const teamLanguageValidator = v.union(
+  v.literal("en"),
+  v.literal("uz"),
+  v.literal("ru")
+)
+
+const teamAlertTypeValidator = v.union(
+  v.literal("handoff"),
+  v.literal("waiting"),
+  v.literal("upset"),
+  v.literal("lead"),
+  v.literal("digest"),
+  v.literal("question"),
+  v.literal("test")
+)
+
+const teamAlertPreferencesValidator = v.object({
+  handoff: v.boolean(),
+  waiting: v.boolean(),
+  upset: v.boolean(),
+  lead: v.boolean(),
+  digest: v.boolean(),
+})
+
+/** Where a customer can be written to first: a messaging app, not a website. */
+const broadcastChannelValidator = v.union(
+  v.literal("telegram"),
+  v.literal("instagram"),
+  v.literal("whatsapp")
+)
+
+const followUpChannelValidator = v.union(
+  v.literal("widget"),
+  v.literal("telegram"),
+  v.literal("instagram"),
+  v.literal("whatsapp")
+)
+
+const replayVerdictValidator = v.union(
+  v.literal("same"),
+  v.literal("better"),
+  v.literal("worse"),
+  v.literal("different")
+)
+
 export default defineSchema({
   subscriptions: defineTable({
     organizationId: v.string(),
@@ -1193,4 +1241,216 @@ export default defineSchema({
     .index("by_organization_id_and_day", ["organizationId", "day"])
     .index("by_key_id_and_day_and_shard", ["keyId", "day", "shard"])
     .index("by_day", ["day"]),
+
+  /* ── team alerts in Telegram ──────────────────────────────────────────── */
+
+  /**
+   * A team member's own chat with the Osonflow team bot. Alerts go here, and a
+   * reply to an alert goes back to the customer as that team member.
+   */
+  teamTelegramLinks: defineTable({
+    organizationId: v.string(),
+    userId: v.string(),
+    userName: v.string(),
+    chatId: v.string(),
+    telegramUsername: v.optional(v.string()),
+    telegramName: v.optional(v.string()),
+    language: teamLanguageValidator,
+    alerts: teamAlertPreferencesValidator,
+    isPaused: v.optional(v.boolean()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_organization_id", ["organizationId"])
+    .index("by_organization_id_and_user_id", ["organizationId", "userId"])
+    .index("by_chat_id", ["chatId"]),
+
+  /** The one-time code behind a "Connect Telegram" link. */
+  teamTelegramLinkCodes: defineTable({
+    code: v.string(),
+    organizationId: v.string(),
+    userId: v.string(),
+    userName: v.string(),
+    language: teamLanguageValidator,
+    expiresAt: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_code", ["code"])
+    .index("by_organization_id_and_user_id", ["organizationId", "userId"]),
+
+  /**
+   * Which bot message stood for which conversation or question, so that a
+   * reply to it in Telegram lands in the right place.
+   */
+  teamTelegramMessages: defineTable({
+    organizationId: v.string(),
+    chatId: v.string(),
+    messageId: v.number(),
+    alertType: teamAlertTypeValidator,
+    conversationId: v.optional(v.id("conversations")),
+    learnedAnswerId: v.optional(v.id("learnedAnswers")),
+    createdAt: v.number(),
+  })
+    .index("by_chat_id_and_message_id", ["chatId", "messageId"])
+    .index("by_conversation_id", ["conversationId"]),
+
+  /* ── learned answers ──────────────────────────────────────────────────── */
+
+  /**
+   * A question the assistant should be able to answer: one a team member
+   * already answered in a chat, or one the assistant could not. Approving it
+   * writes it into the knowledge base.
+   */
+  learnedAnswers: defineTable({
+    organizationId: v.string(),
+    question: v.string(),
+    answer: v.string(),
+    /** The question normalised, so a repeated gap is counted, not duplicated. */
+    questionKey: v.string(),
+    status: v.union(
+      v.literal("suggested"),
+      v.literal("needs_answer"),
+      v.literal("approved"),
+      v.literal("dismissed")
+    ),
+    source: v.union(
+      v.literal("team_reply"),
+      v.literal("unanswered"),
+      v.literal("telegram"),
+      v.literal("manual")
+    ),
+    conversationId: v.optional(v.id("conversations")),
+    askedCount: v.number(),
+    knowledgeEntryId: v.optional(v.string()),
+    answeredBy: v.optional(v.string()),
+    answeredByName: v.optional(v.string()),
+    approvedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_organization_id_and_status", ["organizationId", "status"])
+    .index("by_organization_id_and_question_key", [
+      "organizationId",
+      "questionKey",
+    ])
+    .index("by_conversation_id", ["conversationId"]),
+
+  /** When a conversation's team replies were last read for learned answers. */
+  learningScans: defineTable({
+    conversationId: v.id("conversations"),
+    organizationId: v.string(),
+    scannedAt: v.number(),
+  }).index("by_conversation_id", ["conversationId"]),
+
+  /* ── follow-ups and broadcasts ────────────────────────────────────────── */
+
+  followUpSettings: defineTable({
+    organizationId: v.string(),
+    enabled: v.boolean(),
+    /** How long a customer has to stay quiet before the follow-up goes out. */
+    delayMinutes: v.number(),
+    /** "ai" writes it from the conversation; "fixed" sends `message` as is. */
+    mode: v.union(v.literal("ai"), v.literal("fixed")),
+    message: v.string(),
+    channels: v.object({
+      widget: v.boolean(),
+      telegram: v.boolean(),
+      instagram: v.boolean(),
+      whatsapp: v.boolean(),
+    }),
+    updatedAt: v.number(),
+    updatedBy: v.optional(v.string()),
+  }).index("by_organization_id", ["organizationId"]),
+
+  followUps: defineTable({
+    organizationId: v.string(),
+    conversationId: v.id("conversations"),
+    channel: followUpChannelValidator,
+    status: v.union(v.literal("sent"), v.literal("failed")),
+    text: v.string(),
+    error: v.optional(v.string()),
+    sentAt: v.number(),
+  })
+    .index("by_conversation_id", ["conversationId"])
+    .index("by_organization_id_and_sent_at", ["organizationId", "sentAt"]),
+
+  broadcasts: defineTable({
+    organizationId: v.string(),
+    message: v.string(),
+    channels: v.array(broadcastChannelValidator),
+    /** Telegram audience: people who wrote within this many days; unset = all. */
+    telegramActiveWithinDays: v.optional(v.number()),
+    status: v.union(
+      v.literal("sending"),
+      v.literal("sent"),
+      v.literal("cancelled")
+    ),
+    totalRecipients: v.number(),
+    sentCount: v.number(),
+    failedCount: v.number(),
+    createdBy: v.optional(v.string()),
+    createdByName: v.optional(v.string()),
+    createdAt: v.number(),
+    finishedAt: v.optional(v.number()),
+  }).index("by_organization_id", ["organizationId"]),
+
+  broadcastRecipients: defineTable({
+    broadcastId: v.id("broadcasts"),
+    organizationId: v.string(),
+    channel: broadcastChannelValidator,
+    /** Id of the telegramContacts, instagramContacts or whatsappContacts row. */
+    channelContactId: v.string(),
+    contactSessionId: v.id("contactSessions"),
+    firstName: v.optional(v.string()),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("sent"),
+      v.literal("failed")
+    ),
+    /**
+     * The words this person received. If they answer, the conversation that
+     * starts opens with it, so the assistant knows what they are replying to.
+     */
+    text: v.optional(v.string()),
+    error: v.optional(v.string()),
+    sentAt: v.optional(v.number()),
+  })
+    .index("by_broadcast_id_and_status", ["broadcastId", "status"])
+    .index("by_contact_session_id", ["contactSessionId"]),
+
+  /* ── test before publishing ───────────────────────────────────────────── */
+
+  /**
+   * Real customer questions answered again with the draft settings, next to
+   * what those customers were actually told.
+   */
+  replayRuns: defineTable({
+    organizationId: v.string(),
+    agentId: v.string(),
+    createdBy: v.optional(v.string()),
+    language: teamLanguageValidator,
+    status: v.union(
+      v.literal("running"),
+      v.literal("judging"),
+      v.literal("done"),
+      v.literal("failed")
+    ),
+    total: v.number(),
+    completed: v.number(),
+    items: v.array(
+      v.object({
+        question: v.string(),
+        before: v.string(),
+        after: v.optional(v.string()),
+        verdict: v.optional(replayVerdictValidator),
+        note: v.optional(v.string()),
+        /** Tools the draft reached for; none of them actually ran. */
+        actions: v.optional(v.array(v.string())),
+      })
+    ),
+    error: v.optional(v.string()),
+    draftUpdatedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    finishedAt: v.optional(v.number()),
+  }).index("by_organization_id_and_agent_id", ["organizationId", "agentId"]),
 })

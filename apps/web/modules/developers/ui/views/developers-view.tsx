@@ -7,9 +7,12 @@ import type { FunctionReturnType } from "convex/server"
 import { formatDistanceToNowStrict } from "date-fns"
 import {
   ArrowUpRightIcon,
+  ActivityIcon,
   CheckIcon,
-  ClipboardCopyIcon,
+  CircleAlertIcon,
   KeyRoundIcon,
+  SparklesIcon,
+  ClipboardCopyIcon,
   Loader2Icon,
   MoreHorizontalIcon,
   PlusIcon,
@@ -60,11 +63,15 @@ import { copyTextToClipboard } from "@/lib/clipboard"
 import {
   ConsolePage,
   ConsoleSkeleton,
+  Pill,
 } from "@/modules/dashboard/ui/components/console"
 import {
+  FigureStrip,
+  PageBar,
   ReportFilter,
   ReportQuiet,
   ReportSection,
+  StripFigure,
 } from "@/modules/dashboard/ui/components/report"
 import {
   KeyDialog,
@@ -378,7 +385,7 @@ const UsageChart = ({ usage }: { usage: Usage }) => {
 
   return (
     <figure className="w-full">
-      <figcaption aria-live="polite" className="mb-4 min-h-[3.25rem]">
+      <figcaption aria-live="polite" className="mb-3 min-h-[2.75rem]">
         <p className="report-figure-value">
           {formatNumber(shown.requests)}{" "}
           <span className="text-base font-normal tracking-normal text-muted-foreground">
@@ -786,174 +793,183 @@ export const DevelopersView = () => {
 
   return (
     <ConsolePage width="wide">
-      <div className="report setup">
-        {/* Hero */}
-        <section className="pt-2 pb-10">
-          <p className="console-eyebrow">Developer API</p>
-          <h1 className="report-headline mt-6 max-w-[22ch]">
-            Connect your own software to{" "}
-            <span className="report-headline-figure">Osonflow</span>.
-          </h1>
-          <p className="report-lede mt-5 max-w-[64ch]">
-            Keys let your developers start chats, read conversations, keep the
-            knowledge base up to date and more — from your website, app or CRM.
-            Each key has its own permissions and limits, and you can switch any
-            of them off in one click.
-          </p>
-          <div className="mt-7 flex flex-wrap items-center gap-3">
-            <Button disabled={!overview.enabled} onClick={openCreate}>
-              <PlusIcon data-icon="inline-start" />
-              Create key
-            </Button>
-            <Button asChild variant="outline">
-              <Link href={DOCS_PATH} rel="noopener" target="_blank">
-                Read the documentation
-                <ArrowUpRightIcon data-icon="inline-end" />
-              </Link>
-            </Button>
-          </div>
-
-          {!overview.platformEnabled ? (
-            <div
-              className="setup-callout mt-6 max-w-2xl text-sm"
-              data-tone="error"
-            >
-              The developer API is switched off on this Osonflow installation.
-            </div>
-          ) : null}
-          {overview.requiresSubscription ? (
-            <div
-              className="setup-callout mt-6 max-w-2xl text-sm"
-              data-tone="info"
-            >
-              The developer API is part of paid plans. Keys work once your
-              organization has an active plan.
-            </div>
-          ) : null}
-
-          <div className="mt-8 max-w-2xl">
-            {overview.baseUrl ? (
-              <CopyField label="Base URL" value={overview.baseUrl} />
-            ) : null}
-            <div className="setup-field flex items-center justify-between gap-4 py-3">
-              <div className="min-w-0">
-                <Label className="text-sm font-medium" htmlFor="devapi-enabled">
-                  API access
-                </Label>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  {overview.enabled
-                    ? "On. Keys below can be used."
-                    : "Off. Every key is refused until you turn it back on; their settings are kept."}
-                </p>
-              </div>
-              <Switch
-                checked={overview.enabled}
-                id="devapi-enabled"
-                onCheckedChange={(checked) => void onToggleApi(checked)}
-              />
-            </div>
-          </div>
-        </section>
-
-        {/* Figures */}
-        <section className="report-figures grid grid-cols-2 md:grid-cols-4">
-          {[
-            { label: "Calls today", value: usage?.today.requests },
-            { label: "AI calls today", value: usage?.today.aiRequests },
-            { label: "Failed today", value: usage?.today.errors },
-            { label: "Active keys", value: activeKeys.length },
-          ].map((figure) => (
-            <div
-              className="report-figure px-4 py-5 first:pl-0"
-              key={figure.label}
-            >
-              <p className="console-label">{figure.label}</p>
-              <p className="report-figure-value mt-3">
-                {figure.value === undefined ? "—" : formatNumber(figure.value)}
-              </p>
-            </div>
-          ))}
-        </section>
-
-        {/* 01 · Keys */}
-        <ReportSection
-          index={1}
-          lede={`Only show a key to the person or system that needs it. You can have up to ${overview.maxKeys} active keys.`}
-          title="Your keys"
-        >
-          {overview.keys.length === 0 ? (
-            <div className="flex flex-col items-start gap-4 py-4">
-              <span className="setup-glyph size-11" data-size="lg">
-                <KeyRoundIcon className="size-5" />
-              </span>
-              <div>
-                <p className="text-sm font-medium">No keys yet</p>
-                <p className="mt-1 max-w-[52ch] text-sm text-muted-foreground">
-                  Create one for each system that connects — a separate key per
-                  app makes it easy to see who is calling and to switch one off
-                  without affecting the others.
-                </p>
-              </div>
-              <Button
-                disabled={!overview.enabled}
-                onClick={openCreate}
-                variant="outline"
-              >
-                <PlusIcon data-icon="inline-start" />
-                Create your first key
+      <div className="report setup flex flex-col gap-4">
+        <PageBar
+          actions={
+            <>
+              <Button asChild size="sm" variant="outline">
+                <Link href={DOCS_PATH} rel="noopener" target="_blank">
+                  Read the documentation
+                  <ArrowUpRightIcon data-icon="inline-end" />
+                </Link>
               </Button>
-            </div>
-          ) : (
-            <ul>
-              {overview.keys.map((apiKey) => (
-                <KeyRow
-                  apiKey={apiKey}
-                  key={apiKey.id}
-                  onAction={setPendingAction}
-                  onEdit={() => openDialog(apiKey)}
-                  usageToday={usageTodayByKey.get(apiKey.id) ?? 0}
+              <Button disabled={!overview.enabled} onClick={openCreate} size="sm">
+                <PlusIcon data-icon="inline-start" />
+                Create key
+              </Button>
+            </>
+          }
+          hint="Keys let your developers start chats, read conversations and keep the knowledge base up to date from your website, app or CRM."
+          meta={
+            <Pill tone={overview.enabled ? "positive" : "neutral"}>
+              {overview.enabled ? "API on" : "API off"}
+            </Pill>
+          }
+          title="Developer API"
+        />
+
+        {!overview.platformEnabled ? (
+          <div className="setup-callout text-sm" data-tone="error">
+            The developer API is switched off on this Osonflow installation.
+          </div>
+        ) : null}
+        {overview.requiresSubscription ? (
+          <div className="setup-callout text-sm" data-tone="info">
+            The developer API is part of paid plans. Keys work once your
+            organization has an active plan.
+          </div>
+        ) : null}
+
+        <FigureStrip className="md:grid-cols-4">
+          <StripFigure
+            icon={ActivityIcon}
+            tone="info"
+            label="Calls today"
+            value={
+              usage?.today.requests === undefined
+                ? "—"
+                : formatNumber(usage.today.requests)
+            }
+          />
+          <StripFigure
+            icon={SparklesIcon}
+            tone="accent"
+            label="AI calls today"
+            value={
+              usage?.today.aiRequests === undefined
+                ? "—"
+                : formatNumber(usage.today.aiRequests)
+            }
+          />
+          <StripFigure
+            icon={CircleAlertIcon}
+            tone="critical"
+            label="Failed today"
+            value={
+              usage?.today.errors === undefined
+                ? "—"
+                : formatNumber(usage.today.errors)
+            }
+          />
+          <StripFigure
+            icon={KeyRoundIcon}
+            tone="positive"
+            label="Active keys"
+            value={formatNumber(activeKeys.length)}
+          />
+        </FigureStrip>
+
+        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_28rem]">
+          <div className="flex min-w-0 flex-col gap-4">
+            <ReportSection
+              lede="Every call from every key over the last 30 days. Days run midnight to midnight UTC, the same days the daily limits use."
+              title="Usage"
+            >
+              {usage ? (
+                <UsageChart usage={usage} />
+              ) : (
+                <ReportQuiet>Loading usage…</ReportQuiet>
+              )}
+            </ReportSection>
+
+            <ReportSection
+              lede={`The latest 100 calls, newest first. Kept for ${overview.logRetentionDays} days. Hover a row for its request id, which matches the X-Request-Id header.`}
+              title="Recent calls"
+            >
+              <CallLog
+                keys={overview.keys}
+                retentionDays={overview.logRetentionDays}
+              />
+            </ReportSection>
+          </div>
+
+          <div className="flex min-w-0 flex-col gap-4">
+            <ReportSection
+              lede="Where your developers send requests, and the switch for every key at once."
+              title="Access"
+            >
+              {overview.baseUrl ? (
+                <CopyField label="Base URL" value={overview.baseUrl} />
+              ) : null}
+              <div className="setup-field flex items-center justify-between gap-4 py-3">
+                <div className="min-w-0">
+                  <Label className="text-sm font-medium" htmlFor="devapi-enabled">
+                    API access
+                  </Label>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {overview.enabled
+                      ? "On. Keys below can be used."
+                      : "Off. Every key is refused until you turn it back on; their settings are kept."}
+                  </p>
+                </div>
+                <Switch
+                  checked={overview.enabled}
+                  id="devapi-enabled"
+                  onCheckedChange={(checked) => void onToggleApi(checked)}
                 />
-              ))}
-            </ul>
-          )}
-        </ReportSection>
+              </div>
+            </ReportSection>
 
-        {/* 02 · Usage */}
-        <ReportSection
-          index={2}
-          lede="Every call from every key over the last 30 days. Days run midnight to midnight UTC, the same days the daily limits use."
-          title="Usage"
-        >
-          {usage ? (
-            <UsageChart usage={usage} />
-          ) : (
-            <ReportQuiet>Loading usage…</ReportQuiet>
-          )}
-        </ReportSection>
+            <ReportSection
+              lede={`Only show a key to the person or system that needs it. You can have up to ${overview.maxKeys} active keys.`}
+              title="Your keys"
+            >
+              {overview.keys.length === 0 ? (
+                <div className="flex flex-col items-start gap-3 py-2">
+                  <div>
+                    <p className="text-sm font-medium">No keys yet</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Create one for each system that connects — a separate key
+                      per app makes it easy to see who is calling and to switch
+                      one off without affecting the others.
+                    </p>
+                  </div>
+                  <Button
+                    disabled={!overview.enabled}
+                    onClick={openCreate}
+                    size="sm"
+                    variant="outline"
+                  >
+                    <PlusIcon data-icon="inline-start" />
+                    Create your first key
+                  </Button>
+                </div>
+              ) : (
+                <ul>
+                  {overview.keys.map((apiKey) => (
+                    <KeyRow
+                      apiKey={apiKey}
+                      key={apiKey.id}
+                      onAction={setPendingAction}
+                      onEdit={() => openDialog(apiKey)}
+                      usageToday={usageTodayByKey.get(apiKey.id) ?? 0}
+                    />
+                  ))}
+                </ul>
+              )}
+            </ReportSection>
 
-        {/* 03 · Limits */}
-        <ReportSection
-          index={3}
-          lede="How much the API may do across all keys. Lower limits protect your AI budget; a single key can be given tighter limits of its own."
-          title="Limits"
-        >
-          <LimitsForm
-            key={JSON.stringify(overview.limits)}
-            overview={overview}
-          />
-        </ReportSection>
-
-        {/* 04 · Calls */}
-        <ReportSection
-          index={4}
-          lede={`The latest 100 calls, newest first. Kept for ${overview.logRetentionDays} days. Hover a row for its request id, which matches the X-Request-Id header.`}
-          title="Recent calls"
-        >
-          <CallLog
-            keys={overview.keys}
-            retentionDays={overview.logRetentionDays}
-          />
-        </ReportSection>
+            <ReportSection
+              lede="How much the API may do across all keys. Lower limits protect your AI budget; a single key can be given tighter limits of its own."
+              title="Limits"
+            >
+              <LimitsForm
+                key={JSON.stringify(overview.limits)}
+                overview={overview}
+              />
+            </ReportSection>
+          </div>
+        </div>
       </div>
 
       <KeyDialog

@@ -130,7 +130,7 @@ export const ToolIndex = ({
   return (
     <nav
       aria-label="Your tools"
-      className="tools-index min-w-0 lg:sticky lg:top-6 lg:self-start"
+      className="tools-index console-card min-w-0 p-3 lg:max-h-[calc(100svh-15rem)] lg:overflow-y-auto"
     >
       <ConsoleSearch
         aria-label="Search your tools"

@@ -82,7 +82,7 @@
 }
 
 .memory-name {
-  font-size: clamp(1.6rem, 1.2rem + 1.4vw, 2.3rem);
+  font-size: 1.2rem;
   font-weight: 600;
   line-height: 1.08;
   letter-spacing: -0.03em;
@@ -91,7 +91,7 @@
 }
 
 .memory-summary {
-  font-size: clamp(1.02rem, 0.96rem + 0.3vw, 1.2rem);
+  font-size: 0.9rem;
   line-height: 1.55;
   letter-spacing: -0.012em;
   color: var(--foreground);

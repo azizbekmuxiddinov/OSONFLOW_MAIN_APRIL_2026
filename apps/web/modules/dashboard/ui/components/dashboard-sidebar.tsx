@@ -4,6 +4,7 @@ import { OrganizationSwitcher, UserButton, useAuth } from "@clerk/nextjs"
 
 import {
   ArrowLeftRightIcon,
+  BellRingIcon,
   BookOpen,
   BotMessageSquare,
   BracesIcon,
@@ -12,7 +13,9 @@ import {
   CompassIcon,
   CreditCardIcon,
   GitBranchIcon,
+  GraduationCapIcon,
   LayoutDashboardIcon,
+  MegaphoneIcon,
   MessagesSquare,
   PaletteIcon,
   UserPlusIcon,
@@ -78,6 +81,16 @@ const customerSupportItems = [
     url: "/files",
     icon: BookOpen,
   },
+  {
+    title: "Teach your assistant",
+    url: "/teach",
+    icon: GraduationCapIcon,
+  },
+  {
+    title: "Follow-ups",
+    url: "/follow-ups",
+    icon: MegaphoneIcon,
+  },
 ]
 const configurationItems = [
   {
@@ -94,6 +107,11 @@ const configurationItems = [
     title: "Integrations",
     url: "/integrations",
     icon: LayoutDashboardIcon,
+  },
+  {
+    title: "Telegram alerts",
+    url: "/team-alerts",
+    icon: BellRingIcon,
   },
   {
     title: "Workflows",
@@ -163,6 +181,12 @@ export const DashboardSidebar = () => {
     api.private.onboarding.getStatus,
     hasActiveOrganization ? {} : "skip"
   )
+  const learningCounts = useQuery(
+    api.private.learning.counts,
+    hasActiveOrganization ? {} : "skip"
+  )
+  const answersWaiting =
+    (learningCounts?.suggested ?? 0) + (learningCounts?.needsAnswer ?? 0)
   const markAllConversationsAsRead = useMutation(
     api.private.conversations.markAllAsRead
   )
@@ -320,6 +344,11 @@ export const DashboardSidebar = () => {
                       {getUnreadCount(item.url) > 99
                         ? "99+"
                         : getUnreadCount(item.url)}
+                    </SidebarMenuBadge>
+                  ) : null}
+                  {item.url === "/teach" && answersWaiting > 0 ? (
+                    <SidebarMenuBadge className="bg-primary/15 text-primary peer-data-active/menu-button:bg-white/20 peer-data-active/menu-button:text-sidebar-primary-foreground">
+                      {answersWaiting > 99 ? "99+" : answersWaiting}
                     </SidebarMenuBadge>
                   ) : null}
                 </SidebarMenuItem>

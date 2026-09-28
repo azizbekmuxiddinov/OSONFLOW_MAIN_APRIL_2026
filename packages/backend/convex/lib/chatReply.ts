@@ -49,12 +49,14 @@ export const writeFallbackReply = async ({
   model: any
   languageSample?: string | null
   visitorMessage: string
-  kind: "acknowledge" | "lost"
+  kind: "acknowledge" | "lost" | "unheard"
 }): Promise<string> => {
   const englishFallback =
     kind === "acknowledge"
       ? "Thanks — that's been taken care of. Anything else I can help with?"
-      : "Sorry, something went wrong on my side and I lost that reply. Could you send it again?"
+      : kind === "unheard"
+        ? "Sorry, I couldn't make out that voice message. Could you type it instead?"
+        : "Sorry, something went wrong on my side and I lost that reply. Could you send it again?"
 
   const anchor = languageSample?.trim() || visitorMessage.trim()
 
@@ -65,7 +67,9 @@ export const writeFallbackReply = async ({
   const intent =
     kind === "acknowledge"
       ? "Confirm warmly that what they asked for has been done, then ask whether there is anything else you can help with."
-      : "Apologise briefly that the reply was lost on your side, and ask them to send the message again."
+      : kind === "unheard"
+        ? "Apologise briefly that you could not make out their voice message, and ask them to write it as text."
+        : "Apologise briefly that the reply was lost on your side, and ask them to send the message again."
 
   try {
     const response = await generateText({
@@ -73,7 +77,7 @@ export const writeFallbackReply = async ({
       maxOutputTokens: 80,
       system:
         "You write one short sentence to send next in a customer support chat. Write it in the same language as the assistant's previous message. Output only that sentence: no quotes, no preamble, no translation, no explanation, and never quote or repeat the visitor's own words.",
-      prompt: `The assistant's previous message (match this language):\n${anchor}\n\nThe visitor's last message:\n${visitorMessage}\n\nWhat to say: ${intent}`,
+      prompt: `The assistant's previous message (match this language):\n${anchor}\n\nThe visitor's last message:\n${visitorMessage.trim() || "(a voice message)"}\n\nWhat to say: ${intent}`,
     })
 
     return response.text?.trim() || englishFallback
@@ -156,6 +160,14 @@ export const generateChannelReply = async (
     /** Conversation status before the turn; a turn that changes it is not cached. */
     conversationStatus: string
     enabledToolIds?: Id<"assistantTools">[]
+    /**
+     * The customer's message when it is already in the thread — a voice note,
+     * saved with its audio attached. The reply is then generated against it
+     * instead of writing `text` into the thread a second time.
+     */
+    promptMessageId?: string
+    /** What the model reads in place of `text`, for this turn only. */
+    modelPrompt?: string
   }
 ): Promise<string | null> => {
   const configuredTools = await ctx.runQuery(
@@ -192,10 +204,12 @@ export const generateChannelReply = async (
     if (cachedReply?.answer) {
       // The generate call below is what normally writes the visitor's message
       // into the thread, so on a hit it has to be written here instead.
-      await saveMessage(ctx, components.agent, {
-        threadId: args.threadId,
-        prompt: args.text,
-      })
+      if (!args.promptMessageId) {
+        await saveMessage(ctx, components.agent, {
+          threadId: args.threadId,
+          prompt: args.text,
+        })
+      }
       await saveMessage(ctx, components.agent, {
         threadId: args.threadId,
         message: {
@@ -248,7 +262,12 @@ export const generateChannelReply = async (
     {
       model: getOpenAIChatModelFromSecretValue(openAIPlugin?.secretValue),
       system: toolAwareSystemPrompt,
-      prompt: args.text,
+      ...(args.promptMessageId
+        ? {
+            promptMessageId: args.promptMessageId,
+            ...(args.modelPrompt ? { prompt: args.modelPrompt } : {}),
+          }
+        : { prompt: args.modelPrompt ?? args.text }),
       tools: chatTools,
     },
     {
@@ -299,4 +318,75 @@ export const generateChannelReply = async (
   }
 
   return replyText ?? null
+}
+
+/**
+ * Tells the model the customer spoke rather than typed, so a word the
+ * transcription got slightly wrong is read generously instead of being
+ * questioned. Only the model sees it; the thread keeps the plain transcript.
+ */
+const VOICE_NOTE_MODEL_NOTICE =
+  "[The customer sent a voice message. This is an automatic transcript and may contain small mistakes.]"
+
+/**
+ * Answers a voice note on a messaging channel. The note is already in the
+ * thread with its audio attached (`saveCustomerVoiceNote`); this decides what
+ * to say back. A note that could not be transcribed gets a short request to
+ * type it instead, written by the model in the conversation's language — the
+ * merchant's own greeting anchors that language when there is no earlier
+ * reply to go by.
+ */
+export const replyToChannelVoiceNote = async (
+  ctx: any,
+  args: {
+    organizationId: string
+    threadId: string
+    promptMessageId: string
+    transcript: string | null
+    systemPrompt: string
+    conversationStatus: string
+    enabledToolIds?: Id<"assistantTools">[]
+    greetMessage?: string
+  }
+): Promise<string | null> => {
+  if (args.transcript) {
+    return await generateChannelReply(ctx, {
+      organizationId: args.organizationId,
+      threadId: args.threadId,
+      text: args.transcript,
+      systemPrompt: args.systemPrompt,
+      conversationStatus: args.conversationStatus,
+      enabledToolIds: args.enabledToolIds,
+      promptMessageId: args.promptMessageId,
+      modelPrompt: `${VOICE_NOTE_MODEL_NOTICE}\n\n${args.transcript}`,
+    })
+  }
+
+  const openAIPlugin = await ctx.runQuery(
+    internal.system.plugins.getByOrganizationIdAndService,
+    {
+      organizationId: args.organizationId,
+      service: "openai_realtime",
+    }
+  )
+  const previousAssistantMessage = await getLatestAssistantMessage(
+    ctx,
+    args.threadId
+  )
+  const reply = await writeFallbackReply({
+    model: getOpenAIChatModelFromSecretValue(openAIPlugin?.secretValue),
+    languageSample: previousAssistantMessage?.text || args.greetMessage,
+    visitorMessage: "",
+    kind: "unheard",
+  })
+
+  await saveMessage(ctx, components.agent, {
+    threadId: args.threadId,
+    message: {
+      role: "assistant",
+      content: reply,
+    },
+  })
+
+  return reply
 }

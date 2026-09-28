@@ -177,6 +177,34 @@ const rateLimits = {
     capacity: 60,
     shards: 4,
   },
+  // A replay answers up to twenty real questions again, so it is the most
+  // expensive thing an owner can start with one click.
+  replayRunByOrg: {
+    kind: "fixed window",
+    rate: 6,
+    period: HOUR,
+  },
+  broadcastByOrg: {
+    kind: "fixed window",
+    rate: 5,
+    period: HOUR,
+  },
+  teamTelegramLinkByUser: {
+    kind: "fixed window",
+    rate: 10,
+    period: HOUR,
+  },
+  teamTelegramMessageByChat: {
+    kind: "token bucket",
+    rate: 30,
+    period: MINUTE,
+    capacity: 10,
+  },
+  learnedAnswerApproveByUser: {
+    kind: "fixed window",
+    rate: 120,
+    period: HOUR,
+  },
 } as const
 
 export const rateLimiter = new RateLimiter(components.rateLimiter, rateLimits)

@@ -50,7 +50,8 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import { cn } from "@workspace/ui/lib/utils"
-import { ConsolePage } from "@/modules/dashboard/ui/components/console"
+import { ConsolePage, Pill } from "@/modules/dashboard/ui/components/console"
+import { PageBar } from "@/modules/dashboard/ui/components/report"
 import "@/modules/dashboard/ui/styles/report.css"
 import "../styles/setup.css"
 import {
@@ -328,15 +329,15 @@ const PanelHeader = ({
   description: React.ReactNode
   actions?: React.ReactNode
 }) => (
-  <header className="pb-8">
+  <header className="mb-5 border-b border-[var(--report-rule)] pb-4">
     <div className="flex flex-wrap items-start justify-between gap-4">
-      <div className="flex min-w-0 items-center gap-4">
-        <span className="setup-glyph size-14" data-size="lg">
+      <div className="flex min-w-0 items-center gap-3">
+        <span className="setup-glyph size-10" data-size="lg">
           {glyph}
         </span>
         <div className="min-w-0">
           <h2 className="setup-panel-title">{title}</h2>
-          <StatusLine className="mt-2" state={state} />
+          <StatusLine className="mt-1" state={state} />
         </div>
       </div>
       {actions ? (
@@ -345,7 +346,7 @@ const PanelHeader = ({
         </div>
       ) : null}
     </div>
-    <p className="report-lede mt-5 max-w-[62ch]">{description}</p>
+    <p className="report-lede mt-3 max-w-[90ch]">{description}</p>
   </header>
 )
 
@@ -2462,138 +2463,61 @@ export const IntegrationsView = () => {
   // ── render ──────────────────────────────────────────────────────────────
   return (
     <ConsolePage width="wide">
-      <div className="report setup">
-        <section className="pt-2 pb-10">
-          <p className="console-eyebrow">Setup &amp; integrations</p>
+      <div className="report setup flex flex-col gap-4">
+        <PageBar
+          hint="Put your assistant on your website and the messaging apps your customers already use."
+          meta={
+            isCheckingChannels ? null : attentionItems.length ? (
+              <Pill tone="warning">
+                {attentionItems.length} {attentionItems.length === 1
+                  ? "needs attention"
+                  : "need attention"}
+              </Pill>
+            ) : (
+              <Pill tone={connectedApps ? "positive" : "neutral"}>
+                {connectedApps}/3 {"messaging apps connected"}
+              </Pill>
+            )
+          }
+          title="Setup & integrations"
+        />
 
-          {isCheckingChannels ? (
-            <div aria-busy="true" role="status">
-              <span className="sr-only">Checking your connections</span>
-              <div aria-hidden className="mt-7 space-y-3">
-                <Skeleton className="h-11 w-full max-w-[30rem] rounded-2xl" />
-                <Skeleton className="h-11 w-3/5 max-w-[20rem] rounded-2xl" />
-              </div>
-              <div aria-hidden className="mt-6 space-y-2.5">
-                <Skeleton className="h-4 w-full max-w-[36rem] rounded-full" />
-                <Skeleton className="h-4 w-4/5 max-w-[26rem] rounded-full" />
-              </div>
-            </div>
-          ) : attentionItems.length ? (
-            <>
-              <h1 className="report-headline mt-6 max-w-[24ch]">
-                <span className="report-headline-figure">
-                  {attentionItems.length}{" "}
-                  {attentionItems.length === 1 ? "connection" : "connections"}
-                </span>{" "}
-                {attentionItems.length === 1 ? "needs" : "need"} your attention.
-              </h1>
-              <p className="report-lede mt-5 max-w-[62ch]">
-                {attentionItems.map((item, index) => (
-                  <span key={item.id}>
-                    {index > 0 ? " " : null}
-                    <button
-                      className="font-semibold text-foreground underline decoration-[var(--outcome-open)] decoration-2 underline-offset-4"
-                      onClick={() => selectSection(item.id)}
-                      type="button"
-                    >
-                      {item.title}
-                    </button>
-                    : {item.state.label.toLowerCase()}.
+        {/* Every connection and its state in one row; the selected one opens
+            below at full width. */}
+        <nav aria-label="Setup sections">
+          <ul className="report-strip grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
+            {SECTIONS.map((section) => (
+              <li key={section.id}>
+                <button
+                  aria-current={activeSection === section.id}
+                  className="setup-nav-row grid h-full w-full grid-cols-[2rem_minmax(0,1fr)] items-center gap-2.5 rounded-none px-3 py-2.5 text-left focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none"
+                  onClick={() => selectSection(section.id)}
+                  type="button"
+                >
+                  <span className="setup-glyph size-8">{section.glyph}</span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-medium text-foreground">
+                      {section.title}
+                    </span>
+                    <StatusLine className="mt-0.5" state={section.state} />
                   </span>
-                ))}
-              </p>
-            </>
-          ) : connectedApps ? (
-            <>
-              <h1 className="report-headline mt-6 max-w-[24ch]">
-                Your assistant answers on{" "}
-                <span className="report-headline-figure">
-                  {connectedApps} of 3
-                </span>{" "}
-                messaging apps.
-              </h1>
-              <p className="report-lede mt-5 max-w-[62ch]">
-                {SECTIONS.filter(
-                  (section) =>
-                    section.group === "Channels" && section.state.tone === "live"
-                )
-                  .map((section) => section.title)
-                  .join(" and ")}{" "}
-                {connectedApps === 1 ? "is" : "are"} connected, plus your
-                website once the chat code is on it.
-              </p>
-            </>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </nav>
+
+        <section
+          className="setup-panel console-card min-w-0 scroll-mt-6 p-5"
+          key={activeSection}
+          ref={panelRef}
+        >
+          {panelLoading[activeSection] ? (
+            <SetupPanelSkeleton />
           ) : (
-            <>
-              <h1 className="report-headline mt-6 max-w-[22ch]">
-                Put your assistant where customers already talk to you.
-              </h1>
-              <p className="report-lede mt-5 max-w-[62ch]">
-                Start with your website — it takes one copy and paste. Then
-                connect Telegram, Instagram or WhatsApp so every message is
-                answered in one place.
-              </p>
-            </>
+            panels[activeSection]
           )}
         </section>
-
-        <div className="grid gap-10 border-t border-[var(--report-rule)] pt-8 lg:grid-cols-[18rem_minmax(0,1fr)] lg:gap-14">
-          <nav
-            aria-label="Setup sections"
-            className="lg:sticky lg:top-6 lg:self-start"
-          >
-            {(["Channels", "Advanced"] as const).map((group) => (
-              <div className="mb-6 last:mb-0" key={group}>
-                <p className="console-label mb-2 px-3">
-                  {group === "Channels" ? "Where customers reach you" : "Advanced"}
-                </p>
-                <ul className="flex flex-col gap-0.5">
-                  {SECTIONS.filter((section) => section.group === group).map(
-                    (section) => (
-                      <li key={section.id}>
-                        <button
-                          aria-current={activeSection === section.id}
-                          className="setup-nav-row grid w-full grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-3 px-3 py-2.5 text-left focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none"
-                          onClick={() => selectSection(section.id)}
-                          type="button"
-                        >
-                          <span className="setup-glyph size-9">
-                            {section.glyph}
-                          </span>
-                          <span className="min-w-0">
-                            <span className="block truncate text-sm font-medium text-foreground">
-                              {section.title}
-                            </span>
-                            <StatusLine
-                              className="mt-0.5"
-                              state={section.state}
-                            />
-                          </span>
-                          <ChevronRightIcon
-                            aria-hidden
-                            className="setup-nav-chevron size-4 text-muted-foreground"
-                          />
-                        </button>
-                      </li>
-                    )
-                  )}
-                </ul>
-              </div>
-            ))}
-          </nav>
-
-          <div
-            className="setup-panel min-w-0 scroll-mt-6 pb-10"
-            key={activeSection}
-            ref={panelRef}
-          >
-            {panelLoading[activeSection] ? (
-              <SetupPanelSkeleton />
-            ) : (
-              panels[activeSection]
-            )}
-          </div>
-        </div>
       </div>
     </ConsolePage>
   )

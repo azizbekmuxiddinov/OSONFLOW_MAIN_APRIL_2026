@@ -200,7 +200,7 @@ export const GetStartedView = () => {
 
       {/* ── stepper ──────────────────────────────────────────────────────── */}
       <div className="grid gap-4 lg:grid-cols-[212px_minmax(0,1fr)] lg:items-start">
-        <div className="lg:sticky lg:top-4">
+        <div>
           <StepRail
             activeStep={activeStep}
             completedCount={completedCount}

@@ -14,6 +14,7 @@ import {
   BrainCircuitIcon,
   ChevronRightIcon,
   FileTextIcon,
+  FlaskConicalIcon,
   Heading2Icon,
   HistoryIcon,
   ImagePlusIcon,
@@ -101,6 +102,9 @@ import { ThemeFormFields } from "./theme-form-fields"
 import { AppearanceFormFields } from "./appearance-form-fields"
 import { CopyFormFields } from "./copy-form-fields"
 import { WidgetLivePreview } from "./widget-live-preview"
+import { ReplaySheet } from "./replay-sheet"
+import { getConvexErrorMessage } from "@/lib/convex-error"
+import { useLanguage } from "@/lib/i18n/language-provider"
 import { WidgetToolsPicker } from "./widget-tools-picker"
 import {
   ReleaseDrawer,
@@ -993,6 +997,9 @@ export const CustomizationForm = ({
   const [isRollingBack, setIsRollingBack] = useState(false)
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
   const [isReleaseDrawerOpen, setIsReleaseDrawerOpen] = useState(false)
+  const [isReplayOpen, setIsReplayOpen] = useState(false)
+  const startReplay = useMutation(api.private.replay.start)
+  const { language } = useLanguage()
   const [importPayload, setImportPayload] = useState("")
   const [isImporting, setIsImporting] = useState(false)
   const [activeTab, setActiveTab] = useState<SectionId>("behaviour")
@@ -1216,6 +1223,26 @@ export const CustomizationForm = ({
       toast.error("Unable to publish draft")
     } finally {
       setIsPublishing(false)
+    }
+  })
+
+  // The check runs against the saved draft, so whatever is on screen is saved
+  // first — otherwise it would test the version from before the last edit.
+  const onTestDraft = form.handleSubmit(async (values) => {
+    try {
+      await saveDraftWidgetSettings(buildMutationPayload(values))
+      markCurrentValuesAsSaved(values)
+    } catch {
+      toast.error("Unable to save draft")
+      return
+    }
+
+    setIsReplayOpen(true)
+
+    try {
+      await startReplay({ agentId, language })
+    } catch (error) {
+      toast.error(getConvexErrorMessage(error, "Couldn't start the check"))
     }
   })
 
@@ -2135,6 +2162,17 @@ export const CustomizationForm = ({
                       : "Save draft"}
                   </Button>
                   <Button
+                    className="gap-1.5"
+                    disabled={isBusy}
+                    onClick={onTestDraft}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    <FlaskConicalIcon className="size-3.5" />
+                    Test first
+                  </Button>
+                  <Button
                     className={cn(
                       "gap-1.5 transition-all duration-300",
                       isDraftDifferentFromPublished &&
@@ -2171,6 +2209,17 @@ export const CustomizationForm = ({
           </div>
         </Tabs>
       </form>
+
+      <ReplaySheet
+        agentId={agentId}
+        draftUpdatedAt={draftUpdatedAt}
+        isPublishing={isPublishing}
+        onOpenChange={setIsReplayOpen}
+        onPublish={() => {
+          void onPublishDraft().then(() => setIsReplayOpen(false))
+        }}
+        open={isReplayOpen}
+      />
 
       <ReleaseDrawer
         draftUpdatedAt={draftUpdatedAt}

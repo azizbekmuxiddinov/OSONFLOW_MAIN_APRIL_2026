@@ -7,7 +7,15 @@ import type { FunctionReturnType } from "convex/server"
 import { formatDistanceToNow } from "date-fns"
 import {
   ArrowUpRightIcon,
+  CircleCheckIcon,
   DownloadIcon,
+  HourglassIcon,
+  InboxIcon,
+  LightbulbIcon,
+  MessagesSquareIcon,
+  SparklesIcon,
+  TimerIcon,
+  UsersIcon,
   MessageSquareIcon,
   MicIcon,
 } from "lucide-react"
@@ -25,7 +33,13 @@ import {
 } from "../lib/conversation-export"
 import { ConsolePage } from "../components/console"
 import { AnalyticsSkeleton } from "../components/report-skeleton"
-import { ReportQuiet, ReportSection } from "../components/report"
+import {
+  FigureStrip,
+  PageBar,
+  ReportQuiet,
+  ReportSection,
+  StripFigure,
+} from "../components/report"
 import "../styles/report.css"
 
 const ANALYTICS_EXPORT_LIMIT = 5000
@@ -146,7 +160,7 @@ const OutcomeWaffle = ({
     : "No conversations analysed yet"
 
   return (
-    <figure className="flex w-full flex-col gap-5 sm:flex-row sm:items-center lg:flex-col lg:items-stretch">
+    <figure className="flex w-full flex-col gap-4 sm:flex-row sm:items-center">
       <div
         aria-label={summary}
         className="report-waffle shrink-0"
@@ -180,7 +194,7 @@ const OutcomeWaffle = ({
                 type="button"
               >
                 <span className="report-swatch" data-outcome={key} />
-                <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                <span className="min-w-0 flex-1 text-sm leading-tight text-foreground">
                   {OUTCOME_LABEL[key]}
                 </span>
                 <span className="console-numeral text-sm">{counts[key]}</span>
@@ -192,28 +206,13 @@ const OutcomeWaffle = ({
           ))}
         </ul>
         <p className="mt-2 px-2 text-[0.7rem] text-muted-foreground">
-          Each square is 1% of {total} conversations
+          <span>Each square is 1% of conversations</span>{" "}
+          <span className="tabular-nums">({total})</span>
         </p>
       </figcaption>
     </figure>
   )
 }
-
-const Figure = ({
-  label,
-  value,
-  note,
-}: {
-  label: string
-  value: React.ReactNode
-  note: string
-}) => (
-  <div className="report-figure flex flex-col gap-3 px-1 py-5 sm:px-5 md:first:pl-0">
-    <p className="console-label">{label}</p>
-    <p className="report-figure-value">{value}</p>
-    <p className="text-xs leading-snug text-muted-foreground">{note}</p>
-  </div>
-)
 
 /* ── sections ───────────────────────────────────────────────────────────── */
 
@@ -222,7 +221,7 @@ const IntentRanking = ({ overview }: { overview: Overview }) => {
 
   if (!overview.topIntents.length) {
     return (
-      <ReportQuiet>
+      <ReportQuiet icon={MessagesSquareIcon}>
         Intents are classified automatically once conversations start coming
         in.
       </ReportQuiet>
@@ -233,10 +232,10 @@ const IntentRanking = ({ overview }: { overview: Overview }) => {
     <ol className="report-rows flex flex-col">
       {overview.topIntents.map((intent, index) => (
         <li
-          className="report-row grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4 gap-y-2 py-3"
+          className="report-row grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4 gap-y-1.5 py-2"
           key={intent.label}
         >
-          <span className="truncate text-[0.95rem] text-foreground">
+          <span className="truncate text-sm text-foreground">
             {formatIntent(intent.label)}
           </span>
           <span className="flex items-baseline gap-2">
@@ -265,7 +264,7 @@ const IntentRanking = ({ overview }: { overview: Overview }) => {
 const KnowledgeGaps = ({ overview }: { overview: Overview }) => {
   if (!overview.unansweredQuestions.length) {
     return (
-      <ReportQuiet>
+      <ReportQuiet icon={LightbulbIcon}>
         Nothing went unanswered in this window — the knowledge base covered
         every question.
       </ReportQuiet>
@@ -277,7 +276,7 @@ const KnowledgeGaps = ({ overview }: { overview: Overview }) => {
       <ol className="border-t border-[var(--report-rule)]">
         {overview.unansweredQuestions.map((question) => (
           <li
-            className="report-gap grid grid-cols-[4.5rem_minmax(0,1fr)] gap-4 py-5"
+            className="report-gap grid grid-cols-[3rem_minmax(0,1fr)] gap-3 py-3"
             key={question.question}
           >
             <div className="flex flex-col items-start gap-1.5">
@@ -293,9 +292,9 @@ const KnowledgeGaps = ({ overview }: { overview: Overview }) => {
           </li>
         ))}
       </ol>
-      <Button asChild className="mt-6" variant="outline">
-        <Link href="/files">
-          Add these answers to your knowledge base
+      <Button asChild className="mt-4" size="sm" variant="outline">
+        <Link href="/teach">
+          Answer these questions
           <ArrowUpRightIcon data-icon="inline-end" />
         </Link>
       </Button>
@@ -304,7 +303,7 @@ const KnowledgeGaps = ({ overview }: { overview: Overview }) => {
 }
 
 const ChannelSplit = ({ overview }: { overview: Overview }) => (
-  <div className="flex flex-col gap-8">
+  <div className="flex flex-col gap-5">
     {overview.channelMetrics.map((metric) => {
       const Icon = metric.channel === "voice" ? MicIcon : MessageSquareIcon
       const resolved = Math.min(metric.resolved, metric.total)
@@ -376,10 +375,13 @@ const ChannelSplit = ({ overview }: { overview: Overview }) => (
               </div>
             </>
           ) : (
-            <p className="mt-3 text-sm text-muted-foreground">
-              No {metric.channel === "voice" ? "voice calls" : "chats"} in this
-              window.
-            </p>
+            <>
+              <div aria-hidden className="report-stack mt-3" />
+              <p className="mt-2 text-xs text-muted-foreground">
+                No {metric.channel === "voice" ? "voice calls" : "chats"} in
+                this window.
+              </p>
+            </>
           )}
         </div>
       )
@@ -403,7 +405,7 @@ const MoodStrip = ({ overview }: { overview: Overview }) => {
   const label = { positive: "Happy", neutral: "Neutral", negative: "Frustrated" }
 
   return (
-    <div className="mt-10">
+    <div className="mt-5">
       <p className="console-label">How customers felt</p>
       <div
         aria-label={order
@@ -470,7 +472,7 @@ const STATUS_NODE: Record<
 const SignalTimeline = ({ overview }: { overview: Overview }) => {
   if (!overview.recentInsights.length) {
     return (
-      <ReportQuiet>
+      <ReportQuiet icon={InboxIcon}>
         Summaries appear here after new chat or voice conversations are
         analysed.
       </ReportQuiet>
@@ -478,7 +480,7 @@ const SignalTimeline = ({ overview }: { overview: Overview }) => {
   }
 
   return (
-    <ol className="report-timeline flex flex-col gap-7">
+    <ol className="grid gap-x-8 gap-y-4 xl:grid-cols-2">
       {overview.recentInsights.map((insight) => {
         const node = STATUS_NODE[insight.status]
 
@@ -506,7 +508,7 @@ const SignalTimeline = ({ overview }: { overview: Overview }) => {
                   {formatDistanceToNow(insight.updatedAt, { addSuffix: true })}
                 </time>
               </p>
-              <p className="mt-1.5 text-[0.95rem] leading-relaxed text-foreground">
+              <p className="mt-1 text-sm leading-snug text-foreground">
                 {insight.summary}
               </p>
             </div>
@@ -648,117 +650,112 @@ export const AnalyticsView = () => {
     <ConsolePage width="wide">
       <GettingStartedCallout />
 
-      <div className="report">
-        {/* Hero: the one sentence an owner needs, and the picture of it. */}
-        <section className="grid gap-10 pt-2 pb-10 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-end lg:gap-16">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="console-eyebrow">
-                {t("Last")} {overview.windowDays} {t("days")} · {total}{" "}
-                conversations analysed
-              </p>
-              <Button
-                disabled={isExporting}
-                onClick={handleDownloadCsv}
-                size="sm"
-                variant="ghost"
-              >
-                <DownloadIcon data-icon="inline-start" />
-                {isExporting ? t("Exporting...") : t("Download CSV")}
-              </Button>
-            </div>
+      <div className="report flex flex-col gap-4">
+        <PageBar
+          actions={
+            <Button
+              disabled={isExporting}
+              onClick={handleDownloadCsv}
+              size="sm"
+              variant="outline"
+            >
+              <DownloadIcon data-icon="inline-start" />
+              {isExporting ? t("Exporting...") : t("Download CSV")}
+            </Button>
+          }
+          hint={
+            <>
+              {t("Last")} {overview.windowDays} {t("days")} · {total}{" "}
+              conversations analysed
+            </>
+          }
+          title="Analytics"
+        />
 
-            {total ? (
-              <>
-                <h1 className="report-headline mt-6 max-w-[22ch]">
-                  Your assistant resolved{" "}
-                  <span className="report-headline-figure">
-                    {percentOf(counts.resolved, total)}%
-                  </span>{" "}
-                  of conversations on its own.
-                </h1>
-                <p className="report-lede mt-6 max-w-[60ch]">
-                  <strong>{counts.handed}</strong> were handed to your team,{" "}
-                  <strong>{overview.unanswered}</strong>{" "}
-                  {overview.unanswered === 1
-                    ? "question went"
-                    : "questions went"}{" "}
-                  unanswered, and it saved about{" "}
-                  <strong>{savedTimeLabel}</strong> of support time.
-                </p>
-              </>
-            ) : (
-              <>
-                <h1 className="report-headline mt-6 max-w-[20ch]">
-                  Your report starts with the first conversation.
-                </h1>
-                <p className="report-lede mt-6 max-w-[60ch]">
-                  Once customers talk to your assistant, this page shows how
-                  much it handled on its own, where your team stepped in, and
-                  what it still needs to learn.
-                </p>
-              </>
-            )}
-          </div>
-
-          <OutcomeWaffle counts={counts} total={total} />
-        </section>
-
-        <div className="report-figures grid grid-cols-2 md:grid-cols-4">
-          <Figure
-            label="Answered fully"
-            note="Customers who got a complete answer"
-            value={`${answerRate}%`}
+        <FigureStrip className="md:grid-cols-3 xl:grid-cols-6">
+          <StripFigure
+            icon={MessagesSquareIcon}
+            label="Conversations"
+            note="Analysed in this window"
+            tone="info"
+            value={total}
           />
-          <Figure
+          <StripFigure
+            icon={SparklesIcon}
+            label="Resolved by the assistant"
+            note="Solved without your team"
+            tone="positive"
+            value={`${percentOf(counts.resolved, total)}%`}
+          />
+          <StripFigure
+            icon={UsersIcon}
             label="Handed to a person"
             note="Share of conversations your team took over"
+            tone="info"
             value={`${overview.escalationRate}%`}
           />
-          <Figure
+          <StripFigure
+            icon={CircleCheckIcon}
+            label="Answered fully"
+            note="Customers who got a complete answer"
+            tone="positive"
+            value={`${answerRate}%`}
+          />
+          <StripFigure
+            icon={TimerIcon}
             label="First human reply"
             note="From the customer's first message to your team's reply"
+            tone="warning"
             value={formatDuration(overview.averageHumanResponseMs)}
           />
-          <Figure
+          <StripFigure
+            icon={HourglassIcon}
             label="Time saved"
             note="Support minutes the assistant handled for you"
+            tone="accent"
             value={savedTimeLabel}
           />
+        </FigureStrip>
+
+        <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+          <ReportSection
+            lede="How every conversation in this window ended."
+            title="Outcomes"
+          >
+            <OutcomeWaffle counts={counts} total={total} />
+          </ReportSection>
+
+          <ReportSection
+            lede="The jobs customers came to get done, across chat and voice."
+            title="What customers asked for"
+          >
+            <IntentRanking overview={overview} />
+            <MoodStrip overview={overview} />
+          </ReportSection>
+
+          <ReportSection
+            lede="How each channel ended — solved by the assistant, taken over by your team, or still open."
+            title="Chat and voice"
+          >
+            <ChannelSplit overview={overview} />
+          </ReportSection>
+
+          <ReportSection
+            className="lg:col-span-1 2xl:col-span-1"
+            lede="Questions the assistant couldn't answer. Each one you answer stops the next customer from waiting."
+            title="What it still needs to learn"
+          >
+            <KnowledgeGaps overview={overview} />
+          </ReportSection>
+
+          <ReportSection
+            className="lg:col-span-1 2xl:col-span-2"
+            lede="The latest conversations, summarised as they were analysed."
+            title="Recent conversations"
+          >
+            <SignalTimeline overview={overview} />
+          </ReportSection>
         </div>
-
-        <ReportSection
-          index={1}
-          lede="The jobs customers came to get done, across chat and voice."
-          title="What customers asked for"
-        >
-          <IntentRanking overview={overview} />
-          <MoodStrip overview={overview} />
-        </ReportSection>
-
-        <ReportSection
-          index={2}
-          lede="Questions the assistant couldn't answer. Each one you add to the knowledge base stops the next customer from waiting."
-          title="What it still needs to learn"
-        >
-          <KnowledgeGaps overview={overview} />
-        </ReportSection>
-
-        <ReportSection
-          index={3}
-          lede="How each channel ended — solved by the assistant, taken over by your team, or still open."
-          title="Chat and voice"
-        >
-          <ChannelSplit overview={overview} />
-        </ReportSection>
-
-        <ReportSection
-          index={4}
-          lede="The latest conversations, summarised as they were analysed."
-          title="Recent conversations"
-        >
-          <SignalTimeline overview={overview} />
-        </ReportSection>
       </div>
     </ConsolePage>
   )

@@ -1,6 +1,8 @@
 import { v, ConvexError } from "convex/values"
 import { internalQuery, internalMutation } from "../_generated/server"
 import { internal } from "../_generated/api"
+import { scheduleFollowUpCheck } from "../lib/followUpHooks"
+import { scheduleTeamAlert } from "../lib/teamAlertHooks"
 import { supportAgent } from "./ai/agents/supportAgent"
 
 export const escalate = internalMutation({
@@ -42,6 +44,11 @@ export const escalate = internalMutation({
           },
         }
       )
+
+      await scheduleTeamAlert(ctx, conversation.organizationId, {
+        kind: "handoff",
+        conversationId: conversation._id,
+      })
     }
   },
 })
@@ -165,6 +172,17 @@ export const touchCustomerMessage = internalMutation({
         ? (conversation.unreadForOperatorCount ?? 0) + 1
         : 0,
     })
+
+    await scheduleFollowUpCheck(ctx, conversation, timestamp)
+
+    // With the team: someone should see this without opening the dashboard.
+    if (conversation.status === "escalated") {
+      await scheduleTeamAlert(ctx, conversation.organizationId, {
+        kind: "waiting",
+        conversationId: conversation._id,
+        customerMessageAt: timestamp,
+      })
+    }
   },
 })
 

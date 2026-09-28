@@ -3281,4 +3281,1176 @@ export const supplementalTranslations: Record<string, TranslationValue> = {
     uz: "Ovozli qo'ng'iroqlarni o'qish",
     ru: "Чтение голосовых звонков",
   },
+  "Follow-ups": {
+    uz: "Eslatmalar",
+    ru: "Напоминания",
+  },
+  "Telegram alerts": {
+    uz: "Telegram bildirishnomalari",
+    ru: "Уведомления в Telegram",
+  },
+  "Answer these questions": {
+    uz: "Bu savollarga javob bering",
+    ru: "Ответить на эти вопросы",
+  },
+  "Learned answers": {
+    uz: "O'rganilgan javoblar",
+    ru: "Выученные ответы",
+  },
+  "Answered by your team": {
+    uz: "Jamoangiz javob bergan",
+    ru: "Ответила ваша команда",
+  },
+  "Couldn't answer": {
+    uz: "Javob bera olmadi",
+    ru: "Не смог ответить",
+  },
+  "Learned": {
+    uz: "O'rganildi",
+    ru: "Выучено",
+  },
+  "Nothing to review. When someone on your team answers a customer, answers worth keeping appear here.": {
+    uz: "Ko'rib chiqadigan narsa yo'q. Jamoangizdan kimdir mijozga javob berganda, saqlashga arziydigan javoblar shu yerda paydo bo'ladi.",
+    ru: "Пока нечего проверять. Когда кто-то из команды отвечает клиенту, полезные ответы появятся здесь.",
+  },
+  "Your assistant has answered every question so far. Questions it can't answer will appear here.": {
+    uz: "Yordamchingiz hozircha barcha savollarga javob berdi. U javob bera olmagan savollar shu yerda paydo bo'ladi.",
+    ru: "Пока ассистент ответил на все вопросы. Вопросы, на которые он не сможет ответить, появятся здесь.",
+  },
+  "Nothing learned yet. Approved answers are listed here, and you can edit or remove them at any time.": {
+    uz: "Hali hech narsa o'rganilmagan. Tasdiqlangan javoblar shu yerda turadi — ularni istalgan vaqtda tahrirlash yoki o'chirish mumkin.",
+    ru: "Пока ничего не выучено. Одобренные ответы появятся здесь — их можно изменить или удалить в любой момент.",
+  },
+  "From a chat your team answered": {
+    uz: "Jamoangiz javob bergan suhbatdan",
+    ru: "Из чата, где ответила ваша команда",
+  },
+  "Customers asked this and the assistant didn't know": {
+    uz: "Mijozlar buni so'radi, yordamchi esa bilmadi",
+    ru: "Клиенты спрашивали это, а ассистент не знал",
+  },
+  "Open the conversation": {
+    uz: "Suhbatni ochish",
+    ru: "Открыть диалог",
+  },
+  "Answer": {
+    uz: "Javob",
+    ru: "Ответ",
+  },
+  "Write the answer your assistant should give": {
+    uz: "Yordamchingiz beradigan javobni yozing",
+    ru: "Напишите ответ, который должен давать ассистент",
+  },
+  "Remove": {
+    uz: "O'chirish",
+    ru: "Удалить",
+  },
+  "Your assistant knows this now": {
+    uz: "Yordamchingiz endi buni biladi",
+    ru: "Теперь ассистент это знает",
+  },
+  "Couldn't save the answer": {
+    uz: "Javobni saqlab bo'lmadi",
+    ru: "Не удалось сохранить ответ",
+  },
+  "Couldn't dismiss it": {
+    uz: "Yopib bo'lmadi",
+    ru: "Не удалось скрыть",
+  },
+  "Removed from your knowledge base": {
+    uz: "Bilim bazasidan o'chirildi",
+    ru: "Удалено из базы знаний",
+  },
+  "Couldn't remove it": {
+    uz: "O'chirib bo'lmadi",
+    ru: "Не удалось удалить",
+  },
+  "Your assistant learns what your team already knows.": {
+    uz: "Yordamchingiz jamoangiz biladigan narsalarni o'rganadi.",
+    ru: "Ассистент учится тому, что уже знает ваша команда.",
+  },
+  "When someone on your team answers a customer, or a customer asks something your assistant can't answer, it lands here. Check the answer and approve it — from then on, your assistant answers it on its own.": {
+    uz: "Jamoangizdan kimdir mijozga javob bersa yoki mijoz yordamchingiz javob bera olmaydigan savol bersa, u shu yerga tushadi. Javobni tekshirib tasdiqlang — shundan keyin yordamchingiz bunga o'zi javob beradi.",
+    ru: "Когда кто-то из команды отвечает клиенту или клиент задаёт вопрос, на который ассистент не может ответить, это попадает сюда. Проверьте ответ и одобрите его — дальше ассистент будет отвечать сам.",
+  },
+  "Answer these from Telegram": {
+    uz: "Bularga Telegram'dan javob bering",
+    ru: "Отвечайте на них из Telegram",
+  },
+  "— every Monday you get the week's open questions and can reply with the answer.": {
+    uz: "— har dushanba haftaning ochiq savollari keladi va ularga javob yozib yuborishingiz mumkin.",
+    ru: "— каждый понедельник приходят открытые вопросы за неделю, и на них можно ответить прямо в чате.",
+  },
+  "Waiting for you": {
+    uz: "Sizni kutmoqda",
+    ru: "Ждут вас",
+  },
+  "Answers to check and questions to answer": {
+    uz: "Tekshiriladigan javoblar va javob beriladigan savollar",
+    ru: "Ответы на проверку и вопросы без ответа",
+  },
+  "Found in chats your team handled": {
+    uz: "Jamoangiz yuritgan suhbatlardan topilgan",
+    ru: "Найдено в чатах, которые вела команда",
+  },
+  "Answers your assistant now gives on its own": {
+    uz: "Yordamchingiz endi o'zi beradigan javoblar",
+    ru: "Ответы, которые ассистент теперь даёт сам",
+  },
+  "Filter answers": {
+    uz: "Javoblarni saralash",
+    ru: "Фильтр ответов",
+  },
+  "30 minutes": {
+    uz: "30 daqiqa",
+    ru: "30 минут",
+  },
+  "1 hour": {
+    uz: "1 soat",
+    ru: "1 час",
+  },
+  "2 hours": {
+    uz: "2 soat",
+    ru: "2 часа",
+  },
+  "3 hours": {
+    uz: "3 soat",
+    ru: "3 часа",
+  },
+  "6 hours": {
+    uz: "6 soat",
+    ru: "6 часов",
+  },
+  "12 hours": {
+    uz: "12 soat",
+    ru: "12 часов",
+  },
+  "23 hours": {
+    uz: "23 soat",
+    ru: "23 часа",
+  },
+  "Everyone who wrote to your bot": {
+    uz: "Botingizga yozgan hamma",
+    ru: "Все, кто писал вашему боту",
+  },
+  "People who wrote in the last 30 days": {
+    uz: "So'nggi 30 kunda yozganlar",
+    ru: "Писавшие за последние 30 дней",
+  },
+  "People who wrote in the last 90 days": {
+    uz: "So'nggi 90 kunda yozganlar",
+    ru: "Писавшие за последние 90 дней",
+  },
+  "Follow up when a customer goes quiet": {
+    uz: "Mijoz jim qolsa, eslatma yuborish",
+    ru: "Напоминать, когда клиент замолчал",
+  },
+  "If a customer stops replying after your assistant answered them, it sends one short message to check in. Never more than one per conversation, and never to someone waiting on your team.": {
+    uz: "Agar mijoz yordamchingiz javobidan keyin yozishdan to'xtasa, u holidan xabar olish uchun bitta qisqa xabar yuboradi. Har bir suhbatda bittadan ortiq emas va jamoangizdan javob kutayotgan mijozga hech qachon yuborilmaydi.",
+    ru: "Если клиент перестал отвечать после ответа ассистента, тот отправит одно короткое сообщение, чтобы уточнить, всё ли в порядке. Не больше одного на диалог и никогда — тому, кто ждёт ответа от команды.",
+  },
+  "Wait before following up": {
+    uz: "Eslatmadan oldin kutish",
+    ru: "Сколько ждать перед напоминанием",
+  },
+  "What to send": {
+    uz: "Nima yuboriladi",
+    ru: "Что отправлять",
+  },
+  "Let the assistant write it": {
+    uz: "Yordamchi o'zi yozsin",
+    ru: "Пусть напишет ассистент",
+  },
+  "One short message in the customer's own language, written from the conversation. It never invents prices or offers.": {
+    uz: "Suhbat asosida mijozning o'z tilida yozilgan bitta qisqa xabar. U hech qachon narx yoki taklif o'ylab topmaydi.",
+    ru: "Одно короткое сообщение на языке клиента, написанное по ходу диалога. Цены и акции он никогда не придумывает.",
+  },
+  "Use my message": {
+    uz: "Mening xabarim",
+    ru: "Моё сообщение",
+  },
+  "The same message every time. Write it in the language your customers use.": {
+    uz: "Har safar bir xil xabar. Uni mijozlaringiz tilida yozing.",
+    ru: "Каждый раз одно и то же сообщение. Напишите его на языке ваших клиентов.",
+  },
+  "Salom {name}! Savolingizga javob oldingizmi? Yana yordam kerak bo'lsa, yozing.": {
+    uz: "Salom {name}! Savolingizga javob oldingizmi? Yana yordam kerak bo'lsa, yozing.",
+    ru: "Здравствуйте, {name}! Вы получили ответ на свой вопрос? Если нужна помощь — пишите.",
+  },
+  "Write {name} to use the customer's first name.": {
+    uz: "Mijoz ismini qo'yish uchun {name} deb yozing.",
+    ru: "Напишите {name}, чтобы подставить имя клиента.",
+  },
+  "Write {name} to use each customer's first name.": {
+    uz: "Har bir mijozning ismini qo'yish uchun {name} deb yozing.",
+    ru: "Напишите {name}, чтобы подставить имя каждого клиента.",
+  },
+  "Where": {
+    uz: "Qayerda",
+    ru: "Где",
+  },
+  "Instagram and WhatsApp only allow a message within 24 hours of the customer's last one, so follow-ups there always go out within a day. On the website, the customer sees it the next time they open the chat.": {
+    uz: "Instagram va WhatsApp mijozning oxirgi xabaridan keyin faqat 24 soat ichida yozishga ruxsat beradi, shuning uchun u yerda eslatmalar doim bir kun ichida yuboriladi. Saytda mijoz uni chatni keyingi safar ochganda ko'radi.",
+    ru: "Instagram и WhatsApp разрешают писать только в течение 24 часов после последнего сообщения клиента, поэтому там напоминания всегда уходят в течение суток. На сайте клиент увидит его, когда снова откроет чат.",
+  },
+  "Follow-up settings saved": {
+    uz: "Eslatma sozlamalari saqlandi",
+    ru: "Настройки напоминаний сохранены",
+  },
+  "Couldn't save the settings": {
+    uz: "Sozlamalarni saqlab bo'lmadi",
+    ru: "Не удалось сохранить настройки",
+  },
+  "Latest follow-ups": {
+    uz: "So'nggi eslatmalar",
+    ru: "Последние напоминания",
+  },
+  "No follow-ups sent yet. They appear here as they go out.": {
+    uz: "Hali eslatma yuborilmagan. Ular yuborilishi bilan shu yerda paydo bo'ladi.",
+    ru: "Напоминаний пока не было. Они появятся здесь, как только будут отправлены.",
+  },
+  "Customer": {
+    uz: "Mijoz",
+    ru: "Клиент",
+  },
+  "Not delivered": {
+    uz: "Yetkazilmadi",
+    ru: "Не доставлено",
+  },
+  "not delivered": {
+    uz: "yetkazilmadi",
+    ru: "не доставлено",
+  },
+  "Salom {name}! Bu hafta barcha xizmatlarimizga 20% chegirma.": {
+    uz: "Salom {name}! Bu hafta barcha xizmatlarimizga 20% chegirma.",
+    ru: "Здравствуйте, {name}! На этой неделе скидка 20% на все услуги.",
+  },
+  "Send to": {
+    uz: "Kimga yuborish",
+    ru: "Кому отправить",
+  },
+  "Not connected": {
+    uz: "Ulanmagan",
+    ru: "Не подключено",
+  },
+  "Instagram and WhatsApp only allow a message to people who wrote to you in the last 24 hours, so only they are counted. If a customer replies, the conversation starts with your broadcast so your assistant knows what they are answering.": {
+    uz: "Instagram va WhatsApp faqat so'nggi 24 soatda sizga yozganlarga xabar yuborishga ruxsat beradi, shuning uchun faqat ular hisoblanadi. Mijoz javob bersa, suhbat sizning xabaringiz bilan boshlanadi — yordamchingiz u nimaga javob berayotganini biladi.",
+    ru: "Instagram и WhatsApp разрешают писать только тем, кто писал вам за последние 24 часа, поэтому считаются только они. Если клиент ответит, диалог начнётся с вашей рассылки — ассистент будет знать, на что он отвечает.",
+  },
+  "Send broadcast": {
+    uz: "Xabarni yuborish",
+    ru: "Отправить рассылку",
+  },
+  "Send this broadcast?": {
+    uz: "Xabar yuborilsinmi?",
+    ru: "Отправить рассылку?",
+  },
+  "It goes out right away and can't be taken back once delivered.": {
+    uz: "U darhol yuboriladi va yetkazilgach, qaytarib bo'lmaydi.",
+    ru: "Она уйдёт сразу, и после доставки её нельзя будет отозвать.",
+  },
+  "Recipients:": {
+    uz: "Qabul qiluvchilar:",
+    ru: "Получателей:",
+  },
+  "Send now": {
+    uz: "Hozir yuborish",
+    ru: "Отправить сейчас",
+  },
+  "Broadcast is on its way": {
+    uz: "Xabar yuborilmoqda",
+    ru: "Рассылка отправляется",
+  },
+  "Couldn't send the broadcast": {
+    uz: "Xabarni yuborib bo'lmadi",
+    ru: "Не удалось отправить рассылку",
+  },
+  "Couldn't stop the broadcast": {
+    uz: "Xabarni to'xtatib bo'lmadi",
+    ru: "Не удалось остановить рассылку",
+  },
+  "Sending": {
+    uz: "Yuborilmoqda",
+    ru: "Отправляется",
+  },
+  "Stopped": {
+    uz: "To'xtatildi",
+    ru: "Остановлено",
+  },
+  "Sent broadcasts": {
+    uz: "Yuborilgan xabarlar",
+    ru: "Отправленные рассылки",
+  },
+  "Stop": {
+    uz: "To'xtatish",
+    ru: "Остановить",
+  },
+  "Follow-ups & broadcasts": {
+    uz: "Eslatmalar va xabarnomalar",
+    ru: "Напоминания и рассылки",
+  },
+  "Win back customers who went quiet.": {
+    uz: "Jim qolgan mijozlarni qaytaring.",
+    ru: "Возвращайте замолчавших клиентов.",
+  },
+  "Most customers who stop replying just got distracted. Your assistant can check in with them automatically — and when you have news, you can message everyone who wrote to you on Telegram, Instagram or WhatsApp at once.": {
+    uz: "Yozishdan to'xtagan mijozlarning ko'pchiligi shunchaki chalg'igan bo'ladi. Yordamchingiz ulardan avtomatik ravishda hol so'rashi mumkin — yangiligingiz bo'lsa esa, Telegram, Instagram yoki WhatsApp'da sizga yozgan hammaga birdaniga xabar yuborasiz.",
+    ru: "Большинство клиентов, которые перестали отвечать, просто отвлеклись. Ассистент может сам им напомнить о себе — а когда есть новости, вы можете сразу написать всем, кто писал вам в Telegram, Instagram или WhatsApp.",
+  },
+  "Follow-ups sent": {
+    uz: "Yuborilgan eslatmalar",
+    ru: "Отправлено напоминаний",
+  },
+  "In the last 30 days": {
+    uz: "So'nggi 30 kunda",
+    ru: "За последние 30 дней",
+  },
+  "Customers who replied": {
+    uz: "Javob bergan mijozlar",
+    ru: "Ответившие клиенты",
+  },
+  "Wrote back after a follow-up": {
+    uz: "Eslatmadan keyin javob yozgan",
+    ru: "Ответили после напоминания",
+  },
+  "Reply rate": {
+    uz: "Javob ulushi",
+    ru: "Доля ответов",
+  },
+  "Share of follow-ups that brought the customer back": {
+    uz: "Mijozni qaytargan eslatmalar ulushi",
+    ru: "Доля напоминаний, которые вернули клиента",
+  },
+  "Automatic follow-ups": {
+    uz: "Avtomatik eslatmalar",
+    ru: "Автоматические напоминания",
+  },
+  "One friendly check-in, sent by your assistant, when a customer stops replying.": {
+    uz: "Mijoz yozishdan to'xtaganda yordamchingiz yuboradigan bitta samimiy eslatma.",
+    ru: "Одно дружеское напоминание от ассистента, когда клиент перестаёт отвечать.",
+  },
+  "Broadcasts": {
+    uz: "Xabarnomalar",
+    ru: "Рассылки",
+  },
+  "A new offer, holiday hours, a product back in stock — one message to everyone who wrote to you.": {
+    uz: "Yangi taklif, bayram kunlari ish vaqti, qayta sotuvga chiqqan mahsulot — sizga yozgan hammaga bitta xabar.",
+    ru: "Новое предложение, праздничный график, товар снова в наличии — одно сообщение всем, кто вам писал.",
+  },
+  "A customer asks for a person": {
+    uz: "Mijoz xodim bilan gaplashmoqchi",
+    ru: "Клиент просит сотрудника",
+  },
+  "When your assistant hands a conversation to your team.": {
+    uz: "Yordamchingiz suhbatni jamoangizga o'tkazganda.",
+    ru: "Когда ассистент передаёт диалог вашей команде.",
+  },
+  "A customer writes while waiting for you": {
+    uz: "Sizni kutayotgan mijoz yozdi",
+    ru: "Клиент пишет, пока ждёт вас",
+  },
+  "Their new messages, so you can answer straight away.": {
+    uz: "Uning yangi xabarlari — darhol javob berishingiz uchun.",
+    ru: "Его новые сообщения — чтобы вы могли сразу ответить.",
+  },
+  "A customer seems unhappy": {
+    uz: "Mijoz norozi ko'rinadi",
+    ru: "Клиент, похоже, недоволен",
+  },
+  "Once per conversation, so you can step in early.": {
+    uz: "Har bir suhbatda bir marta — vaqtida aralashishingiz uchun.",
+    ru: "Один раз за диалог — чтобы вы успели вмешаться.",
+  },
+  "Someone leaves their contact details": {
+    uz: "Kimdir aloqa ma'lumotlarini qoldirdi",
+    ru: "Кто-то оставил контакты",
+  },
+  "A new lead from your website chat.": {
+    uz: "Sayt chatingizdan yangi mijoz.",
+    ru: "Новый лид из чата на сайте.",
+  },
+  "Weekly summary": {
+    uz: "Haftalik hisobot",
+    ru: "Итоги недели",
+  },
+  "Every Monday at 9:00 — your week in numbers, and the questions your assistant couldn't answer, ready to answer by reply.": {
+    uz: "Har dushanba soat 9:00 da — haftangiz raqamlarda va yordamchingiz javob bera olmagan savollar, ularga javob yozishingiz mumkin.",
+    ru: "Каждый понедельник в 9:00 — ваша неделя в цифрах и вопросы, на которые ассистент не смог ответить: на них можно ответить прямо в чате.",
+  },
+  "Русский": {
+    uz: "Ruscha",
+    ru: "Русский",
+  },
+  "Reply to an alert to answer the customer. They get your message on Telegram, Instagram, WhatsApp or your website chat — wherever they wrote from.": {
+    uz: "Mijozga javob berish uchun bildirishnomaga javob yozing. Xabaringiz unga Telegram, Instagram, WhatsApp yoki sayt chatida — u qayerdan yozgan bo'lsa, o'sha yerda yetib boradi.",
+    ru: "Ответьте на уведомление, чтобы написать клиенту. Он получит сообщение в Telegram, Instagram, WhatsApp или в чате на сайте — там, откуда писал.",
+  },
+  "Tap “Mark resolved” when it's sorted.": {
+    uz: "Masala hal bo'lgach, «Hal qilindi»ni bosing.",
+    ru: "Когда вопрос решён, нажмите «Решено».",
+  },
+  "Reply to a question in the weekly summary with the answer, and your assistant learns it.": {
+    uz: "Haftalik hisobotdagi savolga javob yozing — yordamchingiz uni o'rganadi.",
+    ru: "Ответьте на вопрос из итогов недели — и ассистент его выучит.",
+  },
+  "Send /stop to the bot to pause alerts, and /resume to turn them back on.": {
+    uz: "Bildirishnomalarni to'xtatish uchun botga /stop, qayta yoqish uchun /resume yuboring.",
+    ru: "Отправьте боту /stop, чтобы приостановить уведомления, и /resume, чтобы включить их снова.",
+  },
+  "Tap “Connect Telegram” — Telegram opens our bot.": {
+    uz: "«Telegram'ni ulash»ni bosing — Telegram botimizni ochadi.",
+    ru: "Нажмите «Подключить Telegram» — откроется наш бот.",
+  },
+  "Press Start in Telegram.": {
+    uz: "Telegram'da «Start»ni bosing.",
+    ru: "Нажмите «Старт» в Telegram.",
+  },
+  "This page updates on its own once you're connected.": {
+    uz: "Ulanganingizdan so'ng bu sahifa o'zi yangilanadi.",
+    ru: "После подключения эта страница обновится сама.",
+  },
+  "Didn't open? Open the link": {
+    uz: "Ochilmadimi? Havolani oching",
+    ru: "Не открылось? Откройте ссылку",
+  },
+  "The link works for 15 minutes and only for you.": {
+    uz: "Havola 15 daqiqa ishlaydi va faqat siz uchun.",
+    ru: "Ссылка действует 15 минут и только для вас.",
+  },
+  "Couldn't create the link": {
+    uz: "Havolani yaratib bo'lmadi",
+    ru: "Не удалось создать ссылку",
+  },
+  "Test alert sent — check Telegram": {
+    uz: "Sinov bildirishnomasi yuborildi — Telegram'ni tekshiring",
+    ru: "Тестовое уведомление отправлено — проверьте Telegram",
+  },
+  "Couldn't reach your Telegram. Try connecting again.": {
+    uz: "Telegram'ingizga yetib bo'lmadi. Qaytadan ulanib ko'ring.",
+    ru: "Не удалось достучаться до вашего Telegram. Попробуйте подключиться снова.",
+  },
+  "Couldn't send a test alert": {
+    uz: "Sinov bildirishnomasini yuborib bo'lmadi",
+    ru: "Не удалось отправить тестовое уведомление",
+  },
+  "Couldn't update alerts": {
+    uz: "Bildirishnomalarni yangilab bo'lmadi",
+    ru: "Не удалось обновить уведомления",
+  },
+  "Couldn't update the language": {
+    uz: "Tilni o'zgartirib bo'lmadi",
+    ru: "Не удалось сменить язык",
+  },
+  "Telegram disconnected": {
+    uz: "Telegram uzildi",
+    ru: "Telegram отключён",
+  },
+  "Couldn't disconnect": {
+    uz: "Uzib bo'lmadi",
+    ru: "Не удалось отключить",
+  },
+  "Send me alerts": {
+    uz: "Menga bildirishnoma yuborish",
+    ru: "Присылать мне уведомления",
+  },
+  "Pause them for a while without disconnecting.": {
+    uz: "Uzmasdan vaqtincha to'xtatib turing.",
+    ru: "Приостановите их на время, не отключаясь.",
+  },
+  "Alert language": {
+    uz: "Bildirishnomalar tili",
+    ru: "Язык уведомлений",
+  },
+  "Send a test alert": {
+    uz: "Sinov bildirishnomasini yuborish",
+    ru: "Отправить тестовое уведомление",
+  },
+  "Run your support from Telegram.": {
+    uz: "Mijozlarga xizmatni Telegram'dan boshqaring.",
+    ru: "Управляйте поддержкой из Telegram.",
+  },
+  "Know the moment a customer needs a person, seems unhappy or leaves their contact details — and answer them by replying to the alert. No need to keep the dashboard open.": {
+    uz: "Mijozga xodim kerak bo'lsa, u norozi bo'lsa yoki aloqa ma'lumotlarini qoldirsa — darhol biling va bildirishnomaga javob yozib, unga javob bering. Panelni ochiq tutish shart emas.",
+    ru: "Сразу узнавайте, когда клиенту нужен сотрудник, он недоволен или оставил контакты, — и отвечайте ему прямо на уведомление. Держать панель открытой не нужно.",
+  },
+  "Telegram alerts aren't switched on for this workspace yet.": {
+    uz: "Bu ish maydoni uchun Telegram bildirishnomalari hali yoqilmagan.",
+    ru: "Уведомления в Telegram для этого пространства ещё не включены.",
+  },
+  "For the administrator: create a bot with @BotFather and set its token as TEAM_TELEGRAM_BOT_TOKEN in the Convex environment.": {
+    uz: "Administrator uchun: @BotFather orqali bot yarating va uning tokenini Convex muhitida TEAM_TELEGRAM_BOT_TOKEN sifatida o'rnating.",
+    ru: "Для администратора: создайте бота через @BotFather и укажите его токен как TEAM_TELEGRAM_BOT_TOKEN в окружении Convex.",
+  },
+  "Your Telegram": {
+    uz: "Telegram'ingiz",
+    ru: "Ваш Telegram",
+  },
+  "Alerts go to your own Telegram. Everyone on your team connects their own.": {
+    uz: "Bildirishnomalar o'z Telegram'ingizga keladi. Jamoadagi har kim o'zinikini ulaydi.",
+    ru: "Уведомления приходят в ваш личный Telegram. Каждый в команде подключает свой.",
+  },
+  "What to send you": {
+    uz: "Sizga nima yuborilsin",
+    ru: "Что вам присылать",
+  },
+  "Choose what's worth a buzz in your pocket.": {
+    uz: "Qaysi voqealar uchun telefoningiz jiringlashi kerakligini tanlang.",
+    ru: "Выберите, ради чего стоит отвлекаться на телефон.",
+  },
+  "Everything you can do without opening the dashboard.": {
+    uz: "Panelni ochmasdan qila oladigan hamma narsa.",
+    ru: "Всё, что можно сделать, не открывая панель.",
+  },
+  "People on your team who get alerts in Telegram.": {
+    uz: "Jamoangizdagi Telegram'da bildirishnoma oladigan odamlar.",
+    ru: "Участники команды, которые получают уведомления в Telegram.",
+  },
+  "Worse": {
+    uz: "Yomonroq",
+    ru: "Хуже",
+  },
+  "Changed": {
+    uz: "O'zgardi",
+    ru: "Изменилось",
+  },
+  "Better": {
+    uz: "Yaxshiroq",
+    ru: "Лучше",
+  },
+  "Same": {
+    uz: "Bir xil",
+    ru: "Так же",
+  },
+  "Hands over to a person": {
+    uz: "Xodimga o'tkazadi",
+    ru: "Передаёт сотруднику",
+  },
+  "Closes the conversation": {
+    uz: "Suhbatni yopadi",
+    ru: "Закрывает диалог",
+  },
+  "Uses Google Sheets": {
+    uz: "Google Sheets'dan foydalanadi",
+    ru: "Использует Google Sheets",
+  },
+  "Uses Google Calendar": {
+    uz: "Google Calendar'dan foydalanadi",
+    ru: "Использует Google Calendar",
+  },
+  "Calls your API": {
+    uz: "API'ingizga murojaat qiladi",
+    ru: "Обращается к вашему API",
+  },
+  "Uses a custom tool": {
+    uz: "Maxsus vositadan foydalanadi",
+    ru: "Использует свой инструмент",
+  },
+  "Customers were told": {
+    uz: "Mijozlarga aytilgan",
+    ru: "Клиентам ответили",
+  },
+  "With your changes": {
+    uz: "O'zgarishlaringiz bilan",
+    ru: "С вашими изменениями",
+  },
+  "(no reply)": {
+    uz: "(javob yo'q)",
+    ru: "(нет ответа)",
+  },
+  "Test before publishing": {
+    uz: "E'lon qilishdan oldin sinab ko'ring",
+    ru: "Проверка перед публикацией",
+  },
+  "Real questions your customers asked, answered again with your draft. Nothing is sent to anyone, and bookings or other actions don't really run.": {
+    uz: "Mijozlaringiz bergan haqiqiy savollarga qoralamangiz bilan qaytadan javob beriladi. Hech kimga hech narsa yuborilmaydi, bron va boshqa amallar aslida bajarilmaydi.",
+    ru: "На реальные вопросы ваших клиентов отвечает ваш черновик. Никому ничего не отправляется, бронирования и другие действия на самом деле не выполняются.",
+  },
+  "See how your draft answers the questions customers really ask, before they see it.": {
+    uz: "Qoralamangiz mijozlarning haqiqiy savollariga qanday javob berishini ular ko'rishidan oldin ko'ring.",
+    ru: "Посмотрите, как черновик отвечает на настоящие вопросы клиентов, — раньше, чем это увидят они.",
+  },
+  "Run the check": {
+    uz: "Tekshirishni boshlash",
+    ru: "Запустить проверку",
+  },
+  "Comparing the answers…": {
+    uz: "Javoblar solishtirilmoqda…",
+    ru: "Сравниваем ответы…",
+  },
+  "Answering the questions…": {
+    uz: "Savollarga javob berilmoqda…",
+    ru: "Отвечаем на вопросы…",
+  },
+  "Collecting real questions…": {
+    uz: "Haqiqiy savollar yig'ilmoqda…",
+    ru: "Собираем реальные вопросы…",
+  },
+  "The check didn't finish. Try running it again.": {
+    uz: "Tekshirish yakunlanmadi. Qaytadan urinib ko'ring.",
+    ru: "Проверка не завершилась. Попробуйте запустить её снова.",
+  },
+  "There are no customer questions to test with yet. Once customers chat with your assistant, this check uses their real questions.": {
+    uz: "Sinash uchun hali mijoz savollari yo'q. Mijozlar yordamchingiz bilan yozishgach, bu tekshiruv ularning haqiqiy savollaridan foydalanadi.",
+    ru: "Пока нет вопросов клиентов для проверки. Когда клиенты начнут общаться с ассистентом, проверка будет использовать их реальные вопросы.",
+  },
+  "Your draft has changed since this check. Run it again to see the latest version.": {
+    uz: "Bu tekshiruvdan keyin qoralamangiz o'zgardi. Oxirgi versiyani ko'rish uchun qaytadan ishga tushiring.",
+    ru: "Черновик изменился после этой проверки. Запустите её снова, чтобы увидеть последнюю версию.",
+  },
+  "Check again": {
+    uz: "Qayta tekshirish",
+    ru: "Проверить снова",
+  },
+  "Publish anyway": {
+    uz: "Baribir e'lon qilish",
+    ru: "Всё равно опубликовать",
+  },
+  "Test first": {
+    uz: "Avval sinash",
+    ru: "Сначала проверить",
+  },
+  "Couldn't start the check": {
+    uz: "Tekshirishni boshlab bo'lmadi",
+    ru: "Не удалось запустить проверку",
+  },
+  "Choose one of the listed waiting times.": {
+    uz: "Ro'yxatdagi kutish vaqtlaridan birini tanlang.",
+    ru: "Выберите одно из предложенных времён ожидания.",
+  },
+  "The follow-up message is too long.": {
+    uz: "Eslatma matni juda uzun.",
+    ru: "Текст напоминания слишком длинный.",
+  },
+  "Write the follow-up message, or let the assistant write it.": {
+    uz: "Eslatma matnini yozing yoki uni yordamchi yozsin.",
+    ru: "Напишите текст напоминания или доверьте его ассистенту.",
+  },
+  "Write the message first.": {
+    uz: "Avval xabarni yozing.",
+    ru: "Сначала напишите сообщение.",
+  },
+  "The message is too long for Telegram.": {
+    uz: "Xabar Telegram uchun juda uzun.",
+    ru: "Сообщение слишком длинное для Telegram.",
+  },
+  "Choose at least one channel.": {
+    uz: "Kamida bitta kanalni tanlang.",
+    ru: "Выберите хотя бы один канал.",
+  },
+  "Broadcasts are part of the paid plan.": {
+    uz: "Xabarnomalar pullik tarifga kiradi.",
+    ru: "Рассылки доступны на платном тарифе.",
+  },
+  "You have sent several broadcasts in the last hour. Please wait a little.": {
+    uz: "So'nggi bir soatda bir nechta xabar yubordingiz. Biroz kuting.",
+    ru: "За последний час вы отправили несколько рассылок. Пожалуйста, немного подождите.",
+  },
+  "Testing changes is part of the paid plan.": {
+    uz: "O'zgarishlarni sinash pullik tarifga kiradi.",
+    ru: "Проверка изменений доступна на платном тарифе.",
+  },
+  "You have run several checks this hour. Please try again a little later.": {
+    uz: "Bu soatda bir nechta tekshiruv o'tkazdingiz. Birozdan keyin qayta urinib ko'ring.",
+    ru: "За этот час вы запускали несколько проверок. Попробуйте чуть позже.",
+  },
+  "Too many connection links. Please wait a little and try again.": {
+    uz: "Ulanish havolalari juda ko'p. Biroz kutib, qayta urinib ko'ring.",
+    ru: "Слишком много ссылок для подключения. Подождите немного и попробуйте снова.",
+  },
+  "Too many test alerts. Please wait a little and try again.": {
+    uz: "Sinov bildirishnomalari juda ko'p. Biroz kutib, qayta urinib ko'ring.",
+    ru: "Слишком много тестовых уведомлений. Подождите немного и попробуйте снова.",
+  },
+  "Connect Telegram first.": {
+    uz: "Avval Telegram'ni ulang.",
+    ru: "Сначала подключите Telegram.",
+  },
+  "Telegram alerts are not set up on this server yet.": {
+    uz: "Bu serverda Telegram bildirishnomalari hali sozlanmagan.",
+    ru: "Уведомления в Telegram на этом сервере ещё не настроены.",
+  },
+  "Both the question and the answer are needed.": {
+    uz: "Savol ham, javob ham kerak.",
+    ru: "Нужны и вопрос, и ответ.",
+  },
+  "You have taught a lot of answers at once. Please wait a moment.": {
+    uz: "Birdaniga juda ko'p javob o'rgatdingiz. Biroz kuting.",
+    ru: "Вы обучили слишком много ответов подряд. Подождите немного.",
+  },
+  "Remove a taught answer instead of dismissing it.": {
+    uz: "O'rgatilgan javobni yopish o'rniga o'chiring.",
+    ru: "Выученный ответ нужно удалить, а не скрыть.",
+  },
+  "conversations analysed": {
+    uz: "ta suhbat tahlil qilindi",
+    ru: "диалогов проанализировано",
+  },
+  "Analysed in this window": {
+    uz: "Shu davrda tahlil qilingan",
+    ru: "Проанализировано за период",
+  },
+  "Resolved by the assistant": {
+    uz: "Yordamchi hal qildi",
+    ru: "Решено ассистентом",
+  },
+  "Solved without your team": {
+    uz: "Jamoangizsiz hal qilingan",
+    ru: "Решено без вашей команды",
+  },
+  "Handed to a person": {
+    uz: "Xodimga o'tkazilgan",
+    ru: "Передано сотруднику",
+  },
+  "Share of conversations your team took over": {
+    uz: "Jamoangiz o'z zimmasiga olgan suhbatlar ulushi",
+    ru: "Доля диалогов, которые взяла команда",
+  },
+  "Answered fully": {
+    uz: "To'liq javob berildi",
+    ru: "Полный ответ",
+  },
+  "Customers who got a complete answer": {
+    uz: "To'liq javob olgan mijozlar",
+    ru: "Клиенты, получившие полный ответ",
+  },
+  "First human reply": {
+    uz: "Xodimning birinchi javobi",
+    ru: "Первый ответ сотрудника",
+  },
+  "From the customer's first message to your team's reply": {
+    uz: "Mijozning birinchi xabaridan jamoangiz javobigacha",
+    ru: "От первого сообщения клиента до ответа команды",
+  },
+  "Time saved": {
+    uz: "Tejalgan vaqt",
+    ru: "Сэкономлено времени",
+  },
+  "Support minutes the assistant handled for you": {
+    uz: "Yordamchi siz uchun bajargan daqiqalar",
+    ru: "Минуты поддержки, которые ассистент взял на себя",
+  },
+  "Outcomes": {
+    uz: "Natijalar",
+    ru: "Итоги",
+  },
+  "How every conversation in this window ended.": {
+    uz: "Shu davrdagi har bir suhbat qanday yakunlangani.",
+    ru: "Чем закончился каждый диалог за этот период.",
+  },
+  "Once customers talk to your assistant, this shows how much it handled on its own and where your team stepped in.": {
+    uz: "Mijozlar yordamchingiz bilan yozisha boshlagach, bu yerda u qanchasini o'zi hal qilgani va jamoangiz qayerda aralashgani ko'rinadi.",
+    ru: "Когда клиенты начнут общаться с ассистентом, здесь будет видно, сколько он решил сам и где подключалась команда.",
+  },
+  "Questions the assistant couldn't answer. Each one you answer stops the next customer from waiting.": {
+    uz: "Yordamchi javob bera olmagan savollar. Har biriga javob bersangiz, keyingi mijoz kutib qolmaydi.",
+    ru: "Вопросы, на которые ассистент не ответил. Каждый ваш ответ избавит следующего клиента от ожидания.",
+  },
+  "Each square is 1% of conversations": {
+    uz: "Har bir katak suhbatlarning 1% i",
+    ru: "Каждый квадрат — 1% диалогов",
+  },
+  "Everyone who left their details in your chat or wrote to you on Telegram, WhatsApp or Instagram.": {
+    uz: "Chatingizda ma'lumot qoldirgan yoki Telegram, WhatsApp yoki Instagram'da sizga yozgan hamma.",
+    ru: "Все, кто оставил контакты в чате или написал вам в Telegram, WhatsApp или Instagram.",
+  },
+  "People who left their details": {
+    uz: "Ma'lumot qoldirganlar",
+    ru: "Оставили контакты",
+  },
+  "Handed to your team, customer spoke last": {
+    uz: "Jamoangizga o'tkazilgan, oxirgi xabar mijozdan",
+    ru: "Переданы команде, последним писал клиент",
+  },
+  "Arrived in the last 7 days": {
+    uz: "So'nggi 7 kunda kelganlar",
+    ru: "Пришли за последние 7 дней",
+  },
+  "Left details without a chat — worth a hello": {
+    uz: "Suhbatsiz ma'lumot qoldirgan — salom yozishga arziydi",
+    ru: "Оставили контакты без чата — стоит написать",
+  },
+  "Top channel": {
+    uz: "Asosiy kanal",
+    ru: "Главный канал",
+  },
+  "Where most leads came from": {
+    uz: "Ko'pchilik lidlar qayerdan kelgan",
+    ru: "Откуда пришло больше всего лидов",
+  },
+  "People": {
+    uz: "Odamlar",
+    ru: "Люди",
+  },
+  "Filter, search and reach out in one click.": {
+    uz: "Saralang, qidiring va bir bosishda bog'laning.",
+    ru: "Фильтруйте, ищите и связывайтесь в один клик.",
+  },
+  "Arrivals": {
+    uz: "Kelganlar",
+    ru: "Поступления",
+  },
+  "New leads per day. Hover a day to read it.": {
+    uz: "Kunlik yangi lidlar. Kunni ko'rish uchun ustiga olib boring.",
+    ru: "Новые лиды по дням. Наведите на день, чтобы посмотреть.",
+  },
+  "No one has left their details yet": {
+    uz: "Hali hech kim ma'lumot qoldirmagan",
+    ru: "Пока никто не оставил контакты",
+  },
+  "Who each customer is, what they asked and how it ended — so nobody has to repeat themselves.": {
+    uz: "Har bir mijoz kim, nima so'ragan va qanday yakunlangan — hech kim takrorlashiga to'g'ri kelmaydi.",
+    ru: "Кто каждый клиент, что спрашивал и чем всё закончилось — чтобы никому не пришлось повторяться.",
+  },
+  "Customers remembered": {
+    uz: "Eslab qolingan mijozlar",
+    ru: "Клиентов в памяти",
+  },
+  "People your assistant keeps notes on": {
+    uz: "Yordamchingiz qayd yuritadigan odamlar",
+    ru: "Люди, о которых ассистент ведёт заметки",
+  },
+  "The history those notes are built from": {
+    uz: "Qaydlar asosidagi tarix",
+    ru: "История, из которой собраны заметки",
+  },
+  "Came back this month": {
+    uz: "Shu oy qaytib kelganlar",
+    ru: "Вернулись в этом месяце",
+  },
+  "Returning customers in the last 30 days": {
+    uz: "So'nggi 30 kunda qaytgan mijozlar",
+    ru: "Вернувшиеся клиенты за 30 дней",
+  },
+  "Needed your team": {
+    uz: "Jamoangiz kerak bo'lgan",
+    ru: "Нужна была команда",
+  },
+  "Read their history before you reply": {
+    uz: "Javob berishdan oldin tarixini o'qing",
+    ru: "Прочитайте историю перед ответом",
+  },
+  "No one to remember yet": {
+    uz: "Hali eslab qoladigan hech kim yo'q",
+    ru: "Пока некого запоминать",
+  },
+  "Price lists, policies, FAQs and web pages your assistant answers from — in your own words, not guesses.": {
+    uz: "Narxlar ro'yxati, qoidalar, savol-javoblar va veb-sahifalar — yordamchingiz taxmin bilan emas, sizning so'zlaringiz bilan javob beradi.",
+    ru: "Прайс-листы, правила, ответы на вопросы и веб-страницы, по которым отвечает ассистент, — вашими словами, а не догадками.",
+  },
+  "Documents and pages added": {
+    uz: "Qo'shilgan hujjat va sahifalar",
+    ru: "Добавлено документов и страниц",
+  },
+  "Your assistant answers from these": {
+    uz: "Yordamchingiz shulardan javob beradi",
+    ru: "Ассистент отвечает по ним",
+  },
+  "Needs attention": {
+    uz: "E'tibor kerak",
+    ru: "Требует внимания",
+  },
+  "Still being read, or failed": {
+    uz: "Hali o'qilmoqda yoki xato bilan tugagan",
+    ru: "Ещё читаются или с ошибкой",
+  },
+  "Reused instead of written again": {
+    uz: "Qayta yozish o'rniga qayta ishlatiladi",
+    ru: "Используются повторно вместо новых",
+  },
+  "Times reused": {
+    uz: "Qayta ishlatilgan",
+    ru: "Использовано повторно",
+  },
+  "Answers served from the saved set": {
+    uz: "Saqlangan javoblardan berilgan",
+    ru: "Ответы из сохранённых",
+  },
+  "Ask your knowledge base": {
+    uz: "Bilim bazangizdan so'rang",
+    ru: "Спросите базу знаний",
+  },
+  "Clear": {
+    uz: "Tozalash",
+    ru: "Очистить",
+  },
+  "Saved": {
+    uz: "Saqlangan",
+    ru: "Сохранено",
+  },
+  "Reused": {
+    uz: "Qayta ishlatilgan",
+    ru: "Использовано",
+  },
+  "Match different wording": {
+    uz: "Boshqacha so'zlarga mos keladi",
+    ru: "Узнают другие формулировки",
+  },
+  "Last reused": {
+    uz: "Oxirgi marta ishlatilgan",
+    ru: "Последнее использование",
+  },
+  "Teach your assistant what your business knows": {
+    uz: "Yordamchingizga biznesingiz biladigan narsalarni o'rgating",
+    ru: "Научите ассистента тому, что знает ваш бизнес",
+  },
+  "Answer from Telegram": {
+    uz: "Telegram'dan javob berish",
+    ru: "Отвечать из Telegram",
+  },
+  "Answers your team gave in chats, and questions your assistant couldn't answer. Approve one and your assistant answers it on its own from then on.": {
+    uz: "Jamoangiz chatlarda bergan javoblar va yordamchingiz javob bera olmagan savollar. Birini tasdiqlang — shundan keyin yordamchingiz unga o'zi javob beradi.",
+    ru: "Ответы команды из чатов и вопросы, на которые ассистент не ответил. Одобрите — и дальше ассистент будет отвечать сам.",
+  },
+  "Customers asked, the assistant didn't know": {
+    uz: "Mijozlar so'radi, yordamchi bilmadi",
+    ru: "Клиенты спросили, ассистент не знал",
+  },
+  "Answers": {
+    uz: "Javoblar",
+    ru: "Ответы",
+  },
+  "Check in automatically with customers who went quiet, and message everyone who wrote to you at once.": {
+    uz: "Jim qolgan mijozlardan avtomatik hol so'rang va sizga yozgan hammaga birdaniga xabar yuboring.",
+    ru: "Автоматически напоминайте замолчавшим клиентам и пишите сразу всем, кто вам писал.",
+  },
+  "Follow-ups on": {
+    uz: "Eslatmalar yoqilgan",
+    ru: "Напоминания включены",
+  },
+  "Follow-ups off": {
+    uz: "Eslatmalar o'chirilgan",
+    ru: "Напоминания выключены",
+  },
+  "Broadcasts sent": {
+    uz: "Yuborilgan xabarnomalar",
+    ru: "Отправлено рассылок",
+  },
+  "Most recent 20": {
+    uz: "Oxirgi 20 tasi",
+    ru: "Последние 20",
+  },
+  "What your assistant sent, and who came back.": {
+    uz: "Yordamchingiz nima yubordi va kim qaytdi.",
+    ru: "Что отправил ассистент и кто вернулся.",
+  },
+  "New broadcast": {
+    uz: "Yangi xabarnoma",
+    ru: "Новая рассылка",
+  },
+  "Delivery progress for your latest broadcasts.": {
+    uz: "So'nggi xabarnomalaringiz yetkazilishi.",
+    ru: "Ход доставки последних рассылок.",
+  },
+  "No broadcasts yet. Sent ones appear here with their delivery count.": {
+    uz: "Hali xabarnoma yo'q. Yuborilganlari yetkazilganlar soni bilan shu yerda ko'rinadi.",
+    ru: "Рассылок пока нет. Отправленные появятся здесь с числом доставок.",
+  },
+  "Know the moment a customer needs a person, seems unhappy or leaves their contact details — and answer by replying to the alert.": {
+    uz: "Mijozga xodim kerak bo'lsa, u norozi bo'lsa yoki aloqa ma'lumotlarini qoldirsa — darhol biling va bildirishnomaga javob yozib, unga javob bering.",
+    ru: "Сразу узнавайте, когда клиенту нужен сотрудник, он недоволен или оставил контакты, — и отвечайте прямо на уведомление.",
+  },
+  "No one on your team is connected yet.": {
+    uz: "Jamoangizdan hali hech kim ulanmagan.",
+    ru: "Из команды пока никто не подключён.",
+  },
+  "Take a copy of this organization — widget, knowledge base, saved replies, workflows, keys and webhooks — and bring it into another. Customer conversations stay where they are.": {
+    uz: "Bu tashkilotning nusxasini oling — vidjet, bilim bazasi, saqlangan javoblar, workflowlar, kalitlar va webhooklar — va boshqasiga olib o'ting. Mijozlar bilan suhbatlar joyida qoladi.",
+    ru: "Сделайте копию этой организации — виджет, база знаний, шаблоны ответов, workflow, ключи и вебхуки — и перенесите её в другую. Диалоги с клиентами остаются на месте.",
+  },
+  "Put your assistant on your website and the messaging apps your customers already use.": {
+    uz: "Yordamchingizni saytingizga va mijozlaringiz foydalanadigan messenjerlarga qo'ying.",
+    ru: "Разместите ассистента на сайте и в мессенджерах, которыми пользуются ваши клиенты.",
+  },
+  "needs attention": {
+    uz: "e'tibor talab qiladi",
+    ru: "требует внимания",
+  },
+  "need attention": {
+    uz: "e'tibor talab qiladi",
+    ru: "требуют внимания",
+  },
+  "messaging apps connected": {
+    uz: "messenjer ulangan",
+    ru: "мессенджеров подключено",
+  },
+  "What your assistant can look up and do in the apps you already use — while the customer is still chatting.": {
+    uz: "Yordamchingiz siz foydalanadigan ilovalarda nimani topa oladi va bajara oladi — mijoz hali yozishayotgan paytda.",
+    ru: "Что ассистент может найти и сделать в ваших приложениях — пока клиент ещё в чате.",
+  },
+  "Connect the apps you already use and your assistant can check an order, book a meeting or add a lead — while the customer is still chatting.": {
+    uz: "Foydalanadigan ilovalaringizni ulang — yordamchingiz buyurtmani tekshiradi, uchrashuvga yozadi yoki lid qo'shadi, mijoz hali yozishayotgan paytda.",
+    ru: "Подключите приложения, которыми пользуетесь, — и ассистент проверит заказ, запишет на встречу или добавит лида, пока клиент ещё в чате.",
+  },
+  "All connected apps switched off": {
+    uz: "Barcha ulangan ilovalar o'chirilgan",
+    ru: "Все подключённые приложения выключены",
+  },
+  "Keys let your developers start chats, read conversations and keep the knowledge base up to date from your website, app or CRM.": {
+    uz: "Kalitlar dasturchilaringizga saytingiz, ilovangiz yoki CRM'dan chat boshlash, suhbatlarni o'qish va bilim bazasini yangilab turish imkonini beradi.",
+    ru: "Ключи позволяют вашим разработчикам начинать чаты, читать диалоги и обновлять базу знаний с сайта, из приложения или CRM.",
+  },
+  "API on": {
+    uz: "API yoqilgan",
+    ru: "API включён",
+  },
+  "API off": {
+    uz: "API o'chirilgan",
+    ru: "API выключен",
+  },
+  "Access": {
+    uz: "Kirish",
+    ru: "Доступ",
+  },
+  "Where your developers send requests, and the switch for every key at once.": {
+    uz: "Dasturchilaringiz so'rov yuboradigan manzil va barcha kalitlar uchun yagona tugma.",
+    ru: "Куда разработчики отправляют запросы, и общий выключатель для всех ключей.",
+  },
+  "Team members connected": {
+    uz: "Ulangan jamoa a'zolari",
+    ru: "Подключено участников",
+  },
+  "Each person connects their own Telegram": {
+    uz: "Har kim o'z Telegram'ini ulaydi",
+    ru: "Каждый подключает свой Telegram",
+  },
+  "Alerts you get": {
+    uz: "Siz oladigan bildirishnomalar",
+    ru: "Ваши уведомления",
+  },
+  "Out of 5 kinds of alert": {
+    uz: "5 turdagi bildirishnomadan",
+    ru: "Из 5 видов уведомлений",
+  },
+  "Every Monday at 9:00": {
+    uz: "Har dushanba soat 9:00 da",
+    ru: "Каждый понедельник в 9:00",
+  },
+  "On": {
+    uz: "Yoqilgan",
+    ru: "Вкл.",
+  },
+  "Off": {
+    uz: "O'chirilgan",
+    ru: "Выкл.",
+  },
+  "Switch on Telegram alerts": {
+    uz: "Telegram bildirishnomalarini yoqing",
+    ru: "Включите уведомления в Telegram",
+  },
+  "One setting on the server, done once for everyone.": {
+    uz: "Serverda bitta sozlama — hamma uchun bir marta.",
+    ru: "Одна настройка на сервере — один раз для всех.",
+  },
+  "Create a bot with @BotFather in Telegram and copy its token.": {
+    uz: "Telegram'da @BotFather orqali bot yarating va uning tokenini nusxalang.",
+    ru: "Создайте бота через @BotFather в Telegram и скопируйте его токен.",
+  },
+  "Set it as TEAM_TELEGRAM_BOT_TOKEN in the Convex environment.": {
+    uz: "Uni Convex muhitida TEAM_TELEGRAM_BOT_TOKEN sifatida o'rnating.",
+    ru: "Укажите его как TEAM_TELEGRAM_BOT_TOKEN в окружении Convex.",
+  },
+  "Come back here and tap “Connect Telegram” — each team member does this once.": {
+    uz: "Shu yerga qaytib, «Telegram'ni ulash»ni bosing — har bir jamoa a'zosi buni bir marta qiladi.",
+    ru: "Вернитесь сюда и нажмите «Подключить Telegram» — каждый участник делает это один раз.",
+  },
+  "Preview": {
+    uz: "Ko'rinishi",
+    ru: "Предпросмотр",
+  },
+  "What an alert looks like — reply to it and the customer gets your answer.": {
+    uz: "Bildirishnoma qanday ko'rinadi — unga javob yozsangiz, mijoz javobingizni oladi.",
+    ru: "Так выглядит уведомление — ответьте на него, и клиент получит ваш ответ.",
+  },
+  "wants to talk to a person · Instagram": {
+    uz: "xodim bilan gaplashmoqchi · Instagram",
+    ru: "просит сотрудника · Instagram",
+  },
+  "“Do you deliver to Samarkand? I need it by Friday.”": {
+    uz: "“Samarqandga yetkazib berasizmi? Juma kunigacha kerak.”",
+    ru: "«Доставляете в Самарканд? Нужно к пятнице.»",
+  },
+  "↩️ Reply to this message to answer.": {
+    uz: "↩️ Javob berish uchun shu xabarga javob yozing.",
+    ru: "↩️ Ответьте на это сообщение, чтобы написать клиенту.",
+  },
+  "Open in Osonflow": {
+    uz: "Osonflow'da ochish",
+    ru: "Открыть в Osonflow",
+  },
+  "✓ Mark resolved": {
+    uz: "✓ Hal qilindi",
+    ru: "✓ Решено",
+  },
+  "Yes — delivery to Samarkand takes 2 days.": {
+    uz: "Ha — Samarqandga yetkazish 2 kun oladi.",
+    ru: "Да — доставка в Самарканд занимает 2 дня.",
+  },
+  "✓ Sent to Dilnoza.": {
+    uz: "✓ Dilnozaga yuborildi.",
+    ru: "✓ Отправлено: Дилноза.",
+  },
+  "A visitor leaves their name and email in your chat widget.": {
+    uz: "Tashrif buyuruvchi chat vidjetida ismi va emailini qoldiradi.",
+    ru: "Посетитель оставляет имя и email в чате на сайте.",
+  },
+  "Someone writes to your Telegram bot.": {
+    uz: "Kimdir Telegram botingizga yozadi.",
+    ru: "Кто-то пишет вашему Telegram-боту.",
+  },
+  "A customer messages your business number.": {
+    uz: "Mijoz biznes raqamingizga yozadi.",
+    ru: "Клиент пишет на ваш бизнес-номер.",
+  },
+  "Someone sends your account a direct message.": {
+    uz: "Kimdir akkauntingizga shaxsiy xabar yuboradi.",
+    ru: "Кто-то отправляет вашему аккаунту личное сообщение.",
+  },
+  "Connect messaging apps": {
+    uz: "Messenjerlarni ulash",
+    ru: "Подключить мессенджеры",
+  },
+  "Set up your widget": {
+    uz: "Vidjetni sozlang",
+    ru: "Настроить виджет",
+  },
+  "Your team answers a customer": {
+    uz: "Jamoangiz mijozga javob beradi",
+    ru: "Команда отвечает клиенту",
+  },
+  "In the inbox or straight from Telegram, the way you already do.": {
+    uz: "Kiruvchi xabarlarda yoki to'g'ridan-to'g'ri Telegram'dan — odatdagidek.",
+    ru: "В почте или прямо из Telegram — как вы и привыкли.",
+  },
+  "The answer lands here": {
+    uz: "Javob shu yerga tushadi",
+    ru: "Ответ попадает сюда",
+  },
+  "Prices, policies and how-tos worth keeping are picked out for you — so are questions the assistant couldn't answer.": {
+    uz: "Saqlashga arziydigan narxlar, qoidalar va yo'riqnomalar siz uchun ajratib olinadi — yordamchi javob bera olmagan savollar ham.",
+    ru: "Цены, правила и инструкции, которые стоит сохранить, отбираются для вас — как и вопросы, на которые ассистент не ответил.",
+  },
+  "Approve it once": {
+    uz: "Bir marta tasdiqlang",
+    ru: "Одобрите один раз",
+  },
+  "It goes into your knowledge base, and your assistant answers it on its own from then on.": {
+    uz: "U bilim bazangizga tushadi va yordamchingiz shundan keyin unga o'zi javob beradi.",
+    ru: "Ответ попадает в базу знаний, и дальше ассистент отвечает сам.",
+  },
+  "Connect Telegram, Instagram or WhatsApp": {
+    uz: "Telegram, Instagram yoki WhatsApp'ni ulang",
+    ru: "Подключите Telegram, Instagram или WhatsApp",
+  },
+  "to send broadcasts.": {
+    uz: "— xabarnoma yuborish uchun.",
+    ru: "— чтобы отправлять рассылки.",
+  },
+  "Handed to your team": {
+    uz: "Jamoangizga o'tkazilgan",
+    ru: "Передано команде",
+  },
+  "Still open": {
+    uz: "Hali ochiq",
+    ru: "Ещё открыт",
+  },
 }

@@ -20,7 +20,6 @@ import { Label } from "@workspace/ui/components/label"
 import {
   ArrowUpRightIcon,
   CheckIcon,
-  ChevronRightIcon,
   ClipboardCopyIcon,
   ClipboardPasteIcon,
   DownloadIcon,
@@ -34,7 +33,10 @@ import { useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import { copyTextToClipboard } from "@/lib/clipboard"
 import { ConsolePage } from "@/modules/dashboard/ui/components/console"
-import { ReportSection } from "@/modules/dashboard/ui/components/report"
+import {
+  PageBar,
+  ReportSection,
+} from "@/modules/dashboard/ui/components/report"
 import "@/modules/dashboard/ui/styles/report.css"
 import "@/modules/integrations/ui/styles/setup.css"
 import "../styles/transfer.css"
@@ -416,25 +418,15 @@ export const OrgTransferView = () => {
 
   return (
     <ConsolePage width="wide">
-      <div className="report setup">
-        {/* Hero */}
-        <section className="pt-2 pb-10">
-          <p className="console-eyebrow">Data transfer</p>
-          <h1 className="report-headline mt-6 max-w-[22ch]">
-            Move your whole setup in{" "}
-            <span className="report-headline-figure">one file</span>.
-          </h1>
-          <p className="report-lede mt-5 max-w-[62ch]">
-            Take a copy of this organization — your widget, knowledge base,
-            saved replies, workflows, keys and webhooks — and bring it into
-            another organization or environment. Customer conversations stay
-            where they are.
-          </p>
-        </section>
+      <div className="report setup flex flex-col gap-4">
+        <PageBar
+          hint="Take a copy of this organization — widget, knowledge base, saved replies, workflows, keys and webhooks — and bring it into another. Customer conversations stay where they are."
+          title="Data transfer"
+        />
 
+        <div className="grid items-start gap-4 lg:grid-cols-2 2xl:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)_minmax(0,0.9fr)]">
         {/* 01 · Export */}
         <ReportSection
-          index={1}
           lede="Makes a file with everything needed to rebuild this setup somewhere else. Nothing here changes."
           title="Take a copy"
         >
@@ -462,7 +454,7 @@ export const OrgTransferView = () => {
                 </div>
 
                 {lastExportSummary ? (
-                  <div className="transfer-result mt-6 max-w-xl">
+                  <div className="transfer-result mt-4">
                     <p className="console-label mb-2">In this copy</p>
                     <Manifest items={exportManifest(lastExportSummary)} />
                   </div>
@@ -504,7 +496,6 @@ export const OrgTransferView = () => {
 
         {/* 02 · Import */}
         <ReportSection
-          index={2}
           lede="Adds a copy into the organization you're signed in to now. You'll see what's inside before anything is written."
           title="Bring a copy in"
         >
@@ -516,7 +507,7 @@ export const OrgTransferView = () => {
 
                 {!hasPayload && !isPasting ? (
                   <div
-                    className="transfer-drop mt-3 max-w-2xl"
+                    className="transfer-drop mt-3"
                     data-dragging={isDragging ? "" : undefined}
                     onDragLeave={() => setIsDragging(false)}
                     onDragOver={(event) => {
@@ -563,7 +554,7 @@ export const OrgTransferView = () => {
                 />
 
                 {isPasting && !hasPayload ? (
-                  <div className="mt-3 max-w-2xl">
+                  <div className="mt-3">
                     <Label className="sr-only" htmlFor="transfer-paste">
                       Setup file contents
                     </Label>
@@ -586,7 +577,7 @@ export const OrgTransferView = () => {
                 ) : null}
 
                 {hasPayload ? (
-                  <div className="transfer-result mt-3 max-w-xl">
+                  <div className="transfer-result mt-3">
                     <div className="flex items-center justify-between gap-3 py-1">
                       <p className="flex min-w-0 items-center gap-2 text-sm text-foreground">
                         <FileJsonIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
@@ -628,7 +619,7 @@ export const OrgTransferView = () => {
               <span className="setup-step-index">2</span>
               <div className="min-w-0">
                 <p className="setup-step-title">Choose how it lands</p>
-                <div className="mt-3 max-w-xl">
+                <div className="mt-3">
                   <div className="transfer-option flex items-center justify-between gap-4 py-3.5">
                     <div>
                       <Label htmlFor="publish-widget-settings">
@@ -690,7 +681,7 @@ export const OrgTransferView = () => {
                 </div>
 
                 {lastImportSummary ? (
-                  <div className="transfer-result mt-6 max-w-xl">
+                  <div className="transfer-result mt-4">
                     <p className="console-label mb-2">Imported</p>
                     <Manifest items={importManifest(lastImportSummary)} />
                     {lastImportSummary.warnings?.length ? (
@@ -711,11 +702,11 @@ export const OrgTransferView = () => {
 
         {/* 03 · What stays behind */}
         <ReportSection
-          index={3}
+          className="lg:col-span-2 2xl:col-span-1"
           lede="A copy carries your setup, not your history or connected accounts. After importing, finish these by hand."
           title="What doesn't move"
         >
-          <ul className="max-w-2xl">
+          <ul>
             {[
               {
                 title: "Conversations and customer memory",
@@ -734,9 +725,9 @@ export const OrgTransferView = () => {
                 cta: "Open Widget customization",
               },
             ].map((item) => (
-              <li className="setup-row flex flex-wrap items-center justify-between gap-3 px-1 py-4" key={item.title}>
+              <li className="setup-row flex flex-wrap items-center justify-between gap-2 py-2.5" key={item.title}>
                 <div className="min-w-0">
-                  <p className="text-[0.95rem] font-medium text-foreground">
+                  <p className="text-sm font-medium text-foreground">
                     {item.title}
                   </p>
                   <p className="mt-0.5 text-sm text-muted-foreground">
@@ -754,8 +745,7 @@ export const OrgTransferView = () => {
               </li>
             ))}
           </ul>
-          <p className="mt-5 flex items-center gap-1.5 text-sm text-muted-foreground">
-            <ChevronRightIcon aria-hidden className="size-4" />
+          <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
             Only need the widget&apos;s look? Use the quick copy tools in{" "}
             <Link className="text-foreground underline underline-offset-4" href="/customization">
               Widget customization
@@ -763,6 +753,7 @@ export const OrgTransferView = () => {
             .
           </p>
         </ReportSection>
+        </div>
       </div>
 
       <AlertDialog onOpenChange={setConfirmReplace} open={confirmReplace}>

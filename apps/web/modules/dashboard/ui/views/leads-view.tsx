@@ -10,8 +10,12 @@ import {
   AtSignIcon,
   DownloadIcon,
   MailIcon,
+  GlobeIcon,
   MessageCircleIcon,
+  RadioTowerIcon,
   SendIcon,
+  SparklesIcon,
+  UserPlusIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -30,9 +34,12 @@ import {
 } from "../components/console"
 import { LeadsSkeleton, SkeletonRows } from "../components/report-skeleton"
 import {
+  FigureStrip,
+  PageBar,
   ReportFilter,
   ReportQuiet,
   ReportSection,
+  StripFigure,
 } from "../components/report"
 import "../styles/report.css"
 import "../styles/leads.css"
@@ -52,6 +59,30 @@ const SEGMENTS: { id: LeadSegment; label: string }[] = [
   { id: "newcomers", label: "New this week" },
   { id: "no_chats", label: "Never chatted" },
 ]
+
+/** Where leads come from, shown while there are none yet. */
+const LEAD_SOURCES = [
+  {
+    icon: GlobeIcon,
+    title: "Website chat",
+    body: "A visitor leaves their name and email in your chat widget.",
+  },
+  {
+    icon: SendIcon,
+    title: "Telegram",
+    body: "Someone writes to your Telegram bot.",
+  },
+  {
+    icon: MessageCircleIcon,
+    title: "WhatsApp",
+    body: "A customer messages your business number.",
+  },
+  {
+    icon: AtSignIcon,
+    title: "Instagram",
+    body: "Someone sends your account a direct message.",
+  },
+] as const
 
 /** Channel identity, in a fixed order so a channel never changes colour. */
 const CHANNELS = [
@@ -228,7 +259,7 @@ const ArrivalsChart = ({ arrivals }: { arrivals: number[] }) => {
 
   return (
     <figure className="w-full">
-      <figcaption aria-live="polite" className="mb-4 min-h-[2.75rem]">
+      <figcaption aria-live="polite" className="mb-3 min-h-[2.5rem]">
         {activeDay ? (
           <>
             <p className="report-figure-value">
@@ -383,13 +414,13 @@ const LeadRow = ({ lead }: { lead: LeadRecord }) => {
   const reachLine = reachCandidate === name ? undefined : reachCandidate
 
   return (
-    <li className="leads-row grid grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 px-2 py-4 lg:grid-cols-[2.5rem_minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,0.9fr)_11rem]">
-      <span className="leads-avatar size-10 text-xs">{initialsOf(name)}</span>
+    <li className="leads-row grid grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-2 py-2.5 lg:grid-cols-[2rem_minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,0.9fr)_10rem]">
+      <span className="leads-avatar size-8 text-[0.65rem]">{initialsOf(name)}</span>
 
       {/* who */}
       <div className="min-w-0">
         <p className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-[0.95rem] font-medium text-foreground">
+          <span className="truncate text-sm font-medium text-foreground">
             {name}
           </span>
           {lead.isNewcomer ? <span className="leads-new shrink-0">New</span> : null}
@@ -483,7 +514,7 @@ const RankedOrigins = ({
         <ol className="report-rows mt-3 flex flex-col">
           {items.map((item, index) => (
             <li
-              className="report-row grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 gap-y-1.5 py-2.5"
+              className="report-row grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 gap-y-1 py-1.5"
               key={item.label}
             >
               <span className="truncate text-sm text-foreground" title={item.label}>
@@ -535,7 +566,7 @@ const Origins = ({ summary }: { summary: Summary }) => {
   }))
 
   return (
-    <div className="flex flex-col gap-10">
+    <div className="flex flex-col gap-6">
       {channels.length ? (
         <div>
           <p className="console-label">Channel</p>
@@ -558,10 +589,10 @@ const Origins = ({ summary }: { summary: Summary }) => {
               />
             ))}
           </div>
-          <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2">
+          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
             {channels.map((item) => (
               <span
-                className={`leads-series-${item.series} flex items-center gap-2 text-sm text-muted-foreground`}
+                className={`leads-series-${item.series} flex items-center gap-2 text-xs text-muted-foreground`}
                 key={item.key}
               >
                 <span className="leads-swatch" />
@@ -578,7 +609,7 @@ const Origins = ({ summary }: { summary: Summary }) => {
         </div>
       ) : null}
 
-      <div className="grid gap-10 md:grid-cols-2">
+      <div className="grid gap-6">
         <RankedOrigins
           empty="Everyone came to your site directly."
           items={referrers}
@@ -678,173 +709,200 @@ export const LeadsView = () => {
     count: summary.channelCounts[item.key],
   })).sort((a, b) => b.count - a.count)[0]
 
+  const exportButton = summary.totalLeads ? (
+    <Button
+      disabled={isExporting}
+      onClick={handleDownloadCsv}
+      size="sm"
+      variant="outline"
+    >
+      <DownloadIcon data-icon="inline-start" />
+      {isExporting ? "Exporting…" : "Export CSV"}
+    </Button>
+  ) : null
+
   return (
     <ConsolePage width="wide">
-      <div className="report">
-        {/* Hero: who arrived, and what needs doing. */}
-        <section className="grid gap-10 pt-2 pb-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:items-end lg:gap-16">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="console-eyebrow">Leads</p>
-              {summary.totalLeads ? (
-                <Button
-                  disabled={isExporting}
-                  onClick={handleDownloadCsv}
-                  size="sm"
-                  variant="ghost"
-                >
-                  <DownloadIcon data-icon="inline-start" />
-                  {isExporting ? "Exporting…" : "Export CSV"}
-                </Button>
-              ) : null}
-            </div>
+      <div className="report flex flex-col gap-4">
+        <PageBar
+          actions={exportButton}
+          hint="Everyone who left their details in your chat or wrote to you on Telegram, WhatsApp or Instagram."
+          title="Leads"
+        />
 
-            {summary.totalLeads ? (
-              <>
-                <h1 className="report-headline mt-6 max-w-[20ch]">
-                  <span className="report-headline-figure">
-                    {summary.totalLeads}{" "}
-                    {plural(summary.totalLeads, "person", "people")}
-                  </span>{" "}
-                  left their details with you.
-                </h1>
-                <p className="report-lede mt-5 max-w-[60ch]">
-                  {summary.awaitingReplyCount ? (
-                    <>
-                      <strong>{summary.awaitingReplyCount}</strong>{" "}
-                      {plural(
-                        summary.awaitingReplyCount,
-                        "is waiting for your reply",
-                        "are waiting for your reply"
-                      )}
-                      ,{" "}
-                    </>
-                  ) : (
-                    <>No one is waiting on a reply, </>
-                  )}
-                  <strong>{summary.newcomerCount}</strong> arrived this week
-                  {summary.noChatsCount ? (
-                    <>
-                      , and <strong>{summary.noChatsCount}</strong> never
-                      started a chat — worth a hello
-                    </>
-                  ) : null}
-                  .
-                  {topChannel && topChannel.count ? (
-                    <>
-                      {" "}
-                      Most came through{" "}
-                      <strong>{topChannel.label}</strong>.
-                    </>
-                  ) : null}
-                </p>
-              </>
-            ) : (
-              <>
-                <h1 className="report-headline mt-6 max-w-[22ch]">
-                  No one has left their details yet.
-                </h1>
-                <p className="report-lede mt-5 max-w-[60ch]">
-                  When a visitor shares their name and email in your chat
-                  widget, or messages you on Telegram, WhatsApp or Instagram,
-                  they appear here — with where they came from and a one-click
-                  way to reach them.
-                </p>
-                <Button asChild className="mt-7" variant="outline">
-                  <Link href="/customization">
-                    Set up your widget
-                    <ArrowUpRightIcon data-icon="inline-end" />
-                  </Link>
-                </Button>
-              </>
-            )}
-          </div>
-
-          {summary.totalLeads ? (
-            <ArrivalsChart arrivals={summary.recentArrivals} />
-          ) : null}
-        </section>
+        <FigureStrip className="md:grid-cols-3 xl:grid-cols-5">
+          <StripFigure
+            icon={UserPlusIcon}
+            label="Leads"
+            note="People who left their details"
+            tone="info"
+            value={summary.totalLeads}
+          />
+          <StripFigure
+            icon={MessageCircleIcon}
+            label="Waiting for your reply"
+            note="Handed to your team, customer spoke last"
+            tone="warning"
+            value={summary.awaitingReplyCount}
+          />
+          <StripFigure
+            icon={SparklesIcon}
+            label="New this week"
+            note="Arrived in the last 7 days"
+            tone="positive"
+            value={summary.newcomerCount}
+          />
+          <StripFigure
+            icon={MailIcon}
+            label="Never chatted"
+            note="Left details without a chat — worth a hello"
+            tone="neutral"
+            value={summary.noChatsCount}
+          />
+          <StripFigure
+            icon={RadioTowerIcon}
+            label="Top channel"
+            note="Where most leads came from"
+            tone="accent"
+            value={topChannel && topChannel.count ? topChannel.label : "—"}
+          />
+        </FigureStrip>
 
         {summary.totalLeads ? (
           <>
-            <div className="flex flex-col gap-4 border-b border-[var(--report-rule)] sm:flex-row sm:items-end sm:justify-between">
-              <div
-                aria-label="Filter leads"
-                className="report-filters"
-                role="group"
+
+            <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
+              <ReportSection
+                flush
+                lede="Filter, search and reach out in one click."
+                title="People"
               >
-                {SEGMENTS.map(({ id, label }) => (
-                  <ReportFilter
-                    active={segment === id}
-                    count={segmentCounts[id]}
-                    key={id}
-                    onClick={() => setSegment(id)}
+                <div className="flex flex-col gap-3 border-b border-[var(--report-rule)] px-4 pt-1 sm:flex-row sm:items-end sm:justify-between">
+                  <div
+                    aria-label="Filter leads"
+                    className="report-filters"
+                    role="group"
                   >
-                    {label}
-                  </ReportFilter>
-                ))}
+                    {SEGMENTS.map(({ id, label }) => (
+                      <ReportFilter
+                        active={segment === id}
+                        count={segmentCounts[id]}
+                        key={id}
+                        onClick={() => setSegment(id)}
+                      >
+                        {label}
+                      </ReportFilter>
+                    ))}
+                  </div>
+                  <ConsoleSearch
+                    aria-label="Search leads"
+                    className="mb-2.5 w-full sm:w-64"
+                    onChange={setSearchQuery}
+                    placeholder="Search names, emails, pages"
+                    value={searchQuery}
+                  />
+                </div>
+
+                <div className="px-2 pb-2">
+                  {isLoadingFirstPage ? (
+                    <SkeletonRows className="border-t-0" count={6} trailing={2} />
+                  ) : leads.results.length ? (
+                    <ul>
+                      {leads.results.map((lead) => (
+                        <LeadRow key={lead.contactSessionId} lead={lead} />
+                      ))}
+                    </ul>
+                  ) : (
+                    <div className="px-2">
+                      <ReportQuiet>
+                        {normalizedSearchQuery
+                          ? `No one matches “${normalizedSearchQuery}”.`
+                          : segment === "waiting"
+                            ? "You're all caught up — no one is waiting for a reply."
+                            : segment === "newcomers"
+                              ? "No new leads this week yet."
+                              : segment === "no_chats"
+                                ? "Everyone who left their details also started a chat."
+                                : "No leads to show."}{" "}
+                        {segment !== "all" || normalizedSearchQuery ? (
+                          <button
+                            className="text-foreground underline underline-offset-4"
+                            onClick={() => {
+                              setSegment("all")
+                              setSearchQuery("")
+                            }}
+                            type="button"
+                          >
+                            Show everyone
+                          </button>
+                        ) : null}
+                      </ReportQuiet>
+                    </div>
+                  )}
+
+                  <InfiniteScrollTrigger
+                    canLoadMore={canLoadMore}
+                    isLoadingMore={isLoadingMore}
+                    onLoadMore={handleLoadMore}
+                    ref={topElementRef}
+                  />
+                </div>
+              </ReportSection>
+
+              <div className="flex flex-col gap-4">
+                <ReportSection
+                  lede="New leads per day. Hover a day to read it."
+                  title="Arrivals"
+                >
+                  <ArrivalsChart arrivals={summary.recentArrivals} />
+                </ReportSection>
+                <ReportSection
+                  lede="Which channels bring people in, which sites send them, and what they were reading when they reached out."
+                  title="Where they come from"
+                >
+                  <Origins summary={summary} />
+                </ReportSection>
               </div>
-              <ConsoleSearch
-                aria-label="Search leads"
-                className="mb-3 w-full sm:w-72"
-                onChange={setSearchQuery}
-                placeholder="Search names, emails, pages"
-                value={searchQuery}
-              />
             </div>
-
-            <div className="pb-4">
-              {isLoadingFirstPage ? (
-                <SkeletonRows className="border-t-0" count={6} trailing={2} />
-              ) : leads.results.length ? (
-                <ul>
-                  {leads.results.map((lead) => (
-                    <LeadRow key={lead.contactSessionId} lead={lead} />
-                  ))}
-                </ul>
-              ) : (
-                <ReportQuiet>
-                  {normalizedSearchQuery
-                    ? `No one matches “${normalizedSearchQuery}”.`
-                    : segment === "waiting"
-                      ? "You're all caught up — no one is waiting for a reply."
-                      : segment === "newcomers"
-                        ? "No new leads this week yet."
-                        : segment === "no_chats"
-                          ? "Everyone who left their details also started a chat."
-                          : "No leads to show."}{" "}
-                  {segment !== "all" || normalizedSearchQuery ? (
-                    <button
-                      className="text-foreground underline underline-offset-4"
-                      onClick={() => {
-                        setSegment("all")
-                        setSearchQuery("")
-                      }}
-                      type="button"
-                    >
-                      Show everyone
-                    </button>
-                  ) : null}
-                </ReportQuiet>
-              )}
-
-              <InfiniteScrollTrigger
-                canLoadMore={canLoadMore}
-                isLoadingMore={isLoadingMore}
-                onLoadMore={handleLoadMore}
-                ref={topElementRef}
-              />
-            </div>
-
-            <ReportSection
-              index={1}
-              lede="Which channels bring people in, which sites send them, and what they were reading when they reached out."
-              title="Where they come from"
-            >
-              <Origins summary={summary} />
-            </ReportSection>
           </>
-        ) : null}
+        ) : (
+          <ReportSection
+            lede="When a visitor shares their name and email in your chat widget, or messages you on Telegram, WhatsApp or Instagram, they appear here — with where they came from and a one-click way to reach them."
+            title="No one has left their details yet"
+          >
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {LEAD_SOURCES.map((source) => (
+                <div className="console-inset flex items-start gap-3 p-3.5" key={source.title}>
+                  <span className="report-stat-icon" data-tone="info">
+                    <source.icon className="size-3.5" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-foreground">
+                      {source.title}
+                    </p>
+                    <p className="mt-0.5 text-xs leading-snug text-muted-foreground">
+                      {source.body}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button asChild size="sm">
+                <Link href="/customization">
+                  Set up your widget
+                  <ArrowUpRightIcon data-icon="inline-end" />
+                </Link>
+              </Button>
+              <Button asChild size="sm" variant="outline">
+                <Link href="/integrations">
+                  Connect messaging apps
+                  <ArrowUpRightIcon data-icon="inline-end" />
+                </Link>
+              </Button>
+            </div>
+          </ReportSection>
+        )}
       </div>
     </ConsolePage>
   )

@@ -16,6 +16,7 @@ import {
 } from "./lib/metaWebhook"
 import { timingSafeEqual } from "./lib/chatAttachments"
 import { developerApiHttpHandler } from "./lib/developerApi/server"
+import { getTeamBotToken, getTeamBotWebhookSecret } from "./lib/teamTelegram"
 
 const http = httpRouter()
 
@@ -699,6 +700,45 @@ function parseByteRange(
 
   return { start, end }
 }
+
+// The Osonflow team bot. Telegram echoes the secret set with setWebhook on
+// every call; the update is handled after the response so Telegram is never
+// kept waiting on a reply being delivered to a customer.
+http.route({
+  path: "/team-telegram/webhook",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const token = getTeamBotToken()
+
+    if (!token) {
+      return new Response("Team bot is not configured", { status: 404 })
+    }
+
+    const expectedSecret = await getTeamBotWebhookSecret(token)
+    const providedSecret =
+      request.headers.get("x-telegram-bot-api-secret-token") ?? ""
+
+    if (!timingSafeEqual(providedSecret, expectedSecret)) {
+      return new Response("Invalid Telegram secret", { status: 403 })
+    }
+
+    let update: unknown
+
+    try {
+      update = await request.json()
+    } catch {
+      return new Response("Invalid JSON", { status: 400 })
+    }
+
+    await ctx.scheduler.runAfter(
+      0,
+      (internal as any).system.teamAlerts.handleUpdate,
+      { update }
+    )
+
+    return new Response("ok", { status: 200 })
+  }),
+})
 
 // The developer API. One handler serves every method so that routing, auth,
 // limits and error shapes stay identical across endpoints; OPTIONS answers

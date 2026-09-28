@@ -8,9 +8,18 @@ import {
 } from "../_generated/server"
 import { SESSION_DURATION_MS } from "../constants"
 import { checkRateLimit } from "../lib/rateLimits"
+import { carryBroadcastIntoThread } from "../lib/broadcastContext"
 import { supportAgent } from "./ai/agents/supportAgent"
 import { SUPPORT_AGENT_PROMPT } from "./ai/constants"
-import { generateChannelReply } from "../lib/chatReply"
+import {
+  generateChannelReply,
+  replyToChannelVoiceNote,
+} from "../lib/chatReply"
+import {
+  VOICE_NOTE_PLACEHOLDER,
+  downloadAudioFromUrl,
+  saveCustomerVoiceNote,
+} from "../lib/voiceNotes"
 
 type InstagramIntegration = {
   _id: any
@@ -33,7 +42,7 @@ type InstagramMessagingEvent = {
     is_echo?: boolean
     is_self?: boolean
     is_deleted?: boolean
-    attachments?: Array<{ type?: string }>
+    attachments?: Array<{ type?: string; payload?: { url?: string } }>
   }
 }
 
@@ -858,6 +867,8 @@ export const getOrCreateInstagramConversation = internalMutation({
       unreadForOperatorCount: 0,
     })
 
+    await carryBroadcastIntoThread(ctx, { contactSessionId, threadId })
+
     await ctx.db.patch(instagramContact._id, {
       activeConversationId: conversationId,
       updatedAt: now,
@@ -1027,6 +1038,19 @@ const getIncomingMessageText = (event: InstagramMessagingEvent) => {
   return undefined
 }
 
+/** The signed URL of a voice note, when the message is one. */
+const getIncomingVoiceNoteUrl = (event: InstagramMessagingEvent) => {
+  const message = event.message
+
+  if (!message || message.is_deleted || message.text?.trim()) {
+    return undefined
+  }
+
+  return message.attachments?.find(
+    (attachment) => attachment.type === "audio" && attachment.payload?.url
+  )?.payload?.url
+}
+
 const handleIncomingMessage = async ({
   ctx,
   integrationId,
@@ -1037,6 +1061,7 @@ const handleIncomingMessage = async ({
   event: InstagramMessagingEvent
 }) => {
   const text = getIncomingMessageText(event)
+  const voiceNoteUrl = getIncomingVoiceNoteUrl(event)
   const senderId = event.sender?.id
 
   if (!text || !senderId || event.message?.is_echo) {
@@ -1111,13 +1136,42 @@ const handleIncomingMessage = async ({
   const enabledToolIds = widgetSettings?.enabledToolIds
 
   let replyText: string | null = null
+  let customerText = text
 
-  if (status === "unresolved" && subscription?.status === "active") {
+  if (voiceNoteUrl) {
+    const audio = await downloadAudioFromUrl(voiceNoteUrl)
+    const { messageId, transcript } = await saveCustomerVoiceNote(ctx, {
+      organizationId: integration.organizationId,
+      conversationId,
+      threadId,
+      contactSessionId,
+      audio,
+      transcribe: subscription?.status === "active",
+    })
+
+    customerText = transcript ?? VOICE_NOTE_PLACEHOLDER
+
+    if (status === "unresolved" && subscription?.status === "active") {
+      replyText = await replyToChannelVoiceNote(ctx, {
+        organizationId: integration.organizationId,
+        threadId,
+        promptMessageId: messageId,
+        transcript,
+        systemPrompt,
+        conversationStatus: status,
+        enabledToolIds,
+        greetMessage: widgetSettings?.greetMessage,
+      })
+    } else if (status === "unresolved") {
+      replyText =
+        "Rahmat, xabaringiz qabul qilindi. Operator tez orada javob beradi."
+    }
+  } else if (status === "unresolved" && subscription?.status === "active") {
     replyText =
       (await generateChannelReply(ctx, {
         organizationId: integration.organizationId,
         threadId,
-        text,
+        text: customerText,
         systemPrompt,
         conversationStatus: status,
         enabledToolIds,
@@ -1125,7 +1179,7 @@ const handleIncomingMessage = async ({
   } else {
     await saveMessage(ctx, components.agent, {
       threadId,
-      prompt: text,
+      prompt: customerText,
     })
 
     if (status === "unresolved") {
@@ -1148,7 +1202,7 @@ const handleIncomingMessage = async ({
         conversationId,
         threadId,
         contactSessionId,
-        prompt: text,
+        prompt: customerText,
         source: "instagram",
         instagramSenderId: senderId,
       },
@@ -1254,5 +1308,54 @@ export const sendConversationMessage: any = internalAction({
     }
 
     return { sent: true }
+  },
+})
+
+export const getContactById = internalQuery({
+  args: { instagramContactId: v.id("instagramContacts") },
+  handler: async (ctx, args) => await ctx.db.get(args.instagramContactId),
+})
+
+/**
+ * Writes to an Instagram contact outside any conversation — a broadcast. Meta
+ * only allows this within 24 hours of the person's last message, which the
+ * broadcast audience already respects.
+ */
+export const sendToContact: any = internalAction({
+  args: {
+    instagramContactId: v.id("instagramContacts"),
+    text: v.string(),
+  },
+  handler: async (ctx, args): Promise<{ sent: boolean; error?: string }> => {
+    const contact = await ctx.runQuery(
+      (internal as any).system.instagram.getContactById,
+      { instagramContactId: args.instagramContactId }
+    )
+    const integration = contact
+      ? ((await ctx.runQuery(
+          (internal as any).system.instagram.getIntegrationById,
+          { integrationId: contact.integrationId }
+        )) as InstagramIntegration | null)
+      : null
+
+    if (!contact || !integration?.isEnabled) {
+      return { sent: false, error: "Instagram is not connected" }
+    }
+
+    try {
+      await sendInstagramMessage({
+        accessToken: integration.accessToken,
+        instagramUserId: integration.instagramUserId,
+        recipientId: contact.senderId,
+        text: args.text,
+      })
+
+      return { sent: true }
+    } catch (error) {
+      return {
+        sent: false,
+        error: error instanceof Error ? error.message : "Send failed",
+      }
+    }
   },
 })

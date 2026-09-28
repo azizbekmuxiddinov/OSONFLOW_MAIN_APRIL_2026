@@ -2,8 +2,8 @@
    Setup & integrations — a connection index and step-by-step guides.
 
    Builds on the dashboard report layout (report.css). Every place the
-   assistant can answer is a row in a pinned index with its live status; the
-   selected row opens as numbered steps beside it. No tiles: controls are
+   assistant can answer is a row in an index panel with its live status; the
+   selected row opens as numbered steps in the panel beside it. No tiles: controls are
    pills, facts are ruled rows, warnings are a tinted rule, not a box.
 
    Status dots follow the report's outcome encoding and always carry a label:
@@ -104,7 +104,7 @@
 }
 
 .setup-panel-title {
-  font-size: clamp(1.5rem, 1.2rem + 1vw, 2rem);
+  font-size: 1.15rem;
   font-weight: 600;
   line-height: 1.1;
   letter-spacing: -0.03em;
@@ -115,9 +115,9 @@
 .setup-steps > li {
   position: relative;
   display: grid;
-  grid-template-columns: 2rem minmax(0, 1fr);
-  gap: 1rem;
-  padding-bottom: 2.25rem;
+  grid-template-columns: 1.5rem minmax(0, 1fr);
+  gap: 0.75rem;
+  padding-bottom: 1.25rem;
 }
 
 .setup-steps > li:last-child {
@@ -127,21 +127,21 @@
 .setup-steps > li:not(:last-child)::before {
   content: "";
   position: absolute;
-  top: 2.25rem;
+  top: 1.75rem;
   bottom: 0.25rem;
-  left: calc(1rem - 0.5px);
+  left: calc(0.75rem - 0.5px);
   width: 1px;
   background: var(--report-rule);
 }
 
 .setup-step-index {
   display: inline-flex;
-  width: 2rem;
-  height: 2rem;
+  width: 1.5rem;
+  height: 1.5rem;
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  font-size: 0.8rem;
+  font-size: 0.7rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: var(--primary);
@@ -150,8 +150,8 @@
 }
 
 .setup-step-title {
-  padding-top: 0.3rem;
-  font-size: 1rem;
+  padding-top: 0.15rem;
+  font-size: 0.875rem;
   font-weight: 600;
   letter-spacing: -0.012em;
   color: var(--foreground);
@@ -304,4 +304,14 @@
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* The connection index laid out as a strip across the top of the page. */
+.report-strip .setup-nav-row {
+  border-radius: 0;
+}
+
+.report-strip .setup-nav-row[aria-current="true"] {
+  background: color-mix(in srgb, var(--primary) 6%, var(--card));
+  box-shadow: inset 0 -2px 0 var(--primary);
 }

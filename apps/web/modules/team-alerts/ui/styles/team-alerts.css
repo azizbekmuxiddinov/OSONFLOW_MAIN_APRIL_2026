@@ -1,0 +1,60 @@
+/* The Telegram alert preview: Telegram's own chat colours, so the page shows
+   exactly what lands on the phone. */
+
+.team-alert-preview {
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgb(148 196 120 / 0.28), transparent 60%),
+    radial-gradient(120% 90% at 100% 100%, rgb(214 219 144 / 0.32), transparent 60%),
+    #dfe7cf;
+}
+
+.dark .team-alert-preview {
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgb(62 92 70 / 0.5), transparent 60%),
+    #1c2a22;
+}
+
+.team-alert-bubble {
+  background: #ffffff;
+  color: #111;
+  box-shadow: 0 1px 1px rgb(0 0 0 / 0.08);
+}
+
+.team-alert-bubble .text-muted-foreground {
+  color: #707579;
+}
+
+.team-alert-bubble .text-foreground\/80 {
+  color: #222;
+}
+
+.team-alert-bubble-own {
+  background: #e2ffc7;
+}
+
+.dark .team-alert-bubble {
+  background: #212d3b;
+  color: #f5f5f5;
+}
+
+.dark .team-alert-bubble .text-muted-foreground {
+  color: #8a98a8;
+}
+
+.dark .team-alert-bubble .text-foreground\/80 {
+  color: #e8e8e8;
+}
+
+.dark .team-alert-bubble-own {
+  background: #2b5278;
+}
+
+.team-alert-button {
+  border-radius: 8px;
+  padding: 0.35rem 0.5rem;
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: #fff;
+  background: rgb(68 90 60 / 0.45);
+}

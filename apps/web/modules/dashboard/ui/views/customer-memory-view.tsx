@@ -5,11 +5,15 @@ import { useConvex, useQuery } from "convex/react"
 import { formatDistanceToNow } from "date-fns"
 import {
   ArrowLeftIcon,
+  BrainIcon,
   DownloadIcon,
   LanguagesIcon,
   MailIcon,
   MessageSquareIcon,
+  MessagesSquareIcon,
   MicIcon,
+  RepeatIcon,
+  UsersIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -25,7 +29,14 @@ import {
   ConsoleSearch,
 } from "../components/console"
 import { MemorySkeleton } from "../components/report-skeleton"
-import { ReportFilter } from "../components/report"
+import {
+  FigureStrip,
+  PageBar,
+  ReportFilter,
+  ReportQuiet,
+  ReportSection,
+  StripFigure,
+} from "../components/report"
 import "../styles/report.css"
 import "../styles/memory.css"
 
@@ -198,16 +209,16 @@ const PersonRow = ({
   <button
     aria-current={selected}
     data-peek={peek ? "" : undefined}
-    className="memory-row-button grid w-full grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-3.5 px-3 py-3.5 text-left focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none"
+    className="memory-row-button grid w-full grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-3 px-3 py-2.5 text-left focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none"
     onClick={onSelect}
     type="button"
   >
-    <span className="memory-avatar size-10 text-xs">
+    <span className="memory-avatar size-8 text-[0.65rem]">
       {initialsOf(memory.name, memory.email)}
     </span>
     <span className="min-w-0">
       <span className="flex min-w-0 items-baseline gap-2">
-        <span className="truncate text-[0.95rem] font-medium text-foreground">
+        <span className="truncate text-sm font-medium text-foreground">
           {displayName(memory)}
         </span>
         {memory.totalEscalations > 0 ? (
@@ -258,13 +269,13 @@ const Dossier = ({
         </Button>
       ) : null}
 
-      <header className="flex items-start gap-4">
-        <span className="memory-avatar size-14 text-base">
+      <header className="flex items-start gap-3">
+        <span className="memory-avatar size-11 text-sm">
           {initialsOf(memory.name, memory.email)}
         </span>
         <div className="min-w-0">
           <h2 className="memory-name">{displayName(memory)}</h2>
-          <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
             <span className="flex min-w-0 items-center gap-1.5">
               <MailIcon aria-hidden className="size-3 shrink-0" />
               <span className="truncate">{memory.email}</span>
@@ -280,9 +291,9 @@ const Dossier = ({
         </div>
       </header>
 
-      <p className="memory-summary mt-7">{memory.summary}</p>
+      <p className="memory-summary mt-4">{memory.summary}</p>
 
-      <div className="report-figures mt-8 grid grid-cols-3">
+      <dl className="console-inset mt-4 grid grid-cols-3 divide-x divide-[var(--report-rule)]">
         {(
           [
             ["Conversations", memory.totalConversations],
@@ -290,102 +301,101 @@ const Dossier = ({
             ["Needed your team", memory.totalEscalations],
           ] as const
         ).map(([label, value]) => (
-          <div
-            className="report-figure flex flex-col gap-2 px-3 py-4 first:pl-0 sm:px-5"
-            key={label}
-          >
-            <p className="console-label">{label}</p>
-            <p className="report-figure-value">{value}</p>
+          <div className="px-3.5 py-2.5" key={label}>
+            <dt className="text-xs text-muted-foreground">{label}</dt>
+            <dd className="console-numeral mt-1 text-lg leading-none">{value}</dd>
           </div>
         ))}
-      </div>
+      </dl>
 
-      <section className="memory-block py-7">
-        <h3 className="console-label">What your assistant remembers</h3>
-        {memory.notableFacts.length ? (
-          <ol className="mt-3">
-            {memory.notableFacts.map((fact, index) => (
-              <li
-                className="memory-fact grid grid-cols-[1.75rem_minmax(0,1fr)] gap-2 py-2.5"
-                key={fact}
-              >
-                <span className="report-section-index pt-0.5">
-                  {String(index + 1).padStart(2, "0")}
-                </span>
-                <span className="text-sm leading-relaxed break-words text-foreground">
-                  {fact}
-                </span>
-              </li>
-            ))}
-          </ol>
-        ) : (
-          <p className="mt-3 text-sm text-muted-foreground">
-            Nothing specific captured yet — facts appear as this customer
-            shares them.
-          </p>
-        )}
-
-        {memory.recentIntents.length ? (
-          <p className="mt-6 text-sm leading-relaxed text-muted-foreground">
-            Usually asks about{" "}
-            <span className="text-foreground">
-              {memory.recentIntents.map(formatIntent).join(", ")}
-            </span>
-            .
-          </p>
-        ) : null}
-      </section>
-
-      <section className="memory-block pt-7">
-        <h3 className="console-label">History</h3>
-        {history.length ? (
-          <ol className="report-timeline mt-5 flex flex-col gap-6">
-            {history.map((item) => {
-              const status = STATUS[item.status]
-              const ChannelIcon =
-                item.channel === "voice" ? MicIcon : MessageSquareIcon
-
-              return (
+      <div className="mt-5 grid gap-6 xl:grid-cols-2">
+        <section>
+          <h3 className="console-label">What your assistant remembers</h3>
+          {memory.notableFacts.length ? (
+            <ol className="mt-2">
+              {memory.notableFacts.map((fact, index) => (
                 <li
-                  className="grid grid-cols-[0.625rem_minmax(0,1fr)] gap-4"
-                  key={`${item.at}-${item.summary}`}
+                  className="memory-fact grid grid-cols-[1.5rem_minmax(0,1fr)] gap-2 py-2"
+                  key={fact}
                 >
-                  <span
-                    className="report-node mt-1.5"
-                    data-filled={status.filled ? "" : undefined}
-                    style={{ color: `var(--outcome-${status.outcome})` }}
-                  />
-                  <div className="min-w-0">
-                    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                      <span className="font-medium text-foreground">
-                        {status.label}
-                      </span>
-                      <span aria-hidden>·</span>
-                      <span>{formatIntent(item.intent)}</span>
-                      <span aria-hidden>·</span>
-                      <span className="flex items-center gap-1">
-                        <ChannelIcon aria-hidden className="size-3" />
-                        <span className="capitalize">{item.channel}</span>
-                      </span>
-                      <span aria-hidden>·</span>
-                      <time dateTime={new Date(item.at).toISOString()}>
-                        {formatDate(item.at)}
-                      </time>
-                    </p>
-                    <p className="mt-1.5 text-sm leading-relaxed break-words text-foreground">
-                      {item.summary}
-                    </p>
-                  </div>
+                  <span className="pt-0.5 text-[0.7rem] font-semibold tabular-nums text-primary">
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                  <span className="text-sm leading-snug break-words text-foreground">
+                    {fact}
+                  </span>
                 </li>
-              )
-            })}
-          </ol>
-        ) : (
-          <p className="mt-3 text-sm text-muted-foreground">
-            No conversations recorded yet.
-          </p>
-        )}
-      </section>
+              ))}
+            </ol>
+          ) : (
+            <p className="mt-2 text-sm text-muted-foreground">
+              Nothing specific captured yet — facts appear as this customer
+              shares them.
+            </p>
+          )}
+
+          {memory.recentIntents.length ? (
+            <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+              Usually asks about{" "}
+              <span className="text-foreground">
+                {memory.recentIntents.map(formatIntent).join(", ")}
+              </span>
+              .
+            </p>
+          ) : null}
+        </section>
+
+        <section>
+          <h3 className="console-label">History</h3>
+          {history.length ? (
+            <ol className="report-timeline mt-3 flex flex-col gap-4">
+              {history.map((item) => {
+                const status = STATUS[item.status]
+                const ChannelIcon =
+                  item.channel === "voice" ? MicIcon : MessageSquareIcon
+
+                return (
+                  <li
+                    className="grid grid-cols-[0.625rem_minmax(0,1fr)] gap-3"
+                    key={`${item.at}-${item.summary}`}
+                  >
+                    <span
+                      className="report-node mt-1.5"
+                      data-filled={status.filled ? "" : undefined}
+                      style={{ color: `var(--outcome-${status.outcome})` }}
+                    />
+                    <div className="min-w-0">
+                      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                        <span className="font-medium text-foreground">
+                          {status.label}
+                        </span>
+                        <span aria-hidden>·</span>
+                        <span>{formatIntent(item.intent)}</span>
+                        <span aria-hidden>·</span>
+                        <span className="flex items-center gap-1">
+                          <ChannelIcon aria-hidden className="size-3" />
+                          <span className="capitalize">{item.channel}</span>
+                        </span>
+                        <span aria-hidden>·</span>
+                        <time dateTime={new Date(item.at).toISOString()}>
+                          {formatDate(item.at)}
+                        </time>
+                      </p>
+                      <p className="mt-1 text-sm leading-snug break-words text-foreground">
+                        {item.summary}
+                      </p>
+                    </div>
+                  </li>
+                )
+              })}
+            </ol>
+          ) : (
+            <p className="mt-2 text-sm text-muted-foreground">
+              No conversations recorded yet.
+            </p>
+          )}
+        </section>
+      </div>
     </article>
   )
 }
@@ -498,139 +508,159 @@ export const CustomerMemoryView = () => {
 
   return (
     <ConsolePage width="wide">
-      <div className="report">
-        <section className="pt-2 pb-8">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="console-eyebrow">Customer memory</p>
-            <Button
-              disabled={isExporting}
-              onClick={handleDownloadCsv}
-              size="sm"
-              variant="ghost"
-            >
-              <DownloadIcon data-icon="inline-start" />
-              {isExporting ? "Exporting…" : "Export CSV"}
-            </Button>
-          </div>
+      <div className="report flex flex-col gap-4">
+        <PageBar
+          actions={
+            everyone ? (
+              <Button
+                disabled={isExporting}
+                onClick={handleDownloadCsv}
+                size="sm"
+                variant="outline"
+              >
+                <DownloadIcon data-icon="inline-start" />
+                {isExporting ? "Exporting…" : "Export CSV"}
+              </Button>
+            ) : null
+          }
+          hint="Who each customer is, what they asked and how it ended — so nobody has to repeat themselves."
+          title="Customer memory"
+        />
 
-          {everyone ? (
-            <>
-              <h1 className="report-headline mt-6 max-w-[24ch]">
-                Your assistant remembers{" "}
-                <span className="report-headline-figure">
-                  {everyone} {everyone === 1 ? "customer" : "customers"}
-                </span>
-                .
-              </h1>
-              <p className="report-lede mt-5 max-w-[62ch]">
-                Built from <strong>{totalConversations}</strong>{" "}
-                {totalConversations === 1 ? "conversation" : "conversations"}.{" "}
-                <strong>{counts.recent}</strong> came back this month, and{" "}
-                <strong>{counts.attention}</strong>{" "}
-                {counts.attention === 1 ? "has" : "have"} needed your team at
-                least once — read their history before you reply.
-              </p>
-            </>
-          ) : (
-            <>
-              <h1 className="report-headline mt-6 max-w-[22ch]">
-                No one to remember yet.
-              </h1>
-              <p className="report-lede mt-5 max-w-[62ch]">
-                When a customer shares their email in chat or voice, your
-                assistant starts keeping notes — who they are, what they asked,
-                and how it ended — so nobody has to repeat themselves.
-              </p>
-            </>
-          )}
-        </section>
+        <FigureStrip className="md:grid-cols-4">
+          <StripFigure
+            icon={BrainIcon}
+            label="Customers remembered"
+            note="People your assistant keeps notes on"
+            tone="accent"
+            value={everyone}
+          />
+          <StripFigure
+            icon={MessagesSquareIcon}
+            label="Conversations"
+            note="The history those notes are built from"
+            tone="info"
+            value={totalConversations}
+          />
+          <StripFigure
+            icon={RepeatIcon}
+            label="Came back this month"
+            note="Returning customers in the last 30 days"
+            tone="positive"
+            value={counts.recent}
+          />
+          <StripFigure
+            icon={UsersIcon}
+            label="Needed your team"
+            note="Read their history before you reply"
+            tone="warning"
+            value={counts.attention}
+          />
+        </FigureStrip>
 
         {everyone ? (
           <>
-            <div className="flex flex-col gap-4 border-b border-[var(--report-rule)] sm:flex-row sm:items-end sm:justify-between">
-              <div
-                aria-label="Filter customers"
-                className="report-filters"
-                role="group"
+
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
+              <ReportSection
+                bodyClassName="flex flex-col"
+                flush
+                title="Customers"
               >
-                {FILTERS.map(({ id, label }) => (
-                  <ReportFilter
-                    active={filter === id}
-                    count={counts[id]}
-                    key={id}
-                    onClick={() => {
-                      setFilter(id)
-                      setOpenedInline(false)
-                    }}
+                <div className="flex flex-col gap-2 border-b border-[var(--report-rule)] px-4 pt-3 pb-0">
+                  <ConsoleSearch
+                    aria-label="Search customers"
+                    className="w-full"
+                    onChange={setSearchQuery}
+                    placeholder="Search names, emails, or notes"
+                    value={searchQuery}
+                  />
+                  <div
+                    aria-label="Filter customers"
+                    className="report-filters"
+                    role="group"
                   >
-                    {label}
-                  </ReportFilter>
-                ))}
-              </div>
-              <ConsoleSearch
-                aria-label="Search customers"
-                className="mb-3 w-full sm:w-72"
-                onChange={setSearchQuery}
-                placeholder="Search names, emails, or notes"
-                value={searchQuery}
-              />
-            </div>
+                    {FILTERS.map(({ id, label }) => (
+                      <ReportFilter
+                        active={filter === id}
+                        count={counts[id]}
+                        key={id}
+                        onClick={() => {
+                          setFilter(id)
+                          setOpenedInline(false)
+                        }}
+                      >
+                        {label}
+                      </ReportFilter>
+                    ))}
+                  </div>
+                </div>
 
-            <div className="grid gap-10 pt-6 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:gap-14">
-              {visible.length ? (
-                <ul className="flex flex-col">
-                  {visible.map((memory) => {
-                    const isSelected = selected?._id === memory._id
+                {visible.length ? (
+                  <ul className="flex flex-col p-2 lg:max-h-[calc(100svh-17rem)] lg:overflow-y-auto">
+                    {visible.map((memory) => {
+                      const isSelected = selected?._id === memory._id
 
-                    return (
-                      <li className="memory-row py-1" key={memory._id}>
-                        <PersonRow
-                          memory={memory}
-                          onSelect={() => {
-                            setSelectedId(memory._id)
-                            setOpenedInline(!(isSelected && openedInline))
-                          }}
-                          peek={isSelected && !openedInline}
-                          selected={isSelected}
-                        />
-                        {isSelected && openedInline ? (
-                          <div className="px-3 pt-4 pb-8 lg:hidden">
-                            <Dossier
-                              memory={memory}
-                              onClose={() => setOpenedInline(false)}
-                            />
-                          </div>
-                        ) : null}
-                      </li>
-                    )
-                  })}
-                </ul>
-              ) : (
-                <p className="py-10 text-sm text-muted-foreground">
-                  No one matches this filter
-                  {searchQuery.trim() ? " and search" : ""}. Try{" "}
-                  <button
-                    className="text-foreground underline underline-offset-4"
-                    onClick={() => {
-                      setFilter("all")
-                      setSearchQuery("")
-                    }}
-                    type="button"
-                  >
-                    showing everyone
-                  </button>
-                  .
-                </p>
-              )}
+                      return (
+                        <li className="memory-row" key={memory._id}>
+                          <PersonRow
+                            memory={memory}
+                            onSelect={() => {
+                              setSelectedId(memory._id)
+                              setOpenedInline(!(isSelected && openedInline))
+                            }}
+                            peek={isSelected && !openedInline}
+                            selected={isSelected}
+                          />
+                          {isSelected && openedInline ? (
+                            <div className="px-3 pt-3 pb-6 lg:hidden">
+                              <Dossier
+                                memory={memory}
+                                onClose={() => setOpenedInline(false)}
+                              />
+                            </div>
+                          ) : null}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                ) : (
+                  <p className="px-4 py-6 text-sm text-muted-foreground">
+                    No one matches this filter
+                    {searchQuery.trim() ? " and search" : ""}. Try{" "}
+                    <button
+                      className="text-foreground underline underline-offset-4"
+                      onClick={() => {
+                        setFilter("all")
+                        setSearchQuery("")
+                      }}
+                      type="button"
+                    >
+                      showing everyone
+                    </button>
+                    .
+                  </p>
+                )}
+              </ReportSection>
 
               {selected ? (
-                <div className="hidden min-w-0 lg:sticky lg:top-6 lg:block lg:max-h-[calc(100svh-3rem)] lg:self-start lg:overflow-y-auto lg:pr-2">
-                  <Dossier memory={selected} />
-                </div>
+                <section className="console-card hidden min-w-0 overflow-hidden lg:block">
+                  <div className="h-full p-5 lg:max-h-[calc(100svh-12.5rem)] lg:overflow-y-auto">
+                    <Dossier memory={selected} />
+                  </div>
+                </section>
               ) : null}
             </div>
           </>
-        ) : null}
+        ) : (
+          <ReportSection title="No one to remember yet">
+            <ReportQuiet icon={BrainIcon}>
+              When a customer shares their email in chat or voice, your
+              assistant starts keeping notes — who they are, what they asked,
+              and how it ended — so nobody has to repeat themselves.
+            </ReportQuiet>
+          </ReportSection>
+        )}
       </div>
     </ConsolePage>
   )

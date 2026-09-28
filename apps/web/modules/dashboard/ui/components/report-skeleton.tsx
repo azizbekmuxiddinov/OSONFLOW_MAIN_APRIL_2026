@@ -12,10 +12,10 @@ import "../styles/report.css"
  * Setup & integrations loads progressively, so it uses the panel skeleton and
  * skeleton status lines rather than a whole-page one.
  *
- * Each page skeleton is drawn in the same grid as the loaded page — headline,
- * ruled figures, pinned section headers, ruled rows — so nothing jumps when
- * data arrives. Widths are fixed per slot, never random, so a skeleton looks
- * the same on every visit.
+ * Each page skeleton is drawn in the same grid as the loaded page — page bar,
+ * figure strip, panels side by side — so nothing jumps when data arrives.
+ * Widths are fixed per slot, never random, so a skeleton looks the same on
+ * every visit.
  */
 
 /* ── primitives ─────────────────────────────────────────────────────────── */
@@ -34,84 +34,66 @@ const Frame = ({
   className?: string
 }) => (
   <ConsolePage width="wide">
-    <div aria-busy="true" className={cn("report", className)} role="status">
+    <div
+      aria-busy="true"
+      className={cn("report flex flex-col gap-4", className)}
+      role="status"
+    >
       <span className="sr-only">{label}</span>
       {children}
     </div>
   </ConsolePage>
 )
 
-/** Eyebrow, a two-line headline and a lede — the top of every report page. */
-export const SkeletonHero = ({
-  aside,
-  lede = true,
-  className,
-}: {
-  aside?: React.ReactNode
-  lede?: boolean
-  className?: string
-}) => (
-  <section
-    className={cn(
-      "grid gap-10 pt-2 pb-10",
-      aside && "lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] lg:items-end lg:gap-16",
-      className
-    )}
-  >
-    <div className="min-w-0">
-      <Line className="h-3 w-28" />
-      <div className="mt-7 space-y-3">
-        <Skeleton className="h-11 w-full max-w-[30rem] rounded-2xl" />
-        <Skeleton className="h-11 w-3/5 max-w-[20rem] rounded-2xl" />
-      </div>
-      {lede ? (
-        <div className="mt-6 space-y-2.5">
-          <Line className="h-4 w-full max-w-[36rem]" />
-          <Line className="h-4 w-4/5 max-w-[26rem]" />
-        </div>
-      ) : null}
+/** The page title and its description, actions on the right. */
+export const SkeletonHero = ({ className }: { className?: string }) => (
+  <div className={cn("flex items-end justify-between gap-3", className)}>
+    <div className="space-y-2.5">
+      <Skeleton className="h-7 w-48 rounded-lg" />
+      <Line className="h-3 w-80 max-w-[60vw]" />
     </div>
-    {aside ? <div className="min-w-0">{aside}</div> : null}
-  </section>
+    <Skeleton className="hidden h-8 w-28 rounded-lg sm:block" />
+  </div>
 )
 
-/** The ruled row of large figures. */
+/** The row of figure cards. */
 export const SkeletonFigures = ({ count = 4 }: { count?: number }) => (
   <div
     className={cn(
-      "report-figures grid",
-      count === 3 ? "grid-cols-3" : "grid-cols-2 md:grid-cols-4"
+      "grid grid-cols-2 gap-3",
+      count === 3 && "md:grid-cols-3",
+      count === 4 && "md:grid-cols-4",
+      count === 5 && "md:grid-cols-3 xl:grid-cols-5",
+      count === 6 && "md:grid-cols-3 xl:grid-cols-6"
     )}
   >
     {Array.from({ length: count }).map((_, index) => (
-      <div
-        className="report-figure flex flex-col gap-3 px-1 py-5 sm:px-5 md:first:pl-0"
-        key={index}
-      >
-        <Line className="h-2.5 w-20" />
-        <Skeleton className="h-8 w-16 rounded-lg" />
-        <Line className="h-3 w-3/4 max-w-[10rem]" />
+      <div className="console-card flex flex-col gap-2.5 px-4 py-3.5" key={index}>
+        <div className="flex items-center gap-2">
+          <Skeleton className="size-6 rounded-[7px]" />
+          <Line className="h-3 w-24" />
+        </div>
+        <Skeleton className="h-7 w-14 rounded-md" />
+        <Line className="h-2.5 w-3/4 max-w-[10rem]" />
       </div>
     ))}
   </div>
 )
 
-/** A numbered section with its pinned header on the left. */
+/** A titled panel. */
 export const SkeletonSection = ({
   children,
+  className,
 }: {
   children: React.ReactNode
+  className?: string
 }) => (
-  <section className="report-section grid gap-6 py-10 lg:grid-cols-[17rem_minmax(0,1fr)] lg:gap-12">
-    <div className="space-y-3">
-      <Line className="h-2.5 w-6" />
-      <Skeleton className="h-5 w-40 rounded-lg" />
-      <div className="space-y-2 pt-1">
-        <Line className="h-3 w-full max-w-[15rem]" />
-        <Line className="h-3 w-3/4 max-w-[11rem]" />
-      </div>
+  <section className={cn("console-card overflow-hidden", className)}>
+    <div className="space-y-2 px-5 pt-4">
+      <Skeleton className="h-4 w-36 rounded-md" />
+      <Line className="h-2.5 w-56 max-w-full" />
     </div>
-    <div className="min-w-0">{children}</div>
+    <div className="min-w-0 px-5 pt-4 pb-5">{children}</div>
   </section>
 )
 
@@ -122,9 +104,9 @@ export const SkeletonBars = ({ count = 4 }: { count?: number }) => {
   return (
     <ul className="flex flex-col">
       {Array.from({ length: count }).map((_, index) => (
-        <li className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-2.5 py-3" key={index}>
-          <Line className="h-3.5 w-36" />
-          <Line className="h-3.5 w-8" />
+        <li className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-2 py-2" key={index}>
+          <Line className="h-3 w-36" />
+          <Line className="h-3 w-8" />
           <Skeleton
             className="col-span-2 h-2 rounded-full"
             style={{ width: widths[index % widths.length] }}
@@ -154,19 +136,19 @@ export const SkeletonRows = ({
     <ul className={cn("border-t border-[var(--report-rule)]", className)}>
       {Array.from({ length: count }).map((_, index) => (
         <li
-          className="flex items-center gap-4 border-b border-[var(--report-rule)] px-2 py-4"
+          className="flex items-center gap-3 border-b border-[var(--report-rule)] px-2 py-2.5"
           key={index}
         >
-          {avatar ? <Skeleton className="size-10 shrink-0 rounded-full" /> : null}
-          <div className="min-w-0 flex-1 space-y-2">
-            <Line className={cn("h-3.5 max-w-full", nameWidths[index % 6])} />
-            <Line className={cn("h-3 max-w-full", metaWidths[index % 6])} />
+          {avatar ? <Skeleton className="size-8 shrink-0 rounded-full" /> : null}
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <Line className={cn("h-3 max-w-full", nameWidths[index % 6])} />
+            <Line className={cn("h-2.5 max-w-full", metaWidths[index % 6])} />
           </div>
           {Array.from({ length: trailing }).map((__, slot) => (
             <Line
               className={cn(
                 "hidden shrink-0 sm:block",
-                slot === trailing - 1 ? "h-8 w-24" : "h-3 w-28"
+                slot === trailing - 1 ? "h-7 w-20" : "h-3 w-24"
               )}
               key={slot}
             />
@@ -182,31 +164,31 @@ export const SkeletonFilters = ({ count = 4 }: { count?: number }) => {
   const widths = ["w-16", "w-36", "w-24", "w-28"]
 
   return (
-    <div className="flex flex-col gap-4 border-b border-[var(--report-rule)] pb-3 sm:flex-row sm:items-end sm:justify-between">
+    <div className="flex flex-col gap-3 border-b border-[var(--report-rule)] pb-2.5 sm:flex-row sm:items-end sm:justify-between">
       <div className="flex gap-6 pb-1">
         {Array.from({ length: count }).map((_, index) => (
-          <Line className={cn("h-4", widths[index % widths.length])} key={index} />
+          <Line className={cn("h-3.5", widths[index % widths.length])} key={index} />
         ))}
       </div>
-      <Skeleton className="h-9 w-full rounded-full sm:w-72" />
+      <Skeleton className="h-9 w-full rounded-full sm:w-64" />
     </div>
   )
 }
 
 /** Numbered step rows, as on Setup and Data transfer. */
 export const SkeletonSteps = ({ count = 3 }: { count?: number }) => (
-  <ol className="flex flex-col gap-9">
+  <ol className="flex flex-col gap-5">
     {Array.from({ length: count }).map((_, index) => (
-      <li className="grid grid-cols-[2rem_minmax(0,1fr)] gap-4" key={index}>
-        <Skeleton className="size-8 rounded-full" />
-        <div className="space-y-3 pt-1.5">
-          <Skeleton className="h-4 w-48 rounded-lg" />
-          <Line className="h-3 w-full max-w-[28rem]" />
+      <li className="grid grid-cols-[1.5rem_minmax(0,1fr)] gap-3" key={index}>
+        <Skeleton className="size-6 rounded-full" />
+        <div className="space-y-2 pt-0.5">
+          <Skeleton className="h-3.5 w-48 rounded-md" />
+          <Line className="h-2.5 w-full max-w-[28rem]" />
           {index === 0 ? (
             <div className="flex flex-wrap gap-2 pt-1">
-              <Skeleton className="h-10 w-32 rounded-full" />
-              <Skeleton className="h-10 w-24 rounded-full" />
-              <Skeleton className="h-10 w-28 rounded-full" />
+              <Skeleton className="h-8 w-28 rounded-full" />
+              <Skeleton className="h-8 w-20 rounded-full" />
+              <Skeleton className="h-8 w-24 rounded-full" />
             </div>
           ) : null}
         </div>
@@ -219,15 +201,17 @@ export const SkeletonSteps = ({ count = 3 }: { count?: number }) => (
 
 export const AnalyticsSkeleton = () => (
   <Frame label="Loading analytics">
-    <SkeletonHero
-      aside={
-        <div className="flex flex-col gap-5 sm:flex-row sm:items-center lg:flex-col lg:items-stretch">
+    <SkeletonHero />
+    <SkeletonFigures count={6} />
+    <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+      <SkeletonSection>
+        <div className="flex items-center gap-4">
           <div aria-hidden className="report-waffle report-skeleton-pulse shrink-0">
             {Array.from({ length: 100 }).map((_, index) => (
               <span className="report-cell" key={index} />
             ))}
           </div>
-          <div className="flex-1 space-y-3 px-2">
+          <div className="flex-1 space-y-3">
             {["w-40", "w-32", "w-24"].map((width) => (
               <div className="flex items-center gap-2.5" key={width}>
                 <Skeleton className="size-3 rounded-[3px]" />
@@ -236,44 +220,45 @@ export const AnalyticsSkeleton = () => (
             ))}
           </div>
         </div>
-      }
-    />
-    <SkeletonFigures />
-    <SkeletonSection>
-      <SkeletonBars />
-    </SkeletonSection>
-    <SkeletonSection>
-      <SkeletonRows avatar={false} count={3} trailing={0} className="border-t-0" />
-    </SkeletonSection>
+      </SkeletonSection>
+      <SkeletonSection>
+        <SkeletonBars />
+      </SkeletonSection>
+      <SkeletonSection>
+        <SkeletonBars count={2} />
+      </SkeletonSection>
+    </div>
   </Frame>
 )
 
 export const MemorySkeleton = () => (
   <Frame label="Loading customer memory">
     <SkeletonHero />
-    <SkeletonFilters />
-    <div className="grid gap-10 pt-6 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:gap-14">
-      <SkeletonRows className="border-t-0" count={6} trailing={1} />
-      <div className="hidden min-w-0 lg:block">
-        <div className="flex items-start gap-4">
-          <Skeleton className="size-14 shrink-0 rounded-full" />
-          <div className="flex-1 space-y-3 pt-1">
-            <Skeleton className="h-8 w-64 rounded-xl" />
-            <Line className="h-3 w-72" />
+    <SkeletonFigures />
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
+      <SkeletonSection>
+        <SkeletonRows className="border-t-0" count={7} trailing={1} />
+      </SkeletonSection>
+      <SkeletonSection className="hidden lg:block">
+        <div className="flex items-start gap-3">
+          <Skeleton className="size-11 shrink-0 rounded-full" />
+          <div className="flex-1 space-y-2 pt-1">
+            <Skeleton className="h-5 w-56 rounded-lg" />
+            <Line className="h-2.5 w-72" />
           </div>
         </div>
-        <div className="mt-8 space-y-2.5">
-          <Line className="h-4 w-full" />
-          <Line className="h-4 w-11/12" />
-          <Line className="h-4 w-2/3" />
+        <div className="mt-4 space-y-2">
+          <Line className="h-3 w-full" />
+          <Line className="h-3 w-2/3" />
         </div>
-        <div className="mt-8">
+        <div className="mt-4">
           <SkeletonFigures count={3} />
         </div>
-        <div className="mt-8">
+        <div className="mt-4 grid gap-6 xl:grid-cols-2">
+          <SkeletonRows avatar={false} count={4} trailing={0} />
           <SkeletonRows avatar={false} count={4} trailing={0} />
         </div>
-      </div>
+      </SkeletonSection>
     </div>
   </Frame>
 )
@@ -286,47 +271,46 @@ const ARRIVAL_HEIGHTS = [
 
 export const LeadsSkeleton = () => (
   <Frame label="Loading leads">
-    <SkeletonHero
-      aside={
-        <div>
-          <Skeleton className="h-8 w-44 rounded-lg" />
-          <Line className="mt-2.5 h-3 w-36" />
-          <div
-            aria-hidden
-            className="report-skeleton-pulse mt-4 grid h-[7.5rem] grid-cols-[repeat(30,minmax(0,1fr))] items-end gap-[3px] border-b border-[var(--report-rule)]"
-          >
-            {ARRIVAL_HEIGHTS.map((height, index) => (
-              <div className="flex h-full items-end" key={index}>
-                <div
-                  className="w-full rounded-t-[4px] bg-[var(--report-track)]"
-                  style={{ height: `${height}%` }}
-                />
-              </div>
-            ))}
-          </div>
-          <div className="mt-2 flex justify-between">
-            <Line className="h-2.5 w-10" />
-            <Line className="h-2.5 w-10" />
-          </div>
+    <SkeletonHero />
+    <SkeletonFigures count={5} />
+    <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
+      <SkeletonSection>
+        <SkeletonFilters />
+        <SkeletonRows className="border-t-0" count={7} trailing={2} />
+      </SkeletonSection>
+      <SkeletonSection>
+        <Skeleton className="h-6 w-40 rounded-lg" />
+        <div
+          aria-hidden
+          className="report-skeleton-pulse mt-3 grid h-[6.5rem] grid-cols-[repeat(30,minmax(0,1fr))] items-end gap-[3px] border-b border-[var(--report-rule)]"
+        >
+          {ARRIVAL_HEIGHTS.map((height, index) => (
+            <div className="flex h-full items-end" key={index}>
+              <div
+                className="w-full rounded-t-[4px] bg-[var(--report-track)]"
+                style={{ height: `${height}%` }}
+              />
+            </div>
+          ))}
         </div>
-      }
-    />
-    <SkeletonFilters />
-    <SkeletonRows className="border-t-0" count={6} trailing={2} />
+      </SkeletonSection>
+    </div>
   </Frame>
 )
 
 export const KnowledgeSkeleton = () => (
   <Frame label="Loading knowledge base">
-    <section className="pt-2 pb-12">
-      <SkeletonHero className="pb-0" />
-      <Skeleton className="mt-10 h-[3.75rem] w-full max-w-5xl rounded-full" />
-      <Line className="mt-3 ml-6 h-3 w-80 max-w-[70%]" />
-    </section>
-    <SkeletonSection>
-      <SkeletonFilters count={3} />
-      <SkeletonRows className="mt-2 border-t-0" count={5} trailing={1} />
-    </SkeletonSection>
+    <SkeletonHero />
+    <SkeletonFigures count={5} />
+    <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_28rem]">
+      <SkeletonSection>
+        <SkeletonFilters count={3} />
+        <SkeletonRows avatar={false} className="border-t-0" count={7} trailing={1} />
+      </SkeletonSection>
+      <SkeletonSection>
+        <Skeleton className="h-10 w-full rounded-full" />
+      </SkeletonSection>
+    </div>
   </Frame>
 )
 
@@ -334,16 +318,15 @@ export const KnowledgeSkeleton = () => (
 export const SetupPanelSkeleton = () => (
   <div aria-busy="true" className="min-w-0" role="status">
     <span className="sr-only">Loading</span>
-    <div className="flex items-center gap-4">
-      <Skeleton className="size-14 shrink-0 rounded-full" />
-      <div className="space-y-2.5">
-        <Skeleton className="h-8 w-52 rounded-xl" />
-        <Line className="h-3 w-36" />
+    <div className="flex items-center gap-3 border-b border-[var(--report-rule)] pb-4">
+      <Skeleton className="size-10 shrink-0 rounded-full" />
+      <div className="space-y-2">
+        <Skeleton className="h-5 w-48 rounded-lg" />
+        <Line className="h-2.5 w-32" />
       </div>
     </div>
-    <div className="mt-6 mb-10 space-y-2.5">
-      <Line className="h-4 w-full max-w-[36rem]" />
-      <Line className="h-4 w-3/4 max-w-[26rem]" />
+    <div className="mt-4 mb-5 space-y-2">
+      <Line className="h-3 w-full max-w-[40rem]" />
     </div>
     <SkeletonSteps />
   </div>
@@ -352,11 +335,16 @@ export const SetupPanelSkeleton = () => (
 export const TransferSkeleton = () => (
   <Frame label="Loading data transfer">
     <SkeletonHero />
-    <SkeletonSection>
-      <SkeletonSteps count={2} />
-    </SkeletonSection>
-    <SkeletonSection>
-      <SkeletonSteps count={3} />
-    </SkeletonSection>
+    <div className="grid items-start gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+      <SkeletonSection>
+        <SkeletonSteps count={2} />
+      </SkeletonSection>
+      <SkeletonSection>
+        <SkeletonSteps count={3} />
+      </SkeletonSection>
+      <SkeletonSection>
+        <SkeletonRows avatar={false} count={3} trailing={0} />
+      </SkeletonSection>
+    </div>
   </Frame>
 )

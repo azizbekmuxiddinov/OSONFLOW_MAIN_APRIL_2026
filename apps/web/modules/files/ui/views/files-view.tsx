@@ -21,7 +21,13 @@ import { Button } from "@workspace/ui/components/button"
 import { Skeleton } from "@workspace/ui/components/skeleton"
 import {
   ArrowUpIcon,
+  BookmarkIcon,
+  BookOpenIcon,
+  CircleCheckIcon,
   EyeIcon,
+  LibraryIcon,
+  RepeatIcon,
+  TriangleAlertIcon,
   FileIcon,
   FileTextIcon,
   GlobeIcon,
@@ -37,14 +43,14 @@ import {
   ConsolePage,
   ConsoleSearch,
 } from "@/modules/dashboard/ui/components/console"
+import { KnowledgeSkeleton } from "@/modules/dashboard/ui/components/report-skeleton"
 import {
-  KnowledgeSkeleton,
-  SkeletonRows,
-} from "@/modules/dashboard/ui/components/report-skeleton"
-import {
+  FigureStrip,
+  PageBar,
   ReportFilter,
   ReportQuiet,
   ReportSection,
+  StripFigure,
 } from "@/modules/dashboard/ui/components/report"
 import "@/modules/dashboard/ui/styles/report.css"
 import "../styles/knowledge.css"
@@ -132,9 +138,6 @@ const formatDateTime = (timestamp: number) =>
     timeStyle: "short",
   }).format(new Date(timestamp))
 
-const plural = (count: number, one: string, many: string) =>
-  count === 1 ? one : many
-
 // ─── ask ──────────────────────────────────────────────────────────────────────
 
 function AskKnowledge({
@@ -158,7 +161,7 @@ function AskKnowledge({
   return (
     <div>
       <form
-        className="knowledge-ask glass flex items-center gap-2 py-2 pr-2 pl-6"
+        className="knowledge-ask glass flex items-center gap-2 py-1.5 pr-1.5 pl-4"
         onSubmit={handleSubmit}
       >
         <label className="sr-only" htmlFor="knowledge-question">
@@ -177,27 +180,23 @@ function AskKnowledge({
         />
         <Button
           aria-label="Ask"
-          className="size-11 shrink-0"
+          className="size-9 shrink-0"
           disabled={disabled || isAsking || !question.trim()}
-          size="icon-lg"
+          size="icon"
           type="submit"
         >
           {isAsking ? (
-            <Loader2Icon className="size-5 animate-spin" />
+            <Loader2Icon className="size-4 animate-spin" />
           ) : (
-            <ArrowUpIcon className="size-5" />
+            <ArrowUpIcon className="size-4" />
           )}
         </Button>
       </form>
-      <p className="mt-3 px-6 text-xs text-muted-foreground">
-        See the answer your assistant would give, and which sources it used.
-        Nothing is sent to customers.
-      </p>
 
       {result ? (
         <div
           aria-live="polite"
-          className="knowledge-answer mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_18rem] lg:gap-12"
+          className="knowledge-answer mt-4 grid gap-4"
           key={result.answer}
         >
           <div className="min-w-0">
@@ -221,7 +220,7 @@ function AskKnowledge({
                 <span style={{ width: `${result.confidence}%` }} />
               </div>
             </div>
-            <p className="knowledge-answer-text mt-6">{result.answer}</p>
+            <p className="knowledge-answer-text mt-3">{result.answer}</p>
             {result.reason ? (
               <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
                 Why: {result.reason}
@@ -232,13 +231,13 @@ function AskKnowledge({
           <div className="min-w-0">
             <p className="console-label">Drawn from</p>
             {result.sources.length ? (
-              <ol className="mt-3">
+              <ol className="mt-2">
                 {result.sources.slice(0, 5).map((source, index) => (
                   <li
-                    className="knowledge-footnote grid grid-cols-[1.5rem_minmax(0,1fr)_auto] gap-2 py-2.5"
+                    className="knowledge-footnote grid grid-cols-[1.5rem_minmax(0,1fr)_auto] gap-2 py-2"
                     key={`${source.title}-${index}`}
                   >
-                    <span className="report-section-index pt-0.5">
+                    <span className="pt-0.5 text-[0.7rem] font-semibold tabular-nums text-primary">
                       {index + 1}
                     </span>
                     <span className="min-w-0">
@@ -299,7 +298,7 @@ function SourceHealth({
   ).filter(([, count]) => count > 0)
 
   return (
-    <div className="mb-6 flex flex-wrap items-center gap-x-5 gap-y-2">
+    <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-2">
       <div
         aria-label={segments
           .map(([status, count]) => `${STATUS_COPY[status].label} ${count}`)
@@ -345,14 +344,14 @@ function SourceRow({
   ].filter(Boolean)
 
   return (
-    <li className="knowledge-row grid grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-x-3.5 gap-y-2 px-2 py-3 sm:grid-cols-[2.25rem_minmax(0,1fr)_8rem_auto]">
-      <span className="knowledge-glyph size-9">
+    <li className="knowledge-row grid grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-2 py-2 sm:grid-cols-[2rem_minmax(0,1fr)_7rem_auto]">
+      <span className="knowledge-glyph size-8">
         <SourceFileIcon className="size-4" type={file.type} />
       </span>
 
       <div className="min-w-0">
         <p
-          className="truncate text-[0.95rem] font-medium text-foreground"
+          className="truncate text-sm font-medium text-foreground"
           title={file.name}
         >
           {file.name}
@@ -576,25 +575,6 @@ export const FilesView = () => {
   }
 
   const totalLabel = `${stats.total}${canLoadMore ? "+" : ""}`
-  const ledeParts = [
-    stats.ready ? (
-      <span key="ready">
-        <strong>{stats.ready}</strong> ready to answer from
-      </span>
-    ) : null,
-    stats.processing ? (
-      <span key="processing">
-        <strong>{stats.processing}</strong> still being read
-      </span>
-    ) : null,
-    stats.errors ? (
-      <span key="errors">
-        <strong>{stats.errors}</strong>{" "}
-        {plural(stats.errors, "failed and needs", "failed and need")} to be
-        added again
-      </span>
-    ) : null,
-  ].filter(Boolean)
 
   // ── render ──────────────────────────────────────────────────────────────
   return (
@@ -676,86 +656,66 @@ export const FilesView = () => {
         <KnowledgeSkeleton />
       ) : (
       <ConsolePage width="wide">
-        <div className="report knowledge">
-          {/* Hero: what the assistant knows, and a way to try it. */}
-          <section className="pt-2 pb-12">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="console-eyebrow">Knowledge base</p>
+        <div className="report knowledge flex flex-col gap-4">
+          <PageBar
+            actions={
               <Button onClick={() => setUploadDialogOpen(true)} size="sm">
                 <PlusIcon data-icon="inline-start" />
                 Add source
               </Button>
-            </div>
+            }
+            hint="Price lists, policies, FAQs and web pages your assistant answers from — in your own words, not guesses."
+            title="Knowledge base"
+          />
 
-            {stats.total ? (
-              <>
-                <h1 className="report-headline mt-6 max-w-[24ch]">
-                  Your assistant answers from{" "}
-                  <span className="report-headline-figure">
-                    {totalLabel} {plural(stats.total, "source", "sources")}
-                  </span>
-                  .
-                </h1>
-                <p className="report-lede mt-5 max-w-[62ch]">
-                  {ledeParts.map((part, index) => (
-                    <span key={index}>
-                      {index > 0
-                        ? index === ledeParts.length - 1
-                          ? " and "
-                          : ", "
-                        : null}
-                      {part}
-                    </span>
-                  ))}
-                  .
-                </p>
-              </>
-            ) : (
-              <>
-                <h1 className="report-headline mt-6 max-w-[22ch]">
-                  Teach your assistant what your business knows.
-                </h1>
-                <p className="report-lede mt-5 max-w-[62ch]">
-                  Upload price lists, policies and FAQs, or add pages from your
-                  website. Your assistant reads them and answers customers from
-                  your own words — not guesses.
-                </p>
-                <Button
-                  className="mt-7"
-                  onClick={() => setUploadDialogOpen(true)}
-                  size="lg"
+          <FigureStrip className="md:grid-cols-3 xl:grid-cols-5">
+            <StripFigure
+              icon={LibraryIcon}
+              label="Sources"
+              note="Documents and pages added"
+              tone="info"
+              value={stats.total ? totalLabel : 0}
+            />
+            <StripFigure
+              icon={CircleCheckIcon}
+              label="Ready"
+              note="Your assistant answers from these"
+              tone="positive"
+              value={stats.ready}
+            />
+            <StripFigure
+              icon={TriangleAlertIcon}
+              label="Needs attention"
+              note="Still being read, or failed"
+              tone="warning"
+              value={stats.processing + stats.errors}
+            />
+            <StripFigure
+              icon={BookmarkIcon}
+              label="Saved answers"
+              note="Reused instead of written again"
+              tone="accent"
+              value={cacheStats?.entryCount ?? "—"}
+            />
+            <StripFigure
+              icon={RepeatIcon}
+              label="Times reused"
+              note="Answers served from the saved set"
+              tone="positive"
+              value={cacheStats?.hitCount ?? "—"}
+            />
+          </FigureStrip>
+
+          {stats.total ? (
+            <>
+
+              <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_28rem]">
+                <ReportSection
+                  flush
+                  lede="Every document and web page your assistant searches before it replies. Open one to see exactly what it read."
+                  title="Sources"
                 >
-                  <PlusIcon data-icon="inline-start" />
-                  Add your first source
-                </Button>
-              </>
-            )}
-
-            {!isLoadingFirstPage && stats.total ? (
-              <div className="mt-10 max-w-5xl">
-                <AskKnowledge
-                  disabled={stats.ready === 0}
-                  isAsking={isTestingKnowledge}
-                  onAsk={handleKnowledgeTest}
-                  result={testResult}
-                />
-              </div>
-            ) : null}
-          </section>
-
-          {isLoadingFirstPage || stats.total ? (
-            <ReportSection
-              index={1}
-              lede="Every document and web page your assistant searches before it replies. Open one to see exactly what it read."
-              title="Sources"
-            >
-              {isLoadingFirstPage ? (
-                <SkeletonRows count={5} />
-              ) : (
-                <>
-                  <SourceHealth {...stats} />
-
-                  <div className="flex flex-col gap-4 border-b border-[var(--report-rule)] sm:flex-row sm:items-end sm:justify-between">
+                  <div className="flex flex-col gap-3 border-b border-[var(--report-rule)] px-4 pt-1 sm:flex-row sm:items-end sm:justify-between">
                     {categories.length ? (
                       <div
                         aria-label="Filter by category"
@@ -789,123 +749,171 @@ export const FilesView = () => {
                     )}
                     <ConsoleSearch
                       aria-label="Search sources"
-                      className="mb-3 w-full sm:w-64"
+                      className="mb-2.5 w-full sm:w-60"
                       onChange={setSearchQuery}
                       placeholder="Search sources"
                       value={searchQuery}
                     />
                   </div>
 
-                  {filtered.length ? (
-                    <div className="pt-6">
-                      {groups.map((group) => (
-                        <div className="knowledge-group" key={group.name ?? "all"}>
-                          {group.name ? (
-                            <p className="console-label mb-2 flex items-baseline gap-2 px-2">
-                              {group.name}
-                              <span className="tabular-nums">
-                                {group.files.length}
-                              </span>
-                            </p>
-                          ) : null}
-                          <ul className="border-t border-[var(--report-rule)]">
-                            {group.files.map((file) => (
-                              <SourceRow
-                                file={file}
-                                key={file.id}
-                                onDelete={handleDeleteClick}
-                                onView={(f) => void handleViewClick(f)}
-                              />
-                            ))}
-                          </ul>
-                        </div>
-                      ))}
-                      {canLoadMore ? (
-                        <div className="mt-4">
-                          <InfiniteScrollTrigger
-                            canLoadMore={canLoadMore}
-                            isLoadingMore={isLoadingMore}
-                            onLoadMore={handleLoadMore}
-                            ref={topElementRef}
-                          />
-                        </div>
-                      ) : null}
+                  <div className="px-2 pb-2">
+                    <div className="px-2 pt-3">
+                      <SourceHealth {...stats} />
                     </div>
-                  ) : (
-                    <ReportQuiet>
-                      Nothing matches
-                      {searchQuery.trim() ? ` “${searchQuery.trim()}”` : ""}
-                      {activeCategory ? ` in ${activeCategory}` : ""}.{" "}
-                      <button
-                        className="text-foreground underline underline-offset-4"
-                        onClick={resetFilters}
-                        type="button"
-                      >
-                        Show all sources
-                      </button>
-                    </ReportQuiet>
-                  )}
-                </>
-              )}
-            </ReportSection>
-          ) : null}
+                    {filtered.length ? (
+                      <>
+                        {groups.map((group) => (
+                          <div
+                            className="knowledge-group"
+                            key={group.name ?? "all"}
+                          >
+                            {group.name ? (
+                              <p className="console-label mb-1 flex items-baseline gap-2 px-2">
+                                {group.name}
+                                <span className="tabular-nums">
+                                  {group.files.length}
+                                </span>
+                              </p>
+                            ) : null}
+                            <ul className="border-t border-[var(--report-rule)]">
+                              {group.files.map((file) => (
+                                <SourceRow
+                                  file={file}
+                                  key={file.id}
+                                  onDelete={handleDeleteClick}
+                                  onView={(f) => void handleViewClick(f)}
+                                />
+                              ))}
+                            </ul>
+                          </div>
+                        ))}
+                        {canLoadMore ? (
+                          <div className="mt-3">
+                            <InfiniteScrollTrigger
+                              canLoadMore={canLoadMore}
+                              isLoadingMore={isLoadingMore}
+                              onLoadMore={handleLoadMore}
+                              ref={topElementRef}
+                            />
+                          </div>
+                        ) : null}
+                      </>
+                    ) : (
+                      <div className="px-2">
+                        <ReportQuiet>
+                          Nothing matches
+                          {searchQuery.trim()
+                            ? ` “${searchQuery.trim()}”`
+                            : ""}
+                          {activeCategory ? ` in ${activeCategory}` : ""}.{" "}
+                          <button
+                            className="text-foreground underline underline-offset-4"
+                            onClick={resetFilters}
+                            type="button"
+                          >
+                            Show all sources
+                          </button>
+                        </ReportQuiet>
+                      </div>
+                    )}
+                  </div>
+                </ReportSection>
 
-          {!isLoadingFirstPage && stats.total ? (
-            <ReportSection
-              index={2}
-              lede="When customers ask something already answered, your assistant reuses that answer — faster, and cheaper. Saved answers clear themselves whenever your sources change."
-              title="Saved answers"
-            >
-              {cacheStats === undefined ? (
-                <Skeleton className="h-5 w-3/5" />
-              ) : cacheStats.entryCount ? (
-                <p className="report-lede max-w-[60ch]">
-                  <strong>{cacheStats.entryCount}</strong>{" "}
-                  {plural(cacheStats.entryCount, "answer is", "answers are")}{" "}
-                  saved and {plural(cacheStats.hitCount, "was", "were")} reused{" "}
-                  <strong>{cacheStats.hitCount}</strong>{" "}
-                  {plural(cacheStats.hitCount, "time", "times")}
-                  {cacheStats.semanticIndexedCount ? (
-                    <>
-                      {" "}
-                      —{" "}
-                      <strong>{cacheStats.semanticIndexedCount}</strong> can
-                      match questions worded differently
-                    </>
-                  ) : null}
-                  .{" "}
-                  {cacheStats.lastUsedAt
-                    ? `Last reused ${formatDateTime(cacheStats.lastUsedAt)}.`
-                    : "None reused yet."}
-                </p>
-              ) : (
-                <ReportQuiet>
-                  No saved answers yet. They build up as customers ask similar
-                  questions.
-                </ReportQuiet>
-              )}
-
-              {cacheStats?.entryCount ? (
-                <Button
-                  className="mt-6"
-                  disabled={isClearingCache}
-                  onClick={() => void handleClearCache()}
-                  size="sm"
-                  variant="outline"
-                >
-                  {isClearingCache ? (
-                    <Loader2Icon
-                      className="animate-spin"
-                      data-icon="inline-start"
+                <div className="flex flex-col gap-4">
+                  <ReportSection
+                    lede="See the answer your assistant would give, and which sources it used. Nothing is sent to customers."
+                    title="Ask your knowledge base"
+                  >
+                    <AskKnowledge
+                      disabled={stats.ready === 0}
+                      isAsking={isTestingKnowledge}
+                      onAsk={handleKnowledgeTest}
+                      result={testResult}
                     />
-                  ) : (
-                    <TrashIcon data-icon="inline-start" />
-                  )}
-                  Clear saved answers
+                  </ReportSection>
+
+                  <ReportSection
+                    actions={
+                      cacheStats?.entryCount ? (
+                        <Button
+                          disabled={isClearingCache}
+                          onClick={() => void handleClearCache()}
+                          size="sm"
+                          variant="ghost"
+                        >
+                          {isClearingCache ? (
+                            <Loader2Icon
+                              className="animate-spin"
+                              data-icon="inline-start"
+                            />
+                          ) : (
+                            <TrashIcon data-icon="inline-start" />
+                          )}
+                          Clear
+                        </Button>
+                      ) : null
+                    }
+                    lede="When customers ask something already answered, your assistant reuses that answer — faster, and cheaper. Saved answers clear themselves whenever your sources change."
+                    title="Saved answers"
+                  >
+                    {cacheStats === undefined ? (
+                      <Skeleton className="h-5 w-3/5" />
+                    ) : cacheStats.entryCount ? (
+                      <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                        <div>
+                          <dt className="console-label">Saved</dt>
+                          <dd className="console-numeral mt-1">
+                            {cacheStats.entryCount}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="console-label">Reused</dt>
+                          <dd className="console-numeral mt-1">
+                            {cacheStats.hitCount}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="console-label">
+                            Match different wording
+                          </dt>
+                          <dd className="console-numeral mt-1">
+                            {cacheStats.semanticIndexedCount}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="console-label">Last reused</dt>
+                          <dd className="mt-1 text-xs text-foreground">
+                            {cacheStats.lastUsedAt
+                              ? formatDateTime(cacheStats.lastUsedAt)
+                              : "—"}
+                          </dd>
+                        </div>
+                      </dl>
+                    ) : (
+                      <ReportQuiet icon={BookmarkIcon}>
+                        No saved answers yet. They build up as customers ask
+                        similar questions.
+                      </ReportQuiet>
+                    )}
+                  </ReportSection>
+                </div>
+              </div>
+            </>
+          ) : (
+            <ReportSection title="Teach your assistant what your business knows">
+              <ReportQuiet icon={BookOpenIcon}>
+                Upload price lists, policies and FAQs, or add pages from your
+                website. Your assistant reads them and answers customers from
+                your own words — not guesses.
+              </ReportQuiet>
+              <div className="mt-4 flex justify-center">
+                <Button onClick={() => setUploadDialogOpen(true)} size="sm">
+                  <PlusIcon data-icon="inline-start" />
+                  Add your first source
                 </Button>
-              ) : null}
+              </div>
             </ReportSection>
-          ) : null}
+          )}
         </div>
       </ConsolePage>
       )}

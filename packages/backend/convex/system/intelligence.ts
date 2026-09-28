@@ -10,6 +10,8 @@ import { Id } from "../_generated/dataModel"
 import { supportAgent } from "./ai/agents/supportAgent"
 import { getOpenAIChatModelFromSecretValue } from "../lib/openai"
 import { extractAgentMessageText } from "../lib/agentMessageText"
+import { recordUnansweredQuestion } from "../lib/learningHooks"
+import { scheduleTeamAlert } from "../lib/teamAlertHooks"
 
 const statusValidator = v.union(
   v.literal("unresolved"),
@@ -484,6 +486,32 @@ export const upsertInsight = internalMutation({
       await ctx.db.patch(existing._id, insightPatch)
     } else {
       await ctx.db.insert("conversationInsights", insightPatch)
+    }
+
+    // Analysis runs after every message, so each of these fires on the turn a
+    // conversation first crosses the line, not again on every later message.
+    if (
+      args.conversationId &&
+      args.sentiment === "negative" &&
+      existing?.sentiment !== "negative" &&
+      args.status !== "resolved"
+    ) {
+      await scheduleTeamAlert(ctx, args.organizationId, {
+        kind: "upset",
+        conversationId: args.conversationId,
+      })
+    }
+
+    if (
+      args.isUnanswered &&
+      args.unansweredQuestion &&
+      !existing?.isUnanswered
+    ) {
+      await recordUnansweredQuestion(ctx, {
+        organizationId: args.organizationId,
+        question: args.unansweredQuestion,
+        conversationId: args.conversationId,
+      })
     }
 
     const contactSession = await ctx.db.get(args.contactSessionId)

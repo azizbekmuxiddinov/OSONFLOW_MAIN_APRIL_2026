@@ -9,6 +9,7 @@ import { saveMessage } from "@convex-dev/agent"
 import { generateText } from "ai"
 import { getOpenAIChatModelFromSecretValue } from "../lib/openai"
 import { OPERATOR_IMAGE_UPLOAD_POLICY } from "../lib/chatAttachments"
+import { scheduleTeamReplyLearning } from "../lib/learningHooks"
 
 export const enhanceResponse = action({
   args: {
@@ -226,6 +227,8 @@ export const sendOperatorMessageForOrganization = async (
       conversationId,
     }
   )
+
+  await scheduleTeamReplyLearning(ctx, conversation, now)
 
   return { messageId: savedMessage.messageId }
 }

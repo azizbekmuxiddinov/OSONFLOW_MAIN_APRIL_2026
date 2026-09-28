@@ -31,7 +31,7 @@
 
 /* ── index ─────────────────────────────────────────────────────────────── */
 
-/* The pinned index scrolls on its own once it is taller than the viewport. */
+/* The index scrolls on its own once it is taller than the viewport. */
 @media (min-width: 1024px) {
   .tools-index {
     max-height: calc(100dvh - 7.5rem);
@@ -40,8 +40,8 @@
     scrollbar-width: thin;
     scrollbar-color: color-mix(in srgb, var(--foreground) 14%, transparent)
       transparent;
-    /* Room for the selected row's lift shadow, which would otherwise clip. */
-    margin-inline: -0.75rem;
+    /* The index is its own card now, so it lines up with the page edge; the
+       card's padding leaves room for the selected row's lift shadow. */
     padding-inline: 0.75rem;
   }
 }
