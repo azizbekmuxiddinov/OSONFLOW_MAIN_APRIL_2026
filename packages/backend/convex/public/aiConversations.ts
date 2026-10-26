@@ -5,6 +5,7 @@ import { Doc, Id } from "../_generated/dataModel"
 import { saveMessage } from "@convex-dev/agent"
 import { supportAgent } from "../system/ai/agents/supportAgent"
 import { enforceRateLimit } from "../lib/rateLimits"
+import { MAX_WIDGET_MESSAGE_LENGTH } from "../constants"
 
 const providerValidator = v.union(
   v.literal("openai_realtime"),
@@ -274,18 +275,26 @@ export const appendMessage = mutation({
       })
     }
 
+    if (text.length > MAX_WIDGET_MESSAGE_LENGTH) {
+      throw new ConvexError({
+        code: "BAD_REQUEST",
+        message: `Message text can be at most ${MAX_WIDGET_MESSAGE_LENGTH.toLocaleString("en-US")} characters.`,
+      })
+    }
+
     const conversation = await getValidatedConversation(ctx, {
       conversationId: args.conversationId,
       contactSessionId: args.contactSessionId,
     })
 
-    if (args.role === "user") {
-      await enforceRateLimit(ctx, "voiceTranscriptBySession", {
-        key: `${conversation.organizationId}:${args.contactSessionId}`,
-        message:
-          "Voice messages are arriving too quickly. Please wait a moment.",
-      })
-    }
+    // Both roles are written by the unauthenticated widget and every write
+    // schedules an analysis pass, so the limit applies whatever the role says
+    // it is — otherwise a caller labels its traffic "assistant" and skips it.
+    await enforceRateLimit(ctx, "voiceTranscriptBySession", {
+      key: `${conversation.organizationId}:${args.contactSessionId}`,
+      message:
+        "Voice messages are arriving too quickly. Please wait a moment.",
+    })
 
     await ctx.runMutation(internal.system.contactSessions.refresh, {
       contactSessionId: args.contactSessionId,

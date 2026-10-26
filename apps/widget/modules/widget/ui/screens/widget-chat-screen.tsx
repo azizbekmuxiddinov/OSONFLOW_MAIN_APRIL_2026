@@ -98,10 +98,15 @@ import { getWidgetMetadata } from "../../lib/widget-metadata"
 import { useHelpTopics } from "../../hooks/use-help-articles"
 import { useEnsureVoiceContactSession } from "../../hooks/use-ensure-voice-contact-session"
 
+// Mirrors MAX_WIDGET_MESSAGE_LENGTH on the backend, which rejects anything
+// longer. Capped here too so the composer stops accepting input rather than
+// letting a message be typed and then refused on send.
+const MAX_MESSAGE_LENGTH = 8000
+
 // The composer can also be sent with images and no text, so emptiness is
 // checked at submit time against the attachment tray rather than by the schema.
 const formSchema = z.object({
-  message: z.string(),
+  message: z.string().max(MAX_MESSAGE_LENGTH),
 })
 
 type ChatHistoryMessage = {
@@ -1830,6 +1835,7 @@ export const WidgetChatScreen = () => {
                 <AIInputTextarea
                   className="owc-composer-input"
                   disabled={isComposerDisabled}
+                  maxLength={MAX_MESSAGE_LENGTH}
                   minHeight={36}
                   maxHeight={128}
                   onChange={field.onChange}

@@ -278,7 +278,7 @@ export const createAnonymousRecord = internalMutation({
     const suffix = visitorId.replace(/[^a-zA-Z0-9_-]/g, "").slice(-8) || "guest"
     const source = args.metadata?.source ?? "voice_widget"
     const name =
-      args.name?.trim() ||
+      args.name?.trim().slice(0, NAME_MAX_LENGTH) ||
       (source === "voice_widget"
         ? "Anonymous voice visitor"
         : "Anonymous visitor")

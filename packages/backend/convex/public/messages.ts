@@ -53,6 +53,7 @@ import {
   requireContactSessionThread,
 } from "../lib/widgetAuth"
 import { buildModelImageParts } from "../lib/attachmentUploads"
+import { MAX_WIDGET_MESSAGE_LENGTH } from "../constants"
 
 const getAgentMessageRole = (message: any): string => {
   const role = message?.message?.role ?? message?.role
@@ -898,6 +899,15 @@ const runVisitorMessageTurn = async (
 export const create = action({
   args: visitorMessageArgs,
   handler: async (ctx, args) => {
+    // The widget field is unauthenticated and feeds a paid model, so its
+    // length is capped here. The developer API path has its own per-key limit.
+    if (args.prompt.length > MAX_WIDGET_MESSAGE_LENGTH) {
+      throw new ConvexError({
+        code: "BAD_REQUEST",
+        message: `Messages can be at most ${MAX_WIDGET_MESSAGE_LENGTH.toLocaleString("en-US")} characters.`,
+      })
+    }
+
     await runVisitorMessageTurn(ctx, args, { enforceWidgetRateLimits: true })
   },
 })
