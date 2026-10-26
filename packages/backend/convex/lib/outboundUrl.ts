@@ -171,6 +171,17 @@ const isBlockedIpv6 = (hostname: string) => {
   return false
 }
 
+/** True for any address `assertSafeOutboundUrl` would refuse as a URL host. */
+const isBlockedIp = (address: string): boolean => {
+  const host = address.toLowerCase().replace(/^\[|\]$/g, "")
+
+  if (host.includes(":")) {
+    return isBlockedIpv6(host)
+  }
+
+  return IPV4_PATTERN.test(host) ? isBlockedIpv4(host) : false
+}
+
 export class OutboundUrlError extends Error {}
 
 /**
@@ -220,6 +231,56 @@ export const assertSafeOutboundUrl = (rawUrl: string): URL => {
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308])
 const MAX_REDIRECTS = 3
 
+// Headers that authenticate the caller and must never ride along to a host the
+// request did not start out trusting.
+const CREDENTIAL_HEADERS = ["authorization", "cookie", "proxy-authorization"]
+
+/**
+ * Blocks a hostname that resolves to a private address even though its literal
+ * form looked public — a domain whose A record points at 169.254.169.254, or a
+ * rebinding host. `assertSafeOutboundUrl` only reasons about the text of the
+ * URL, so this is the check that reaches the address `fetch` will connect to.
+ *
+ * Runs only where `node:dns` exists (`"use node"` actions and the Next.js
+ * server). In Convex's default runtime the import fails and the literal checks
+ * stand on their own. There is still a small resolve-then-connect window a
+ * determined rebinding host could use; closing it fully needs the connection
+ * pinned to the address checked here, which the platform fetch does not expose.
+ */
+const assertResolvedHostAllowed = async (hostname: string): Promise<void> => {
+  const host = hostname.replace(/^\[|\]$/g, "")
+
+  // A literal has no DNS step and was already judged by assertSafeOutboundUrl.
+  if (host.includes(":") || IPV4_PATTERN.test(host)) {
+    return
+  }
+
+  let lookup: (
+    h: string,
+    opts: { all: true }
+  ) => Promise<Array<{ address: string }>>
+
+  try {
+    lookup = (await import("node:dns")).promises.lookup
+  } catch {
+    return
+  }
+
+  let resolved: Array<{ address: string }>
+
+  try {
+    resolved = await lookup(host, { all: true })
+  } catch {
+    // Could not resolve: let fetch fail on its own terms rather than inventing
+    // a different error for a host that may simply be down.
+    return
+  }
+
+  if (resolved.some((entry) => isBlockedIp(entry.address))) {
+    throw new OutboundUrlError("That URL points at a private host.")
+  }
+}
+
 /**
  * Fetches an organization-configured URL, re-validating every redirect hop.
  * Validating only the initial URL is not enough: an attacker-controlled host
@@ -233,12 +294,19 @@ export const safeFetch = async (
   let currentUrl = assertSafeOutboundUrl(rawUrl).toString()
   let method = (init.method ?? "GET").toUpperCase()
   let body = init.body
+  // Normalised once so a cross-origin redirect can drop the credential headers
+  // regardless of how the caller spelled them.
+  const headers = new Headers(init.headers)
+  let origin = new URL(currentUrl).origin
 
   for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
+    await assertResolvedHostAllowed(new URL(currentUrl).hostname)
+
     const response = await fetch(currentUrl, {
       ...init,
       method,
       body,
+      headers,
       redirect: "manual",
     })
 
@@ -267,6 +335,15 @@ export const safeFetch = async (
     }
 
     assertSafeOutboundUrl(nextUrl.toString())
+
+    // A redirect to another origin must not carry the first origin's
+    // credentials, the way browsers and curl drop them on a cross-origin hop.
+    if (nextUrl.origin !== origin) {
+      for (const header of CREDENTIAL_HEADERS) {
+        headers.delete(header)
+      }
+      origin = nextUrl.origin
+    }
 
     // Mirror the standard redirect semantics for the methods we send.
     if (
