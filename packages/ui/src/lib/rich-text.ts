@@ -184,3 +184,137 @@ export const richTextStorageToHtml = (value: string) => {
 
   return sanitizeRichTextHtml(plainTextToRichHtml(trimmed))
 }
+
+// The workflow message editor is a contenteditable that stores its own
+// innerHTML, so a pasted `<img onerror>` or `<script>` would otherwise be
+// stored verbatim and run in the next person who opens that workflow. These
+// are the tags that editor legitimately produces; `span` is kept only for the
+// {{variable}} pills, and only with the attributes those pills carry.
+const WORKFLOW_ALLOWED_TAGS = new Set([
+  ...ALLOWED_TAGS,
+  "span",
+  "code",
+])
+
+const VARIABLE_TOKEN_CLASSES = new Set(["variable-token", "unknown"])
+
+// Elements whose text content is code or markup, not prose: they are dropped
+// whole rather than unwrapped, so a <script>'s body is not surfaced as text.
+const WORKFLOW_DROP_WITH_CONTENT = new Set([
+  "script",
+  "style",
+  "noscript",
+  "template",
+  "iframe",
+  "object",
+  "embed",
+  "svg",
+  "math",
+])
+
+/**
+ * Sanitizes the HTML a workflow message/card holds before it is rendered with
+ * dangerouslySetInnerHTML in the builder. It keeps the rich-text formatting and
+ * the variable pills (`<span class="variable-token" data-variable=…>`) but
+ * drops every scriptable tag, attribute and URL. Runs against the DOM, so it is
+ * client-only; on the server it falls back to escaping, which the builder never
+ * hits.
+ */
+export const sanitizeWorkflowMessageHtml = (value: string): string => {
+  const trimmed = value.trim()
+
+  if (!trimmed) {
+    return ""
+  }
+
+  if (typeof document === "undefined") {
+    return escapeHtml(value)
+  }
+
+  const template = document.createElement("template")
+  template.innerHTML = trimmed
+
+  const sanitizeNode = (node: Node): Node | null => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      return document.createTextNode(node.textContent ?? "")
+    }
+
+    if (node.nodeType !== Node.ELEMENT_NODE) {
+      return null
+    }
+
+    const element = node as HTMLElement
+    const tagName = element.tagName.toLowerCase()
+
+    // A scriptable element is removed outright — its contents are code, not
+    // text to surface — so this returns before its children are walked.
+    if (WORKFLOW_DROP_WITH_CONTENT.has(tagName)) {
+      return null
+    }
+
+    const normalizedTag = tagName === "div" ? "p" : tagName
+
+    const sanitizedChildren = Array.from(element.childNodes)
+      .map(sanitizeNode)
+      .filter((child): child is Node => child !== null)
+
+    // A span is kept only when it is a variable pill; any other span (and any
+    // tag not on the allowlist) is unwrapped so its text survives but its
+    // markup does not.
+    const isTokenSpan =
+      normalizedTag === "span" &&
+      (element.getAttribute("class") ?? "")
+        .split(/\s+/)
+        .some((cls) => cls === "variable-token")
+
+    if (
+      !WORKFLOW_ALLOWED_TAGS.has(normalizedTag) ||
+      (normalizedTag === "span" && !isTokenSpan)
+    ) {
+      const fragment = document.createDocumentFragment()
+      sanitizedChildren.forEach((child) => fragment.appendChild(child))
+      return fragment
+    }
+
+    const cleanElement = document.createElement(normalizedTag)
+
+    if (normalizedTag === "a") {
+      const href = element.getAttribute("href") ?? ""
+      if (isSafeHref(href)) {
+        cleanElement.setAttribute("href", href.trim())
+        cleanElement.setAttribute("rel", "noreferrer")
+        cleanElement.setAttribute("target", "_blank")
+      }
+    }
+
+    if (isTokenSpan) {
+      const safeClasses = (element.getAttribute("class") ?? "")
+        .split(/\s+/)
+        .filter((cls) => VARIABLE_TOKEN_CLASSES.has(cls))
+      cleanElement.setAttribute("class", safeClasses.join(" "))
+      cleanElement.setAttribute("contenteditable", "false")
+
+      const variable = element.getAttribute("data-variable")
+      if (variable) {
+        cleanElement.setAttribute("data-variable", variable)
+      }
+
+      const title = element.getAttribute("title")
+      if (title) {
+        cleanElement.setAttribute("title", title)
+      }
+    }
+
+    sanitizedChildren.forEach((child) => cleanElement.appendChild(child))
+
+    return cleanElement
+  }
+
+  const wrapper = document.createElement("div")
+  Array.from(template.content.childNodes)
+    .map(sanitizeNode)
+    .filter((child): child is Node => child !== null)
+    .forEach((child) => wrapper.appendChild(child))
+
+  return wrapper.innerHTML.trim()
+}

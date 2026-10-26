@@ -17,6 +17,7 @@ import type { Edge, Node } from "reactflow"
 import { useAction, useConvex } from "convex/react"
 import { api } from "@workspace/backend/_generated/api"
 import { readableError } from "../lib/readable-error"
+import { sanitizeWorkflowMessageHtml } from "@workspace/ui/lib/rich-text"
 import { untokenizeVariables } from "../lib/variable-tokens"
 import { isAgentStepType } from "../lib/types"
 import { stepLabel } from "../nodes/nodeIcon"
@@ -459,7 +460,10 @@ const diffVars = (
  * characters here is what makes a reply type itself exactly once.
  */
 const StreamedMessage = ({ html }: { html: string }) => {
-  const total = useMemo(() => plainTextLength(html), [html])
+  // The bubble is rendered as HTML, and for a Message step it is the author's
+  // own innerHTML, so it is sanitized before it reaches the page.
+  const safeHtml = useMemo(() => sanitizeWorkflowMessageHtml(html), [html])
+  const total = useMemo(() => plainTextLength(safeHtml), [safeHtml])
   const [shown, setShown] = useState(0)
 
   useEffect(() => {
@@ -487,7 +491,7 @@ const StreamedMessage = ({ html }: { html: string }) => {
     <div
       className={`chat-message message ${isRevealing ? "is-typing" : ""}`}
       dangerouslySetInnerHTML={{
-        __html: isRevealing ? sliceHtml(html, shown) : html,
+        __html: isRevealing ? sliceHtml(safeHtml, shown) : safeHtml,
       }}
     />
   )
@@ -2602,7 +2606,9 @@ const RunPanel = ({
         {card.text && (
           <div
             className="chat-card-description"
-            dangerouslySetInnerHTML={{ __html: card.text }}
+            dangerouslySetInnerHTML={{
+              __html: sanitizeWorkflowMessageHtml(card.text),
+            }}
           />
         )}
         {card.buttons && card.buttons.length > 0 && (
