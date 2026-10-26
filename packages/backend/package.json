@@ -21,9 +21,11 @@
     "@convex-dev/rag": "0.7.5",
     "@convex-dev/rate-limiter": "^0.3.2",
     "@google/genai": "^2.8.0",
+    "@jitl/quickjs-singlefile-mjs-release-sync": "0.32.0",
     "ai": "6.0.199",
     "convex": "1.40.0",
     "convex-helpers": "0.1.119",
+    "quickjs-emscripten-core": "0.32.0",
     "standardwebhooks": "^1.0.0",
     "svix": "^1.95.2",
     "zod": "4.4.3"
