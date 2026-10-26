@@ -6,6 +6,7 @@ import { internal } from "../_generated/api"
 import type { Id } from "../_generated/dataModel"
 import { enforceRateLimit } from "../lib/rateLimits"
 import { ANONYMOUS_EMAIL_DOMAIN } from "../lib/contactSessionIdentity"
+import { requireValidOrganizationId } from "../lib/organizationIdentity"
 import { scheduleTeamAlert } from "../lib/teamAlertHooks"
 
 export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
@@ -146,6 +147,8 @@ export const create = action({
     metadata: contactSessionMetadataValidator,
   },
   handler: async (ctx, args): Promise<Id<"contactSessions">> => {
+    requireValidOrganizationId(args.organizationId)
+
     const { email, name } = normalizeContactDetails(args)
     const domain = getEmailDomain(email)
 
@@ -194,6 +197,12 @@ export const createAnonymous = action({
     name: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<Id<"contactSessions">> => {
+    requireValidOrganizationId(args.organizationId)
+
+    if (args.name !== undefined && args.name.trim().length > NAME_MAX_LENGTH) {
+      throw new Error("Invalid contact details")
+    }
+
     await enforceRateLimit(ctx, "contactSessionCreateByOrg", {
       key: args.organizationId,
       message:
@@ -332,6 +341,8 @@ export const identify = action({
     email: v.string(),
   }),
   handler: async (ctx, args): Promise<{ name: string; email: string }> => {
+    requireValidOrganizationId(args.organizationId)
+
     const email = args.email.trim().toLowerCase()
     const domain = getEmailDomain(email)
 

@@ -45,23 +45,46 @@ const readOrigin = (request: Request) => {
   }
 }
 
-/** The caller's address, as forwarded by the edge in front of the deployment. */
-const readClientIp = (request: Request) => {
-  for (const header of [
-    "cf-connecting-ip",
-    "true-client-ip",
-    "x-real-ip",
-    "x-forwarded-for",
-  ]) {
-    const value = request.headers.get(header)?.split(",")[0]?.trim()
+const CLIENT_IP_HEADERS = [
+  "cf-connecting-ip",
+  "true-client-ip",
+  "x-real-ip",
+  "x-forwarded-for",
+] as const
 
-    if (value) {
-      return value
+/**
+ * Every address the request says it came from, across all the headers an edge
+ * might use.
+ *
+ * None of these headers is trustworthy on its own: a caller can send any of
+ * them, and a proxy that appends to `X-Forwarded-For` leaves the caller's own
+ * value first. What a caller cannot do is remove the address the platform's
+ * edge adds, so the IP allowlist is checked against all of them together.
+ */
+const readClientIps = (request: Request) => {
+  const ips: string[] = []
+
+  for (const header of CLIENT_IP_HEADERS) {
+    for (const value of request.headers.get(header)?.split(",") ?? []) {
+      const ip = value.trim()
+
+      if (ip && !ips.includes(ip)) {
+        ips.push(ip)
+      }
     }
   }
 
-  return undefined
+  return ips.slice(0, 20)
 }
+
+/**
+ * The one address shown in request logs: the one the nearest proxy set, which
+ * is `X-Real-IP` or the last `X-Forwarded-For` hop.
+ */
+const pickLoggedIp = (request: Request, ips: string[]) =>
+  request.headers.get("x-real-ip")?.trim() ||
+  request.headers.get("x-forwarded-for")?.split(",").at(-1)?.trim() ||
+  ips[0]
 
 const createRequestId = () =>
   `req_${crypto.randomUUID().replaceAll("-", "").slice(0, 24)}`
@@ -301,13 +324,15 @@ export const developerApiHttpHandler = httpAction(async (ctx, request) => {
     )
   }
 
-  const ip = readClientIp(request)
+  const ips = readClientIps(request)
+  const ip = pickLoggedIp(request, ips)
   const gate: GateResult = await ctx.runMutation(
     internal.system.developerApi.gate.admit,
     {
       keyHash: await hashApiKey(token),
       endpointId: endpoint.id,
       ip,
+      ips,
       origin,
     }
   )

@@ -10,6 +10,8 @@ export const execute = action({
     contactSessionId: v.id("contactSessions"),
     toolName: v.string(),
     args: v.any(),
+    // Accepted for compatibility with older widget builds and ignored: see
+    // the channel passed below.
     channel: v.optional(v.union(v.literal("chat"), v.literal("voice"))),
     agentId: v.optional(v.string()),
   },
@@ -36,11 +38,16 @@ export const execute = action({
     // by tool name, so this endpoint is reachable with hand-written arguments.
     // Passing the agent through means it can only reach the tools that agent
     // actually declares, rather than every voice-enabled tool in the org.
+    //
+    // Only voice tools are ever run from the browser — chat tools are called
+    // server-side by the chat agent — so the channel is fixed rather than
+    // taken from the caller, who could otherwise name "chat" and reach tools
+    // the organization never enabled for voice.
     return ctx.runAction(internal.system.assistantTools.execute.executeTool, {
       organizationId: args.organizationId,
       toolName: args.toolName,
       args: args.args,
-      channel: args.channel ?? "voice",
+      channel: "voice",
       agentId: args.agentId,
     })
   },

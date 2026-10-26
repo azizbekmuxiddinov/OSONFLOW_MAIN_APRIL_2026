@@ -75,6 +75,34 @@ const isAppRoute = createRouteMatcher([
   "/widget-preview(.*)",
 ])
 
+/**
+ * A post-sign-in destination taken from the query string, kept only if it
+ * stays on this site. `new URL(value, base)` happily resolves an absolute or
+ * protocol-relative value to another host, which would turn the sign-in page
+ * into a redirector for links that look like ours. Clerk itself sends the
+ * full URL of the page that needed sign-in, so absolute URLs on this origin
+ * (or the configured app origin) are kept.
+ */
+const toSameOriginPath = (value: string | null, req: NextRequest) => {
+  if (!value) {
+    return DEFAULT_APP_LANDING
+  }
+
+  try {
+    const url = new URL(value, req.url)
+    const allowedOrigins = new Set([
+      new URL(req.url).origin,
+      new URL(getAppOrigin()).origin,
+    ])
+
+    return allowedOrigins.has(url.origin)
+      ? `${url.pathname}${url.search}${url.hash}`
+      : DEFAULT_APP_LANDING
+  } catch {
+    return DEFAULT_APP_LANDING
+  }
+}
+
 const redirectToOrigin = (
   req: NextRequest,
   origin: string,
@@ -143,8 +171,10 @@ export const proxy = clerkMiddleware(async (auth, req) => {
       return NextResponse.redirect(new URL("/org-selection", req.url))
     }
 
-    const redirectUrl =
-      req.nextUrl.searchParams.get("redirect_url") ?? DEFAULT_APP_LANDING
+    const redirectUrl = toSameOriginPath(
+      req.nextUrl.searchParams.get("redirect_url"),
+      req
+    )
     return NextResponse.redirect(new URL(redirectUrl, req.url))
   }
 

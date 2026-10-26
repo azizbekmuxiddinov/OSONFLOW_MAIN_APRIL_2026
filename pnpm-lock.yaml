@@ -260,6 +260,9 @@ importers:
       '@google/genai':
         specifier: ^2.8.0
         version: 2.8.0(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))
+      '@jitl/quickjs-singlefile-cjs-release-sync':
+        specifier: 0.31.0
+        version: 0.31.0
       ai:
         specifier: 6.0.199
         version: 6.0.199(zod@4.4.3)
@@ -269,6 +272,9 @@ importers:
       convex-helpers:
         specifier: 0.1.119
         version: 0.1.119(@standard-schema/spec@1.1.0)(convex@1.40.0(@clerk/react@6.7.3(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7))(hono@4.12.25)(react@19.2.7)(typescript@5.9.3)(zod@4.4.3)
+      quickjs-emscripten-core:
+        specifier: 0.31.0
+        version: 0.31.0
       standardwebhooks:
         specifier: ^1.0.0
         version: 1.0.0
@@ -1572,6 +1578,12 @@ packages:
     peerDependenciesMeta:
       '@types/node':
         optional: true
+
+  '@jitl/quickjs-ffi-types@0.31.0':
+    resolution: {integrity: sha512-1yrgvXlmXH2oNj3eFTrkwacGJbmM0crwipA3ohCrjv52gBeDaD7PsTvFYinlAnqU8iPME3LGP437yk05a2oejw==}
+
+  '@jitl/quickjs-singlefile-cjs-release-sync@0.31.0':
+    resolution: {integrity: sha512-TQ6WUsmdcdlXQKPyyGE/qNAoWY83mvjn+VNru6ug5ILv1D3Y+yaFXnMx+QyNX0onx9xSRGgVNZxXN0V0U+ZKpQ==}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -5194,6 +5206,9 @@ packages:
   queue-microtask@1.2.3:
     resolution: {integrity: sha512-NuaNSa6flKT5JaSYQzJok04JzTL1CA6aGhv5rfLW3PgqA+M2ChpZQnAC8h8i4ZFkBS8X5RqkDBHA7r4hej3K9A==}
 
+  quickjs-emscripten-core@0.31.0:
+    resolution: {integrity: sha512-oQz8p0SiKDBc1TC7ZBK2fr0GoSHZKA0jZIeXxsnCyCs4y32FStzCW4d1h6E1sE0uHDMbGITbk2zhNaytaoJwXQ==}
+
   radix-ui@1.5.0:
     resolution: {integrity: sha512-Nzh2HNpClgB31FBHRqt2xG8XNUfVfQRpf34hACC5PNrXTd5JdXdqOXwLs3BL+D8CNYiNQiJiT8QGr5Q4vq+00w==}
     peerDependencies:
@@ -6958,6 +6973,12 @@ snapshots:
   '@inquirer/type@3.0.10(@types/node@25.9.2)':
     optionalDependencies:
       '@types/node': 25.9.2
+
+  '@jitl/quickjs-ffi-types@0.31.0': {}
+
+  '@jitl/quickjs-singlefile-cjs-release-sync@0.31.0':
+    dependencies:
+      '@jitl/quickjs-ffi-types': 0.31.0
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
@@ -10829,6 +10850,10 @@ snapshots:
       side-channel: 1.1.1
 
   queue-microtask@1.2.3: {}
+
+  quickjs-emscripten-core@0.31.0:
+    dependencies:
+      '@jitl/quickjs-ffi-types': 0.31.0
 
   radix-ui@1.5.0(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7):
     dependencies:

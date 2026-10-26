@@ -3,6 +3,7 @@ import { components, internal } from "../_generated/api"
 import type { Id } from "../_generated/dataModel"
 import { MAX_ATTACHMENT_SIZE_BYTES } from "./chatAttachments"
 import { getOpenAIKeyFromSecretValue } from "./openai"
+import { safeFetch } from "./outboundUrl"
 
 /**
  * Customer voice notes on Telegram, WhatsApp and Instagram.
@@ -188,7 +189,13 @@ export const downloadAudioFromUrl = async (
       return null
     }
 
-    const blob = await readAudioResponse(await fetch(parsed), "audio/mp4")
+    // The URL comes out of a webhook payload, and the downloaded audio is
+    // stored where the inbox can play it back, so it gets the same private
+    // address and redirect checks as any other URL a tenant can influence.
+    const blob = await readAudioResponse(
+      await safeFetch(parsed.toString()),
+      "audio/mp4"
+    )
 
     return blob
       ? { blob, mediaType: baseMediaType(blob.type || "audio/mp4") }

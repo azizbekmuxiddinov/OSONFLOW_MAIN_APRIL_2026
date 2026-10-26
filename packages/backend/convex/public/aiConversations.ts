@@ -13,6 +13,9 @@ const providerValidator = v.union(
 
 const roleValidator = v.union(v.literal("user"), v.literal("assistant"))
 
+/** One spoken turn, transcribed. Far longer than anyone says in one breath. */
+const MAX_TRANSCRIPT_TEXT_LENGTH = 4_000
+
 const getValidatedContactSession = async (
   ctx: MutationCtx | QueryCtx,
   {
@@ -274,18 +277,25 @@ export const appendMessage = mutation({
       })
     }
 
+    if (text.length > MAX_TRANSCRIPT_TEXT_LENGTH) {
+      throw new ConvexError({
+        code: "BAD_REQUEST",
+        message: "Message text is too long",
+      })
+    }
+
     const conversation = await getValidatedConversation(ctx, {
       conversationId: args.conversationId,
       contactSessionId: args.contactSessionId,
     })
 
-    if (args.role === "user") {
-      await enforceRateLimit(ctx, "voiceTranscriptBySession", {
-        key: `${conversation.organizationId}:${args.contactSessionId}`,
-        message:
-          "Voice messages are arriving too quickly. Please wait a moment.",
-      })
-    }
+    // Both roles, not just the visitor's: the browser writes the assistant's
+    // side of the transcript too, and every append schedules a model analysis
+    // of the whole conversation.
+    await enforceRateLimit(ctx, "voiceTranscriptBySession", {
+      key: `${conversation.organizationId}:${args.contactSessionId}`,
+      message: "Voice messages are arriving too quickly. Please wait a moment.",
+    })
 
     await ctx.runMutation(internal.system.contactSessions.refresh, {
       contactSessionId: args.contactSessionId,

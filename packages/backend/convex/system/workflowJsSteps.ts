@@ -1,7 +1,11 @@
 "use node"
 
-import vm from "node:vm"
 import { v } from "convex/values"
+import {
+  newQuickJSWASMModuleFromVariant,
+  type QuickJSWASMModule,
+} from "quickjs-emscripten-core"
+import releaseSyncVariant from "@jitl/quickjs-singlefile-cjs-release-sync"
 
 import { internal } from "../_generated/api"
 import { internalAction } from "../_generated/server"
@@ -15,6 +19,21 @@ const SNIPPET_TIMEOUT_MS = 2_000
 const MAX_CODE_CHARS = 20_000
 const MAX_LOGS = 25
 const MAX_VALUE_CHARS = 10_000
+/** A snippet gets a small heap of its own; the module caps it hard. */
+const SNIPPET_MEMORY_LIMIT_BYTES = 32 * 1024 * 1024
+const SNIPPET_STACK_LIMIT_BYTES = 512 * 1024
+
+/**
+ * The QuickJS module is a WebAssembly build with its own heap, loaded once and
+ * reused. Loading embeds no file or network access — the variant carries the
+ * wasm inline — so this is safe to do lazily inside the action.
+ */
+let quickJsModulePromise: Promise<QuickJSWASMModule> | null = null
+
+const getQuickJsModule = () => {
+  quickJsModulePromise ??= newQuickJSWASMModuleFromVariant(releaseSyncVariant)
+  return quickJsModulePromise
+}
 
 export type JsStepResult = {
   ok: boolean
@@ -45,58 +64,121 @@ const stringifyValue = (value: unknown): string => {
   }
 }
 
+/** What a finished snippet hands back out of the sandbox, all JSON-safe. */
+type SandboxResult = {
+  variables: Record<string, unknown>
+  result: unknown
+  logs: string[]
+}
+
 /**
- * Runs a workflow author's snippet in a bare V8 context.
+ * The program actually evaluated inside QuickJS.
  *
- * The context is created empty, so the snippet sees only the standard
- * ECMAScript globals plus `variables` and `console` — no require, process,
- * fetch, or timers. Code generation is disabled so the snippet cannot eval its
- * way out, and execution is capped by a wall-clock timeout.
- *
- * This is a workflow-author trust boundary, not an untrusted-code sandbox:
- * whoever can edit a published workflow can already point an API block at any
- * URL. It is deliberately no more privileged than that.
+ * The author's source runs inside two nested functions so a `return` works as
+ * it always has, and both the (possibly mutated) `variables` object and the
+ * returned value come back as one JSON string. `variables` is injected as a
+ * JSON literal rather than a live host object, so the snippet never holds a
+ * reference that reaches back into the host. `console` and the input are the
+ * only things in scope beyond the standard ECMAScript globals.
  */
-export const executeSnippet = (
+const buildProgram = (source: string, inputJson: string) =>
+  `"use strict";
+(function () {
+  var __logs__ = [];
+  var console = {
+    log: function () {
+      if (__logs__.length < ${MAX_LOGS}) {
+        var parts = [];
+        for (var i = 0; i < arguments.length; i++) {
+          var a = arguments[i];
+          try {
+            parts.push(
+              typeof a === "string" ? a : typeof a === "undefined" ? "" : JSON.stringify(a)
+            );
+          } catch (e) {
+            parts.push(String(a));
+          }
+        }
+        __logs__.push(parts.join(" "));
+      }
+    },
+  };
+  console.info = console.warn = console.error = console.log;
+  var variables = (${inputJson});
+  var __result__ = (function () {
+${source}
+  })();
+  return JSON.stringify({
+    variables: variables,
+    result: typeof __result__ === "undefined" ? null : __result__,
+    logs: __logs__,
+  });
+})()`
+
+/**
+ * Runs a workflow author's snippet inside a QuickJS WebAssembly isolate.
+ *
+ * QuickJS is a separate JavaScript engine compiled to WebAssembly with its own
+ * heap: code running inside it has no `globalThis` in common with this process
+ * and no way to reach `process`, `require`, the host's prototypes, or anything
+ * else outside — which a `node:vm` context, running on the same V8 heap, could
+ * not guarantee. The isolate is given only `variables` and `console`, a hard
+ * memory ceiling, and a wall-clock deadline enforced by an interrupt handler,
+ * then torn down. Input and output cross the boundary as JSON, so no live
+ * object reference is ever shared.
+ */
+export const executeSnippet = async (
   code: string,
   variables: RuntimeVariables
-): JsStepResult => {
+): Promise<JsStepResult> => {
   const source = code.slice(0, MAX_CODE_CHARS).trim()
 
   if (!source) {
     return { ok: true, variables: {}, logs: [], error: undefined }
   }
 
-  const logs: string[] = []
-  const scoped: Record<string, unknown> = { ...variables }
+  const module = await getQuickJsModule()
+  const runtime = module.newRuntime()
+  runtime.setMemoryLimit(SNIPPET_MEMORY_LIMIT_BYTES)
+  runtime.setMaxStackSize(SNIPPET_STACK_LIMIT_BYTES)
 
-  const sandbox: Record<string, unknown> = {
-    variables: scoped,
-    console: {
-      log: (...args: unknown[]) => {
-        if (logs.length < MAX_LOGS) {
-          logs.push(args.map(stringifyValue).join(" "))
-        }
-      },
-    },
-  }
+  const deadline = Date.now() + SNIPPET_TIMEOUT_MS
+  runtime.setInterruptHandler(() => Date.now() > deadline)
+
+  const context = runtime.newContext()
 
   try {
-    const context = vm.createContext(sandbox, {
-      codeGeneration: { strings: false, wasm: false },
-    })
-    const script = new vm.Script(
-      `"use strict";(function(){${source}\n})()`
-    )
-    const returned = script.runInContext(context, {
-      timeout: SNIPPET_TIMEOUT_MS,
-      displayErrors: true,
-    })
+    const program = buildProgram(source, JSON.stringify(variables))
+    const evaluation = context.evalCode(program)
+
+    if (evaluation.error) {
+      const detail = context.dump(evaluation.error)
+      evaluation.error.dispose()
+
+      const message =
+        isRecord(detail) && typeof detail.message === "string"
+          ? detail.message
+          : typeof detail === "string"
+            ? detail
+            : "JavaScript step failed."
+
+      return { ok: false, variables: {}, logs: [], error: message }
+    }
+
+    const raw = context.getString(evaluation.value)
+    evaluation.value.dispose()
+
+    const parsed = JSON.parse(raw) as SandboxResult
+    const finalVariables = isRecord(parsed.variables) ? parsed.variables : {}
+    const returned = parsed.result
+    const logs = Array.isArray(parsed.logs)
+      ? parsed.logs.slice(0, MAX_LOGS).map((line) => String(line))
+      : []
 
     const next: RuntimeVariables = {}
 
     // Anything the snippet assigned onto `variables`...
-    for (const [key, value] of Object.entries(scoped)) {
+    for (const [key, value] of Object.entries(finalVariables)) {
       if (variables[key] !== stringifyValue(value)) {
         next[key] = stringifyValue(value)
       }
@@ -128,10 +210,15 @@ export const executeSnippet = (
 
     return { ok: true, variables: next, logs, next: chosenPath }
   } catch (error) {
+    // An interrupt (timeout), a memory-limit abort, or a non-JSON return all
+    // land here and are reported as a failed step rather than thrown.
     const message =
       error instanceof Error ? error.message : "JavaScript step failed."
 
-    return { ok: false, variables: {}, logs, error: message }
+    return { ok: false, variables: {}, logs: [], error: message }
+  } finally {
+    context.dispose()
+    runtime.dispose()
   }
 }
 
@@ -149,7 +236,7 @@ export const runSnippet = internalAction({
     error: v.optional(v.string()),
   }),
   handler: async (_ctx, args) =>
-    executeSnippet(
+    await executeSnippet(
       args.code,
       (isRecord(args.variables) ? args.variables : {}) as RuntimeVariables
     ),
@@ -178,7 +265,7 @@ export const runNode = internalAction({
 
     const data = isRecord(context.nodeData) ? context.nodeData : {}
     const isFunction = context.nodeType === "function"
-    const result = executeSnippet(
+    const result = await executeSnippet(
       asString(data.code),
       context.variables as RuntimeVariables
     )

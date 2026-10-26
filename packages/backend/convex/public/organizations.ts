@@ -3,6 +3,7 @@
 import { createClerkClient } from "@clerk/backend";
 import { v } from "convex/values";
 import { action } from "../_generated/server";
+import { isValidOrganizationId } from "../lib/organizationIdentity";
 import { enforceRateLimit } from "../lib/rateLimits";
 
 export const validate = action({
@@ -10,6 +11,11 @@ export const validate = action({
     organizationId: v.string(),
   },
   handler: async (ctx, args) => {
+    // Never let a malformed id reach the Clerk API path.
+    if (!isValidOrganizationId(args.organizationId)) {
+      return { valid: false, reason: "Organization not valid" };
+    }
+
     // Unauthenticated by design (the widget calls it before a session exists),
     // so cap it to stop the endpoint being used to enumerate organization ids
     // or to burn through the upstream Clerk API quota.

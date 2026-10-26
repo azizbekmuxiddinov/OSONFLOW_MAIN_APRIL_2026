@@ -14,6 +14,20 @@ const nextConfig = {
         "../../packages/ui/node_modules/shadcn/dist/tailwind.css",
     },
   },
+  // The widget is framed by customer sites, so it cannot refuse framing; it
+  // still keeps responses from being sniffed into another type and keeps
+  // full URLs (which carry the organization id) out of outgoing referrers.
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+        ],
+      },
+    ]
+  },
   // Same-origin paths for Convex files, used by browsers in relay mode (see
   // packages/ui/src/lib/convex-url.ts). The sync socket has its own route.
   async rewrites() {

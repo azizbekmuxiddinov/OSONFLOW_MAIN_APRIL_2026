@@ -53,6 +53,7 @@ import {
   requireContactSessionThread,
 } from "../lib/widgetAuth"
 import { buildModelImageParts } from "../lib/attachmentUploads"
+import { isValidOrganizationId } from "../lib/organizationIdentity"
 
 const getAgentMessageRole = (message: any): string => {
   const role = message?.message?.role ?? message?.role
@@ -248,12 +249,16 @@ const hasPaidOrganizationSubscription = async (
 ): Promise<boolean> => {
   const clerkSecretKey = process.env.CLERK_SECRET_KEY
 
-  if (!clerkSecretKey) {
+  // The organization id originates from the unauthenticated widget. Anything
+  // that is not a plain Clerk id could rewrite this path into a different
+  // Clerk endpoint — one that answers for another organization — and the
+  // reply would then be recorded as this "organization" having paid.
+  if (!clerkSecretKey || !isValidOrganizationId(organizationId)) {
     return false
   }
 
   const response = await fetch(
-    `https://api.clerk.com/v1/organizations/${organizationId}/billing/subscription`,
+    `https://api.clerk.com/v1/organizations/${encodeURIComponent(organizationId)}/billing/subscription`,
     {
       headers: {
         Authorization: `Bearer ${clerkSecretKey}`,
@@ -328,6 +333,13 @@ const describeAttachmentsForModel = (count: number, promptText: string) => {
   return promptText ? `${promptText}\n\n${notice}` : notice
 }
 
+/**
+ * The longest message a visitor can send. Every word is re-sent to the model
+ * on each later turn of the conversation, and the sender is anonymous, so an
+ * uncapped message is a way to spend an organization's model credits at will.
+ */
+const MAX_VISITOR_PROMPT_LENGTH = 8_000
+
 const visitorMessageArgs = {
   prompt: v.string(),
   threadId: v.string(),
@@ -397,6 +409,13 @@ const runVisitorMessageTurn = async (
     throw new ConvexError({
       code: "BAD_REQUEST",
       message: "Conversation resolved",
+    })
+  }
+
+  if (args.prompt.length > MAX_VISITOR_PROMPT_LENGTH) {
+    throw new ConvexError({
+      code: "BAD_REQUEST",
+      message: `Messages can be up to ${MAX_VISITOR_PROMPT_LENGTH.toLocaleString("en-US")} characters.`,
     })
   }
 

@@ -11,6 +11,10 @@ const LOOPBACK_V4 = /^127\./
 const PRIVATE_V4 = /^(?:10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)/
 // Carrier-grade NAT, commonly routable to internal infrastructure.
 const CGNAT_V4 = /^100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./
+// IETF protocol assignments (192.0.0.0/24) and benchmarking (198.18.0.0/15).
+const SPECIAL_V4 = /^(?:192\.0\.0\.|198\.1[89]\.)/
+// Multicast (224.0.0.0/4) and reserved (240.0.0.0/4), broadcast included.
+const NON_UNICAST_V4 = /^(?:22[4-9]|2[3-5]\d)\./
 
 const IPV4_PATTERN = /^\d{1,3}(?:\.\d{1,3}){3}$/
 
@@ -19,6 +23,8 @@ const isBlockedIpv4 = (hostname: string) =>
   PRIVATE_V4.test(hostname) ||
   LINK_LOCAL_V4.test(hostname) ||
   CGNAT_V4.test(hostname) ||
+  SPECIAL_V4.test(hostname) ||
+  NON_UNICAST_V4.test(hostname) ||
   hostname.startsWith("0.")
 
 /**
@@ -171,6 +177,29 @@ const isBlockedIpv6 = (hostname: string) => {
   return false
 }
 
+/**
+ * Whether an IP address literal is one the public internet cannot route to:
+ * loopback, private, link-local, carrier-grade NAT, multicast and the like.
+ * Anything that is not a well-formed address is reported as `null`.
+ */
+export const isPrivateIpAddress = (address: string): boolean | null => {
+  const normalized = address.trim().toLowerCase().replace(/^\[|\]$/g, "")
+
+  if (IPV4_PATTERN.test(normalized)) {
+    return normalized
+      .split(".")
+      .some((octet) => Number(octet) > 255)
+      ? null
+      : isBlockedIpv4(normalized)
+  }
+
+  if (normalized.includes(":")) {
+    return parseIpv6(normalized) ? isBlockedIpv6(normalized) : null
+  }
+
+  return null
+}
+
 export class OutboundUrlError extends Error {}
 
 /**
@@ -217,6 +246,109 @@ export const assertSafeOutboundUrl = (rawUrl: string): URL => {
   return url
 }
 
+/**
+ * DNS-over-HTTPS resolvers, tried in order. Both answer the same JSON shape.
+ * Neither runtime this code runs in (Convex actions, Vercel functions) offers a
+ * resolver of its own that works everywhere, so the lookup goes over HTTPS.
+ */
+const DNS_RESOLVERS = [
+  "https://cloudflare-dns.com/dns-query",
+  "https://dns.google/resolve",
+]
+const DNS_TYPE_A = 1
+const DNS_TYPE_AAAA = 28
+const DNS_TIMEOUT_MS = 5_000
+
+type DnsJsonResponse = {
+  Status?: number
+  Answer?: Array<{ type?: number; data?: string }>
+}
+
+const queryResolver = async (
+  resolver: string,
+  hostname: string,
+  type: number
+): Promise<string[]> => {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), DNS_TIMEOUT_MS)
+
+  try {
+    const params = new URLSearchParams({ name: hostname, type: String(type) })
+    const response = await fetch(`${resolver}?${params.toString()}`, {
+      headers: { accept: "application/dns-json" },
+      signal: controller.signal,
+    })
+
+    if (!response.ok) {
+      throw new Error(`DNS lookup failed with HTTP ${response.status}`)
+    }
+
+    const body = (await response.json()) as DnsJsonResponse
+
+    return (body.Answer ?? [])
+      .filter((answer) => answer.type === type && answer.data)
+      .map((answer) => String(answer.data).trim())
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+const resolveHostAddresses = async (hostname: string): Promise<string[]> => {
+  let lastError: unknown
+
+  for (const resolver of DNS_RESOLVERS) {
+    try {
+      const [v4, v6] = await Promise.all([
+        queryResolver(resolver, hostname, DNS_TYPE_A),
+        queryResolver(resolver, hostname, DNS_TYPE_AAAA),
+      ])
+
+      return [...v4, ...v6]
+    } catch (error) {
+      lastError = error
+    }
+  }
+
+  console.error("Outbound URL host lookup failed", lastError)
+  throw new OutboundUrlError("The URL's host could not be looked up.")
+}
+
+/**
+ * Refuses a hostname that resolves to a private address.
+ *
+ * `assertSafeOutboundUrl` only sees the name, and a public name can be given
+ * an A record of 127.0.0.1 or 169.254.169.254 by whoever owns it. Several of
+ * these requests show their response to the person who configured them (the
+ * webhook delivery log, the tool and API step test panels), so letting such a
+ * name through would let anyone read services that are only reachable from
+ * inside our network.
+ *
+ * A name with no public answer is refused too: a name that only an internal
+ * resolver knows is exactly the case this is here to stop. What this cannot
+ * rule out is a record that changes between this lookup and the connection
+ * (DNS rebinding); it removes the static case, which needs no skill at all.
+ */
+const assertPublicHost = async (url: URL) => {
+  const hostname = url.hostname.toLowerCase().replace(/\.$/, "")
+
+  // Address literals were already judged by assertSafeOutboundUrl.
+  if (isPrivateIpAddress(hostname) !== null) {
+    return
+  }
+
+  const addresses = await resolveHostAddresses(hostname)
+
+  if (addresses.length === 0) {
+    throw new OutboundUrlError("The URL's host could not be resolved.")
+  }
+
+  // A CNAME answer is never an address, so anything unparseable is refused
+  // along with the private ones rather than guessed at.
+  if (addresses.some((address) => isPrivateIpAddress(address) !== false)) {
+    throw new OutboundUrlError("That URL points at a private host.")
+  }
+}
+
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308])
 const MAX_REDIRECTS = 3
 
@@ -235,6 +367,8 @@ export const safeFetch = async (
   let body = init.body
 
   for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
+    await assertPublicHost(new URL(currentUrl))
+
     const response = await fetch(currentUrl, {
       ...init,
       method,

@@ -237,7 +237,16 @@ export const createOpenAIRealtimeSession = action({
       }
     }
 
-    return { status: 200, body: data }
+    // The browser needs only the ephemeral secret. The rest of OpenAI's reply
+    // echoes the session configuration — the organization's system prompt and
+    // tool declarations — which has no business in a visitor's network tab.
+    return {
+      status: 200,
+      body: {
+        value: data?.value,
+        expires_at: data?.expires_at,
+      },
+    }
   },
 })
 

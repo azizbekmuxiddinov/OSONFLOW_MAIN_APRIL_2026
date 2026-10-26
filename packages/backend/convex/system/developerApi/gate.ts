@@ -24,6 +24,7 @@ import {
   resolveOrganizationLimits,
 } from "../../lib/developerApi/limits"
 import { ipMatchesRule } from "../../lib/developerApi/keys"
+import { isPrivateIpAddress } from "../../lib/outboundUrl"
 
 const DAY_MS = 24 * 60 * 60 * 1000
 /** Rows each key's daily counters are spread over. */
@@ -125,6 +126,8 @@ export const admit = internalMutation({
     keyHash: v.string(),
     endpointId: v.string(),
     ip: v.optional(v.string()),
+    /** Every address the request claimed, for the IP allowlist. */
+    ips: v.optional(v.array(v.string())),
     origin: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<GateResult> => {
@@ -200,14 +203,32 @@ export const admit = internalMutation({
     }
 
     if (key.allowedIps?.length) {
-      const ip = args.ip
+      const allowedIps = key.allowedIps
+      const isAllowed = (candidate: string) =>
+        allowedIps.some((rule) => ipMatchesRule(candidate, rule))
+      // Only well-formed addresses count; an edge writing "unknown" into a
+      // header must not lock a legitimate caller out.
+      const candidates = (args.ips ?? (args.ip ? [args.ip] : [])).filter(
+        (candidate) => isPrivateIpAddress(candidate) !== null
+      )
+      // Any header can be supplied by the caller, so one listed address is not
+      // proof. Every public address on the request has to be allowed, which
+      // includes the one the platform's edge added. Private addresses — from a
+      // caller's own proxies — are ignored unless the key lists them.
+      const rejected = candidates.find(
+        (candidate) =>
+          !isAllowed(candidate) && isPrivateIpAddress(candidate) === false
+      )
+      const anyAllowed = candidates.some(isAllowed)
 
-      if (!ip || !key.allowedIps.some((rule) => ipMatchesRule(ip, rule))) {
+      if (!anyAllowed || rejected) {
+        const shown = rejected ?? args.ip
+
         return refuse(
           403,
           "ip_not_allowed",
-          ip
-            ? `This key does not accept calls from ${ip}.`
+          shown
+            ? `This key does not accept calls from ${shown}.`
             : "This key only accepts calls from listed IP addresses, and the caller's address could not be determined."
         )
       }
