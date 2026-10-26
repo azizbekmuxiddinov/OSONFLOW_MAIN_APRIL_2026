@@ -27,7 +27,7 @@ export const ConversationIdLayout = ({
 
   return (
     <ResizablePanelGroup
-      className="h-full min-h-0 flex-1 gap-1.5"
+      className="h-full min-h-0 flex-1"
       orientation="horizontal"
     >
       <ResizablePanel
@@ -40,8 +40,7 @@ export const ConversationIdLayout = ({
         </div>
       </ResizablePanel>
       <ResizableHandle
-        withHandle
-        className="w-0 bg-transparent [&>div]:h-10 [&>div]:w-3.5 [&>div]:rounded-full [&>div]:border-border/70 [&>div]:bg-background/92 [&>div]:shadow-sm"
+        className="w-px bg-[var(--console-hairline)] transition-colors hover:bg-foreground/25 data-[resize-handle-state=drag]:bg-foreground/35"
       />
       <ResizablePanel
         id="conversation-contact"

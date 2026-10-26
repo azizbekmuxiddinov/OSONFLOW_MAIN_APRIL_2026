@@ -86,7 +86,7 @@ function SignedInNav({
   const dashboardHref =
     isOrgLoaded && !organization
       ? appPath("/org-selection")
-      : appPath("/analytics")
+      : appPath("/home")
 
   if (mobile) {
     return (

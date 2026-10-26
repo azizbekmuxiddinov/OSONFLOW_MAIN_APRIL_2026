@@ -12,9 +12,11 @@ import {
 } from "../../atoms/widget-atoms"
 import { WidgetFooter } from "../components/widget-footer"
 import { useStartWidgetConversation } from "../../hooks/use-start-widget-conversation"
+import { useOpenHome } from "../../hooks/use-open-home"
 
 export const WidgetArticleScreen = () => {
   const setScreen = useSetAtom(screenAtom)
+  const { openHome } = useOpenHome()
   const article = useAtomValue(selectedHelpArticleAtom)
   const topic = useAtomValue(selectedHelpTopicAtom)
   const { isPending, startConversation } = useStartWidgetConversation()
@@ -53,7 +55,7 @@ export const WidgetArticleScreen = () => {
             <Button
               aria-label="Close article"
               className="size-9 rounded-full text-zinc-500 hover:bg-zinc-100"
-              onClick={() => setScreen("selection")}
+              onClick={() => openHome()}
               size="icon"
               type="button"
               variant="ghost"

@@ -12,10 +12,12 @@ import { useAction, useMutation, useQuery } from "convex/react"
 import { toUIMessages, useThreadMessages } from "@convex-dev/agent/react"
 import {
   ArrowLeftIcon,
+  HandIcon,
   ImagePlusIcon,
   MoreHorizontalIcon,
   PanelRightIcon,
   UserCheckIcon,
+  SparklesIcon,
   UserXIcon,
   Wand2Icon,
 } from "lucide-react"
@@ -79,6 +81,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import {
@@ -145,6 +148,12 @@ const ScrollToLatestOnSignal = ({ signal }: { signal: number }) => {
 
   return null
 }
+
+const STATUS_TOASTS = {
+  resolved: "Conversation closed",
+  unresolved: "Conversation reopened",
+  escalated: "Marked as waiting for a person",
+} as const
 
 export const ConversationIdView = ({
   conversationId,
@@ -476,30 +485,33 @@ export const ConversationIdView = ({
     api.private.conversations.updateAssignment
   )
 
-  const handleToggleStatus = async () => {
-    if (!conversation) {
+  // Every status change can be taken back from the toast it raises, the way
+  // Intercom's "Conversation closed · Undo" works.
+  const handleSetStatus = async (
+    nextStatus: "unresolved" | "resolved" | "escalated"
+  ) => {
+    if (!conversation || conversation.status === nextStatus) {
       return
     }
 
+    const previousStatus = conversation.status
     setIsUpdatingStatus(true)
 
-    let newStatus: "unresolved" | "resolved" | "escalated"
-
-    if (conversation.status === "unresolved") {
-      newStatus = "escalated"
-    } else if (conversation.status === "escalated") {
-      newStatus = "resolved"
-    } else {
-      newStatus = "unresolved"
-    }
-
     try {
-      await updateConversationStatus({
-        conversationId,
-        status: newStatus,
+      await updateConversationStatus({ conversationId, status: nextStatus })
+      toast(STATUS_TOASTS[nextStatus], {
+        action: {
+          label: "Undo",
+          onClick: () => {
+            void updateConversationStatus({
+              conversationId,
+              status: previousStatus,
+            })
+          },
+        },
       })
-    } catch (error) {
-      console.error(error)
+    } catch {
+      toast.error("Could not update the conversation. Please try again.")
     } finally {
       setIsUpdatingStatus(false)
     }
@@ -654,8 +666,8 @@ export const ConversationIdView = ({
       : conversation.contactSession.email
 
   return (
-    <div className="flex h-full flex-col bg-transparent">
-      <header className="surface-frosted sticky top-2 z-10 mx-1.5 mt-2 flex items-center justify-between gap-2 rounded-[28px] px-3 py-2.5">
+    <div className="flex h-full flex-col bg-background">
+      <header className="z-10 flex h-14 shrink-0 items-center justify-between gap-2 border-b border-[var(--console-hairline-soft)] bg-background px-4">
         {/* Back button on mobile */}
         {isMobile && (
           <Button
@@ -754,6 +766,24 @@ export const ConversationIdView = ({
                 <UserXIcon />
                 Unassign
               </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {conversation.status === "escalated" ? (
+                <DropdownMenuItem
+                  disabled={isUpdatingStatus}
+                  onClick={() => void handleSetStatus("unresolved")}
+                >
+                  <SparklesIcon />
+                  Give back to the assistant
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem
+                  disabled={isUpdatingStatus || conversation.status === "resolved"}
+                  onClick={() => void handleSetStatus("escalated")}
+                >
+                  <HandIcon />
+                  Mark as waiting for a person
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
           <ConversationPriorityMenu
@@ -762,9 +792,10 @@ export const ConversationIdView = ({
           />
           {!!conversation && (
             <ConversationStatusButton
-              status={conversation?.status}
-              onClick={handleToggleStatus}
               disabled={isUpdatingStatus}
+              onClose={() => void handleSetStatus("resolved")}
+              onReopen={() => void handleSetStatus("unresolved")}
+              status={conversation.status}
             />
           )}
         </div>
@@ -773,7 +804,7 @@ export const ConversationIdView = ({
       <Sheet open={isContactPanelOpen} onOpenChange={setIsContactPanelOpen}>
         <SheetContent
           side="right"
-          className="w-[min(90vw,360px)] border-l-0 bg-transparent p-3 [&>button]:top-5 [&>button]:right-5"
+          className="w-[min(90vw,360px)] p-0 [&>button]:top-4 [&>button]:right-4"
         >
           <SheetHeader className="sr-only">
             <SheetTitle>Contact details</SheetTitle>
@@ -782,9 +813,9 @@ export const ConversationIdView = ({
         </SheetContent>
       </Sheet>
 
-      <AIConversation className="min-h-0 flex-1 px-1.5 pt-2 pb-2">
+      <AIConversation className="min-h-0 flex-1 bg-background">
         <ScrollToLatestOnSignal signal={operatorScrollSignal} />
-        <AIConversationContent className="surface-panel rounded-[30px] border-0 px-3 py-3 shadow-none">
+        <AIConversationContent className="mx-auto w-full max-w-3xl px-4 py-5">
           <InfiniteScrollTrigger
             canLoadMore={canLoadMore}
             isLoadingMore={isLoadingMore}
@@ -809,7 +840,7 @@ export const ConversationIdView = ({
                   key={message.id}
                 >
                   <AIMessageTime timestamp={message._creationTime} />
-                  <AIMessageContent className="shadow-[0_14px_34px_-22px_rgba(15,23,42,0.35)]">
+                  <AIMessageContent className="rounded-xl border-0 bg-muted shadow-none group-[.is-user]:bg-[var(--bubble-operator)] group-[.is-user]:text-foreground">
                     {messageText.trim() ? (
                       <AIResponse>{messageText}</AIResponse>
                     ) : null}
@@ -835,10 +866,10 @@ export const ConversationIdView = ({
         </AIConversationContent>
         <AIConversationScrollButton />
       </AIConversation>
-      <div className="mx-1.5 mb-2">
+      <div className="shrink-0 border-t border-[var(--console-hairline-soft)] bg-background px-4 py-3">
         <Form {...form}>
           <AIInput
-            className="surface-frosted rounded-[28px] border-0 shadow-none transition-shadow duration-200 focus-within:ring-2 focus-within:ring-primary/20"
+            className="mx-auto max-w-3xl rounded-xl border border-[var(--console-hairline)] bg-background shadow-none transition-[border-color,box-shadow] duration-200 focus-within:border-[color-mix(in_srgb,var(--foreground)_28%,transparent)] focus-within:ring-3 focus-within:ring-ring/15"
             onDragOver={(event) => {
               if (!isConversationResolved) {
                 event.preventDefault()
@@ -1255,8 +1286,8 @@ const ConversationIdViewLoading = () => {
   ]
 
   return (
-    <div className="flex h-full flex-col bg-transparent">
-      <header className="surface-frosted sticky top-2 z-10 mx-1.5 mt-2 flex items-center justify-between gap-2 rounded-[28px] px-3 py-2.5">
+    <div className="flex h-full flex-col bg-background">
+      <header className="z-10 flex h-14 shrink-0 items-center justify-between gap-2 border-b border-[var(--console-hairline-soft)] bg-background px-4">
         <div className="flex min-w-0 flex-1 items-center gap-2.5">
           <Skeleton className="size-8 shrink-0 rounded-full" />
           <div className="min-w-0 space-y-1.5">
@@ -1272,8 +1303,8 @@ const ConversationIdViewLoading = () => {
           <Skeleton className="h-9 w-28 rounded-xl" />
         </div>
       </header>
-      <AIConversation className="min-h-0 flex-1 px-1.5 pt-2 pb-2">
-        <AIConversationContent className="surface-panel rounded-[30px] border-0 px-3 py-3 shadow-none">
+      <AIConversation className="min-h-0 flex-1 bg-background">
+        <AIConversationContent className="mx-auto w-full max-w-3xl px-4 py-5">
           <div className="pb-8 text-center text-[13px] text-muted-foreground/70">
             No more items
           </div>
@@ -1294,7 +1325,7 @@ const ConversationIdViewLoading = () => {
                   )}
                   <div
                     className={cn(
-                      "rounded-xl px-4 py-3 shadow-[0_14px_34px_-22px_rgba(15,23,42,0.35)]",
+                      "rounded-xl px-4 py-3",
                       isAssistant
                         ? "border border-border bg-background"
                         : "bg-primary"
@@ -1317,8 +1348,8 @@ const ConversationIdViewLoading = () => {
         </AIConversationContent>
       </AIConversation>
 
-      <div className="mx-1.5 mb-2">
-        <div className="surface-frosted overflow-hidden rounded-[28px] border-0 shadow-none">
+      <div className="shrink-0 border-t border-[var(--console-hairline-soft)] bg-background px-4 py-3">
+        <div className="mx-auto max-w-3xl overflow-hidden rounded-xl border border-[var(--console-hairline)]">
           <div className="px-3 py-4">
             <Skeleton className="h-3.5 w-56" />
           </div>

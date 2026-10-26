@@ -15,13 +15,13 @@ export const OrgSelectView = () => {
   }
 
   if (session?.status === "pending") {
-    return <TaskChooseOrganization redirectUrlComplete="/analytics" />
+    return <TaskChooseOrganization redirectUrlComplete="/home" />
   }
 
   return (
     <OrganizationList
       afterCreateOrganizationUrl="/organization-created"
-      afterSelectOrganizationUrl="/analytics"
+      afterSelectOrganizationUrl="/home"
       hidePersonal
       skipInvitationScreen
     />

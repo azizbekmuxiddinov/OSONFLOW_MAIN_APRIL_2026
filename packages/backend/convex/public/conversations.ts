@@ -205,6 +205,35 @@ export const markAsRead = mutation({
   },
 })
 
+/**
+ * The widget's "Talk to a person" button. It goes through the same escalation
+ * the assistant uses, so the team alert, webhooks and inbox status all match;
+ * a conversation that is already with a teammate or finished is left alone.
+ */
+export const requestHuman = mutation({
+  args: {
+    conversationId: v.id("conversations"),
+    contactSessionId: v.id("contactSessions"),
+  },
+  handler: async (ctx, args) => {
+    const { conversation } = await requireContactSessionConversation(ctx, {
+      conversationId: args.conversationId,
+      contactSessionId: args.contactSessionId,
+    })
+
+    if (conversation.status !== "unresolved") {
+      return { status: conversation.status }
+    }
+
+    await ctx.runMutation(internal.system.conversations.escalate, {
+      threadId: conversation.threadId,
+      source: "visitor",
+    })
+
+    return { status: "escalated" as const }
+  },
+})
+
 type CreatedConversation = {
   conversationId: Id<"conversations">
   contactSessionId: Id<"contactSessions">

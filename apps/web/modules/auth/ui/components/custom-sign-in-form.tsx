@@ -86,7 +86,7 @@ export const CustomSignInForm = () => {
   const { signIn, errors, fetchStatus } = useSignIn()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const redirectUrl = searchParams.get("redirect_url") ?? "/analytics"
+  const redirectUrl = searchParams.get("redirect_url") ?? "/home"
 
   const [step, setStep] = useState<SignInStep>("credentials")
   const [codeChannel, setCodeChannel] = useState<CodeChannel>("email")

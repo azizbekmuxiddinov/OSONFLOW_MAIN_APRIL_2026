@@ -248,11 +248,16 @@ export const AIConversationsPanel = () => {
   })
 
   useEffect(() => {
+    // "/" jumps to the list's own search; ⌘K belongs to the dashboard-wide
+    // search and actions.
     const handleShortcut = (event: KeyboardEvent) => {
-      const isFocusSearch =
-        (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k"
+      const target = event.target as HTMLElement | null
+      const isTyping =
+        target?.isContentEditable ||
+        target?.tagName === "INPUT" ||
+        target?.tagName === "TEXTAREA"
 
-      if (!isFocusSearch) {
+      if (event.key !== "/" || isTyping || event.metaKey || event.ctrlKey) {
         return
       }
 
@@ -280,9 +285,9 @@ export const AIConversationsPanel = () => {
       )
 
       downloadConversationExport(exportPayload, label)
-      toast.success("AI voicechat downloaded")
+      toast.success("Call downloaded")
     } catch {
-      toast.error("Failed to download AI voicechat")
+      toast.error("Could not download the call")
     } finally {
       setDownloadingConversationId(null)
     }
@@ -301,23 +306,22 @@ export const AIConversationsPanel = () => {
         router.push("/ai-conversations")
       }
 
-      toast.success("AI voicechat deleted")
+      toast.success("Call deleted")
       setConversationToDelete(null)
     } catch {
-      toast.error("Failed to delete AI voicechat")
+      toast.error("Could not delete the call")
     } finally {
       setIsDeletingConversation(false)
     }
   }
 
   return (
-    <div className="console-card flex h-full min-h-0 w-full flex-col overflow-hidden">
-      <div className="shrink-0 border-b border-[var(--console-hairline-soft)] px-3.5 pt-4 pb-3.5">
-        <div className="flex items-start justify-between gap-3">
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-background">
+      <div className="shrink-0 border-b border-[var(--console-hairline-soft)] px-3 pt-3 pb-2.5">
+        <div className="flex h-7 items-center justify-between gap-3 px-1">
           <div className="min-w-0">
-            <p className="console-eyebrow">Voice inbox</p>
-            <h2 className="console-section-title mt-1.5 truncate text-[0.95rem]">
-              AI voicechats
+            <h2 className="truncate text-sm font-semibold tracking-tight">
+              Voice calls
             </h2>
           </div>
 
@@ -334,11 +338,11 @@ export const AIConversationsPanel = () => {
           </span>
         </div>
 
-        <div className="relative mt-3">
+        <div className="relative mt-2.5">
           <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            aria-label="Search AI voicechats"
-            className="console-inset h-9 rounded-[10px] pr-14 pl-9 text-sm shadow-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40"
+            aria-label="Search voice calls"
+            className="h-8 rounded-lg border border-[var(--console-hairline-soft)] bg-muted/50 pr-14 pl-9 text-sm shadow-none transition-colors focus-visible:border-[var(--console-hairline)] focus-visible:bg-background focus-visible:ring-0"
             onChange={(event) => setSearchQuery(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Escape" && searchQuery) {
@@ -372,7 +376,7 @@ export const AIConversationsPanel = () => {
               </Button>
             ) : (
               <Kbd className="hidden text-[10px] md:inline-flex">
-                ⌘K
+                /
               </Kbd>
             )}
           </div>
@@ -421,11 +425,11 @@ export const AIConversationsPanel = () => {
                 </span>
                 <div>
                   <p className="text-sm font-medium text-foreground">
-                    No AI voicechats yet
+                    No voice calls yet
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    OpenAI realtime and Gemini live transcripts will appear
-                    here.
+                    When a visitor talks to your assistant, the transcript
+                    appears here.
                   </p>
                 </div>
               </div>
@@ -493,10 +497,8 @@ export const AIConversationsPanel = () => {
                             <ContextMenuTrigger asChild>
                               <Link
                                 className={cn(
-                                  "group relative block rounded-[10px] border px-3 py-2.5 transition-colors duration-200",
-                                  isActive
-                                    ? "border-[var(--console-hairline)] bg-muted/55"
-                                    : "border-transparent hover:bg-muted/35"
+                                  "group relative block rounded-lg px-2.5 py-2.5 transition-colors duration-150",
+                                  isActive ? "bg-muted" : "hover:bg-muted/55"
                                 )}
                                 href={`/ai-conversations/${conversation._id}`}
                               >
@@ -654,9 +656,9 @@ export const AIConversationsPanel = () => {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete AI voicechat?</AlertDialogTitle>
+            <AlertDialogTitle>Delete this call?</AlertDialogTitle>
             <AlertDialogDescription>
-              This removes "{conversationToDelete?.label ?? "this voicechat"}"
+              This removes "{conversationToDelete?.label ?? "this call"}"
               and its transcript from the database. This action cannot be
               undone.
             </AlertDialogDescription>

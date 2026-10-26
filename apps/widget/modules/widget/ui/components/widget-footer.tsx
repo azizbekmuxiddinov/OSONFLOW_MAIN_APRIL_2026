@@ -12,6 +12,7 @@ import { mergeWidgetAppearance } from "@workspace/ui/lib/widget-customization"
 import { useQuery } from "convex/react"
 import { api } from "@workspace/backend/_generated/api"
 import { useHelpTopics } from "../../hooks/use-help-articles"
+import { useOpenHome } from "../../hooks/use-open-home"
 
 const WidgetHomeIcon = ({
   active,
@@ -134,6 +135,7 @@ export const WidgetFooter = () => {
   )
   const widgetSettings = useAtomValue(widgetSettingsAtom)
   const setScreen = useSetAtom(screenAtom)
+  const { homeScreen, openHome } = useOpenHome()
   const appearance = mergeWidgetAppearance(widgetSettings?.appearance)
   const helpTopics = useHelpTopics()
   const hasHelpContent = helpTopics.length > 0
@@ -153,7 +155,7 @@ export const WidgetFooter = () => {
       <div className="flex items-stretch justify-between">
         <Button
           className={footerTabButtonClassName}
-          onClick={() => setScreen("selection")}
+          onClick={() => openHome()}
           size="icon"
           variant="ghost"
         >
@@ -168,7 +170,7 @@ export const WidgetFooter = () => {
                 isHomeActive && "font-bold text-foreground"
               )}
             >
-              Home
+              {homeScreen === "chat" ? "Chat" : "Home"}
             </span>
           </span>
         </Button>

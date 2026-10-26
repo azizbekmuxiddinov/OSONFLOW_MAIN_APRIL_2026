@@ -7,6 +7,8 @@ import type { FunctionReturnType } from "convex/server"
 import { formatDistanceToNow } from "date-fns"
 import {
   ArrowUpRightIcon,
+  CalendarIcon,
+  ChevronDownIcon,
   CircleCheckIcon,
   DownloadIcon,
   HourglassIcon,
@@ -23,9 +25,16 @@ import { toast } from "sonner"
 
 import { api } from "@workspace/backend/_generated/api"
 import { useLanguage } from "@/lib/i18n/language-provider"
-import { GettingStartedCallout } from "@/modules/onboarding/ui/components/getting-started-callout"
 import type { Doc } from "@workspace/backend/_generated/dataModel"
 import { Button } from "@workspace/ui/components/button"
+import { cn } from "@workspace/ui/lib/utils"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@workspace/ui/components/dropdown-menu"
 import {
   formatCsvTimestamp,
   stringifyCsvRows,
@@ -521,13 +530,30 @@ const SignalTimeline = ({ overview }: { overview: Overview }) => {
 
 /* ── page ───────────────────────────────────────────────────────────────── */
 
+const WINDOW_OPTIONS = [7, 30, 90] as const
+
+const WINDOW_LABELS: Record<number, string> = {
+  7: "Last 7 days",
+  30: "Last 30 days",
+  90: "Last 90 days",
+}
+
 export const AnalyticsView = () => {
   const { t } = useLanguage()
   const [isExporting, setIsExporting] = useState(false)
   const convex = useConvex()
-  const overview = useQuery(api.private.analytics.getOverview, {
-    windowDays: 30,
+  const [windowDays, setWindowDays] = useState<number>(30)
+  const latestOverview = useQuery(api.private.analytics.getOverview, {
+    windowDays,
   })
+  // Keep the last numbers on screen while a new range loads, instead of
+  // blanking the whole report back to its skeleton.
+  const [shownOverview, setShownOverview] = useState(latestOverview)
+  if (latestOverview !== undefined && latestOverview !== shownOverview) {
+    setShownOverview(latestOverview)
+  }
+  const overview = latestOverview ?? shownOverview
+  const isChangingRange = latestOverview === undefined
 
   if (overview === undefined) {
     return <AnalyticsSkeleton />
@@ -648,8 +674,6 @@ export const AnalyticsView = () => {
 
   return (
     <ConsolePage width="wide">
-      <GettingStartedCallout />
-
       <div className="report flex flex-col gap-4">
         <PageBar
           actions={
@@ -663,14 +687,42 @@ export const AnalyticsView = () => {
               {isExporting ? t("Exporting...") : t("Download CSV")}
             </Button>
           }
-          hint={
-            <>
-              {t("Last")} {overview.windowDays} {t("days")} · {total}{" "}
-              conversations analysed
-            </>
-          }
+          hint="How your assistant and team handled conversations: what got resolved, what was handed over, and what it still needs to learn."
           title="Analytics"
         />
+
+        {/* Intercom's report filter row: the range first, then what it covers. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="secondary">
+                <CalendarIcon data-icon="inline-start" />
+                {WINDOW_LABELS[windowDays] ?? `Last ${windowDays} days`}
+                <ChevronDownIcon data-icon="inline-end" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-44">
+              <DropdownMenuRadioGroup
+                onValueChange={(value) => setWindowDays(Number(value))}
+                value={String(windowDays)}
+              >
+                {WINDOW_OPTIONS.map((days) => (
+                  <DropdownMenuRadioItem key={days} value={String(days)}>
+                    {WINDOW_LABELS[days]}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <span
+            className={cn(
+              "text-xs text-muted-foreground transition-opacity",
+              isChangingRange && "opacity-50"
+            )}
+          >
+            {total} conversations analysed
+          </span>
+        </div>
 
         <FigureStrip className="md:grid-cols-3 xl:grid-cols-6">
           <StripFigure

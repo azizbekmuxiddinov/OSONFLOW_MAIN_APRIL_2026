@@ -139,6 +139,7 @@ export const widgetSettingsSchema = z.object({
     showPoweredBy: z.boolean(),
     showHelpCenter: z.boolean(),
     showChatHistoryDownload: z.boolean(),
+    openingScreen: z.enum(["chat", "home"]),
     launcherPosition: z.enum(["bottom-right", "bottom-left"]),
     launcherOffsetX: z.coerce.number().min(0).max(160),
     launcherOffsetY: z.coerce.number().min(0).max(160),
@@ -180,5 +181,10 @@ export const widgetSettingsSchema = z.object({
       .trim()
       .min(1, "Status label is required")
       .max(40, "Status label must be at most 40 characters"),
+    talkToHumanLabel: z
+      .string()
+      .trim()
+      .min(1, "Button label is required")
+      .max(28, "Button label must be at most 28 characters"),
   }),
 })

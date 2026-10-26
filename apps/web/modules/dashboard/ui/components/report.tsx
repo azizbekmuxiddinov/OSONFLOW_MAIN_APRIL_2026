@@ -2,6 +2,8 @@ import type * as React from "react"
 
 import { cn } from "@workspace/ui/lib/utils"
 
+import { SubnavToggle } from "./shell/subnav-toggle"
+
 /**
  * Report primitives — the working layout shared by the data tabs (Analytics,
  * Leads, Customer memory, Knowledge base, Teach, Follow-ups and the setup
@@ -40,30 +42,34 @@ export const PageBar = ({
 }) => (
   <header
     className={cn(
-      "flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between",
+      "report-page-bar flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between",
       className
     )}
   >
     <div className="min-w-0">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+        <SubnavToggle className="-ml-1.5" />
         <h1 className="report-page-title">{title}</h1>
         {meta}
       </div>
       {hint ? (
-        <p className="mt-1.5 max-w-[78ch] text-sm leading-relaxed text-muted-foreground">
+        <p className="mt-1 line-clamp-2 max-w-[86ch] text-[0.8125rem] leading-relaxed text-muted-foreground">
           {hint}
         </p>
       ) : null}
     </div>
     {actions ? (
-      <div className="flex shrink-0 flex-wrap items-center gap-2 sm:pt-1">
+      <div className="flex shrink-0 flex-wrap items-center gap-2">
         {actions}
       </div>
     ) : null}
   </header>
 )
 
-/** A row of figure cards; pass `StripFigure`s as children. */
+/**
+ * The key figures as one ruled strip rather than a row of separate cards, so
+ * they read as a single summary; pass `StripFigure`s as children.
+ */
 export const FigureStrip = ({
   children,
   className,
@@ -71,7 +77,7 @@ export const FigureStrip = ({
   children: React.ReactNode
   className?: string
 }) => (
-  <section className={cn("grid grid-cols-2 gap-3", className)}>
+  <section className={cn("report-strip grid grid-cols-2", className)}>
     {children}
   </section>
 )
@@ -97,25 +103,25 @@ export const StripFigure = ({
   tone?: ReportTone
   className?: string
 }) => (
-  <div className={cn("report-stat console-card min-w-0 px-4 py-3.5", className)}>
-    <div className="flex min-w-0 items-center gap-2">
+  <div className={cn("report-stat min-w-0 px-4 py-4 sm:px-5", className)}>
+    <div className="flex min-w-0 items-start justify-between gap-2">
+      <p
+        className="report-stat-value"
+        data-empty={isEmptyFigure(value) ? "" : undefined}
+      >
+        {value}
+      </p>
       {Icon ? (
-        <span className="report-stat-icon" data-tone={tone}>
+        <span className="report-stat-icon mt-1" data-tone={tone}>
           <Icon className="size-3.5" />
         </span>
       ) : null}
-      <p className="truncate text-[0.8rem] font-medium text-muted-foreground">
-        {label}
-      </p>
     </div>
-    <p
-      className="report-stat-value mt-2.5"
-      data-empty={isEmptyFigure(value) ? "" : undefined}
-    >
-      {value}
+    <p className="mt-2 truncate text-[0.8125rem] text-muted-foreground">
+      {label}
     </p>
     {note ? (
-      <p className="mt-1.5 line-clamp-2 text-xs leading-snug text-muted-foreground">
+      <p className="mt-0.5 line-clamp-2 text-xs leading-snug text-muted-foreground/80">
         {note}
       </p>
     ) : null}
@@ -143,11 +149,11 @@ export const ReportSection = ({
 }) => (
   <section
     className={cn(
-      "report-panel console-card flex min-w-0 flex-col overflow-hidden",
+      "report-panel flex min-w-0 flex-col overflow-hidden",
       className
     )}
   >
-    <header className="flex items-start justify-between gap-3 px-5 pt-4">
+    <header className="flex items-start justify-between gap-3 px-4 pt-3.5 sm:px-5">
       <div className="min-w-0">
         <h2 className="report-section-title">{title}</h2>
         {lede ? (
@@ -165,7 +171,7 @@ export const ReportSection = ({
     <div
       className={cn(
         "min-h-0 min-w-0 flex-1",
-        flush ? "pt-3" : "px-5 pt-4 pb-5",
+        flush ? "pt-3" : "px-4 pt-3.5 pb-4 sm:px-5",
         bodyClassName
       )}
     >

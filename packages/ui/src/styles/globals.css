@@ -693,13 +693,17 @@
    ──────────────────────────────────────────────────────────────────────────── */
 
 :root {
+  /* The dashboard shell: a warm grey canvas the white page panel floats on,
+     and the one blue used for active tabs and links, Intercom-style. */
+  --canvas: oklch(0.967 0.004 85);
+  --canvas-strong: oklch(0.935 0.005 85);
+  --accent-blue: oklch(0.53 0.2 262);
+  --bubble-operator: oklch(0.93 0.035 262);
   --console-radius: 14px;
   --console-radius-sm: 10px;
   --console-hairline: color-mix(in srgb, var(--border) 86%, transparent);
   --console-hairline-soft: color-mix(in srgb, var(--border) 52%, transparent);
-  --console-shadow:
-    0 1px 1px color-mix(in srgb, var(--shadow-color) 4%, transparent),
-    0 10px 26px -20px color-mix(in srgb, var(--shadow-color) 42%, transparent);
+  --console-shadow: 0 1px 2px color-mix(in srgb, var(--shadow-color) 5%, transparent);
   --console-shadow-lift:
     0 1px 1px color-mix(in srgb, var(--shadow-color) 5%, transparent),
     0 20px 42px -26px color-mix(in srgb, var(--shadow-color) 58%, transparent);
@@ -720,11 +724,13 @@
 }
 
 .dark {
+  --canvas: oklch(0.19 0.003 85);
+  --canvas-strong: oklch(0.24 0.004 85);
+  --accent-blue: oklch(0.72 0.14 262);
+  --bubble-operator: oklch(0.32 0.06 262);
   --console-hairline: color-mix(in srgb, var(--border) 100%, white 6%);
   --console-hairline-soft: color-mix(in srgb, var(--border) 74%, transparent);
-  --console-shadow:
-    0 1px 1px color-mix(in srgb, var(--shadow-color) 30%, transparent),
-    0 12px 30px -22px color-mix(in srgb, var(--shadow-color) 90%, transparent);
+  --console-shadow: 0 1px 2px color-mix(in srgb, var(--shadow-color) 30%, transparent);
   --console-shadow-lift:
     0 1px 1px color-mix(in srgb, var(--shadow-color) 34%, transparent),
     0 24px 48px -26px color-mix(in srgb, var(--shadow-color) 100%, transparent);
@@ -744,14 +750,9 @@
 @layer utilities {
   /* Page canvas. Opaque enough to sit over the shell's ambient orbs so the
      console reads as its own calm surface rather than a floating overlay. */
+  /* Page canvas: plain, so hairlines and type carry the structure. */
   .console-page {
-    background:
-      radial-gradient(
-        128% 88% at 50% -22%,
-        var(--console-veil),
-        transparent 60%
-      ),
-      var(--background);
+    background: var(--background);
   }
 
   .console-card {
@@ -797,10 +798,10 @@
   }
 
   .console-title {
-    font-size: clamp(1.375rem, 1.08rem + 1vw, 1.85rem);
+    font-size: 1.125rem;
     font-weight: 600;
-    line-height: 1.14;
-    letter-spacing: -0.026em;
+    line-height: 1.75rem;
+    letter-spacing: -0.015em;
     color: var(--foreground);
   }
 

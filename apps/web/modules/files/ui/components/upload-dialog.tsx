@@ -40,6 +40,8 @@ interface UploadDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onFileUploaded?: () => void
+  /** Which way of adding content the dialog opens on. */
+  initialMode?: "file" | "website"
 }
 
 type UploadState = "idle" | "uploading" | "success" | "error"
@@ -59,6 +61,7 @@ export const UploadDialog = ({
   open,
   onOpenChange,
   onFileUploaded,
+  initialMode = "file",
 }: UploadDialogProps) => {
   const addFile = useAction(api.private.files.addFile)
   const addWebsite = useAction(
@@ -69,7 +72,15 @@ export const UploadDialog = ({
     category?: string
   }) => Promise<{ entryId: string; created: boolean; sourceUrl: string }>
 
-  const [uploadMode, setUploadMode] = useState<"file" | "website">("file")
+  const [uploadMode, setUploadMode] = useState<"file" | "website">(initialMode)
+  // Opening from a different "Add content" row switches to that mode.
+  const [openedWith, setOpenedWith] = useState({ open, initialMode })
+  if (openedWith.open !== open || openedWith.initialMode !== initialMode) {
+    setOpenedWith({ open, initialMode })
+    if (open) {
+      setUploadMode(initialMode)
+    }
+  }
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([])
   const [uploadState, setUploadState] = useState<UploadState>("idle")
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -215,11 +226,11 @@ export const UploadDialog = ({
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="file">
                 <FileIcon className="size-3.5" />
-                File Upload
+                Upload a document
               </TabsTrigger>
               <TabsTrigger value="website">
                 <GlobeIcon className="size-3.5" />
-                Website URL
+                Add a web page
               </TabsTrigger>
             </TabsList>
 

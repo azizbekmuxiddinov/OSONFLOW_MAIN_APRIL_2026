@@ -95,7 +95,7 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         <ClerkProvider
-          signInFallbackRedirectUrl={appPath("/analytics")}
+          signInFallbackRedirectUrl={appPath("/home")}
           signUpFallbackRedirectUrl={appPath("/org-selection")}
           taskUrls={{
             "choose-organization": "/org-selection",

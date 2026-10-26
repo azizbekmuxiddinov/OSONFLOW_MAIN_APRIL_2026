@@ -33,11 +33,17 @@
 
 /* ── page bar ──────────────────────────────────────────────────────────── */
 
+/* One compact row with a hairline under it, the way Linear and Attio open a
+   page: the title names the page, the data does the talking. */
+.report-page-bar {
+  padding-bottom: 0.25rem;
+}
+
 .report-page-title {
-  font-size: clamp(1.35rem, 1.15rem + 0.6vw, 1.65rem);
+  font-size: 1.125rem;
   font-weight: 600;
-  line-height: 1.15;
-  letter-spacing: -0.03em;
+  line-height: 1.75rem;
+  letter-spacing: -0.015em;
   color: var(--foreground);
 }
 
@@ -61,30 +67,29 @@
   --stat-tone: var(--muted-foreground);
 }
 
+/* A quiet glyph; colour is kept for tones that mean something. */
 .report-stat-icon {
   display: inline-flex;
-  width: 1.5rem;
-  height: 1.5rem;
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  border-radius: 7px;
-  color: var(--stat-tone);
-  background: color-mix(in srgb, var(--stat-tone) 12%, transparent);
+  color: color-mix(in srgb, var(--stat-tone) 80%, transparent);
 }
 
-.report-stat-icon[data-tone="accent"] { --stat-tone: var(--primary); }
-.report-stat-icon[data-tone="positive"] { --stat-tone: var(--console-positive); }
-.report-stat-icon[data-tone="warning"] { --stat-tone: var(--console-warning); }
+.report-stat-icon[data-tone="accent"] { --stat-tone: var(--muted-foreground); }
+.report-stat-icon[data-tone="positive"] { --stat-tone: var(--muted-foreground); }
+.report-stat-icon[data-tone="warning"] { --stat-tone: var(--muted-foreground); }
 .report-stat-icon[data-tone="critical"] { --stat-tone: var(--console-critical); }
-.report-stat-icon[data-tone="info"] { --stat-tone: var(--console-info); }
+.report-stat-icon[data-tone="info"] { --stat-tone: var(--muted-foreground); }
 .report-stat-icon[data-tone="neutral"] { --stat-tone: var(--muted-foreground); }
 
+/* Big, light figures with the label underneath, the way Intercom reports
+   read: the number first, then what it counts. */
 .report-stat-value {
-  font-size: clamp(1.5rem, 1.3rem + 0.5vw, 1.85rem);
-  font-weight: 600;
+  font-size: 1.875rem;
+  font-weight: 450;
   line-height: 1;
-  letter-spacing: -0.035em;
+  letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
   color: var(--foreground);
 }
@@ -98,7 +103,7 @@
 
 .report-empty {
   border-radius: var(--console-radius-sm);
-  background: color-mix(in srgb, var(--muted) 45%, transparent);
+  border: 1px dashed var(--console-hairline);
 }
 
 .report-empty-icon {
@@ -109,17 +114,14 @@
   justify-content: center;
   border-radius: 999px;
   color: var(--muted-foreground);
-  background: var(--card);
-  box-shadow:
-    0 0 0 1px var(--console-hairline-soft),
-    0 6px 14px -10px color-mix(in srgb, var(--shadow-color) 40%, transparent);
+  background: color-mix(in srgb, var(--muted) 60%, transparent);
 }
 
-/* The figure strip's older, ruled form — still used for the connection index
-   on Setup & integrations. */
+/* The figure strip: one card, its cells divided by hairlines. The dividers are
+   shadows clipped at the card edge, so an uneven last row stays clean. */
 .report-strip {
   overflow: hidden;
-  border-radius: var(--console-radius);
+  border-radius: 10px;
   border: 1px solid var(--console-hairline);
   background: var(--card);
   box-shadow: var(--console-shadow);
@@ -224,6 +226,12 @@
 
 /* ── panels ────────────────────────────────────────────────────────────── */
 
+.report-panel {
+  border-radius: 10px;
+  border: 1px solid var(--console-hairline);
+  background: var(--card);
+}
+
 .report-section-title {
   font-size: 0.95rem;
   font-weight: 600;
@@ -241,9 +249,12 @@
   transition: color 180ms var(--motion-snappy);
 }
 
-.report-filter:hover,
-.report-filter[aria-pressed="true"] {
+.report-filter:hover {
   color: var(--foreground);
+}
+
+.report-filter[aria-pressed="true"] {
+  color: var(--accent-blue);
 }
 
 /* The row overlaps the rule beneath it by 1px so the active underline sits on
@@ -268,7 +279,7 @@
   inset: auto 0 0 0;
   height: 2px;
   border-radius: 999px;
-  background: var(--primary);
+  background: var(--accent-blue);
   transform: scaleX(0);
   transform-origin: left center;
   transition: transform 260ms var(--motion-snappy);

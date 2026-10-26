@@ -37,7 +37,7 @@ export const AIConversationsLayout = ({
 
   return (
     <ResizablePanelGroup
-      className="console-page h-full min-h-0 flex-1 gap-3 p-3"
+      className="h-full min-h-0 flex-1 bg-background"
       orientation="horizontal"
     >
       <ResizablePanel
@@ -51,8 +51,7 @@ export const AIConversationsLayout = ({
         <AIConversationsPanel />
       </ResizablePanel>
       <ResizableHandle
-        withHandle
-        className="w-0 bg-transparent [&>div]:h-12 [&>div]:w-4 [&>div]:rounded-full [&>div]:border-[var(--console-hairline)] [&>div]:bg-card [&>div]:shadow-none"
+        className="w-px bg-[var(--console-hairline)] transition-colors hover:bg-foreground/25 data-[resize-handle-state=drag]:bg-foreground/35"
       />
       <ResizablePanel
         id="ai-conversations-content"

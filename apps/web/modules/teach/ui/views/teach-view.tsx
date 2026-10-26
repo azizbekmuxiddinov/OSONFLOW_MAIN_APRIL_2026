@@ -314,7 +314,7 @@ export const TeachView = () => {
             </Button>
           }
           hint="Answers your team gave in chats, and questions your assistant couldn't answer. Approve one and your assistant answers it on its own from then on."
-          title="Teach your assistant"
+          title="Answers"
         />
 
         <FigureStrip className="md:grid-cols-4">

@@ -118,6 +118,68 @@
   background: var(--background);
 }
 
+/* Opening card of an ask-first chat: who answers, before the greeting. */
+.owc-intro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 18px 8px 22px;
+  text-align: center;
+  animation: owc-bubble-in 360ms var(--owc-ease) both;
+}
+
+.owc-intro-avatar {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  width: 3.25rem;
+  height: 3.25rem;
+  margin-bottom: 8px;
+  border-radius: 16px;
+  background: linear-gradient(
+    135deg,
+    var(--widget-header-start),
+    var(--widget-header-end)
+  );
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 600;
+  box-shadow:
+    0 0 0 1px var(--owc-hairline),
+    0 10px 24px -14px rgb(15 23 42 / 0.45);
+}
+
+.owc-intro-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #fff;
+}
+
+.owc-intro-name {
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--foreground);
+}
+
+.owc-intro-status {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+
+.owc-intro-status-dot {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 999px;
+  background: oklch(0.68 0.15 152);
+  box-shadow: 0 0 0 3px color-mix(in srgb, oklch(0.68 0.15 152) 20%, transparent);
+}
+
 .owc-thread-content {
   padding: 14px var(--owc-gutter) 16px;
 }
@@ -312,6 +374,20 @@
 
 .owc-suggestion:active {
   transform: scale(0.985);
+}
+
+/* The way to a person sits apart from topic chips: neutral, with an icon. */
+.owc-handoff {
+  gap: 6px;
+  border-color: var(--owc-hairline);
+  background: var(--background);
+  color: var(--muted-foreground);
+}
+
+.owc-handoff:hover {
+  border-color: color-mix(in srgb, var(--foreground) 22%, transparent);
+  background: color-mix(in srgb, var(--muted) 50%, var(--background));
+  color: var(--foreground);
 }
 
 /* ── composer ────────────────────────────────────────────────────────────── */

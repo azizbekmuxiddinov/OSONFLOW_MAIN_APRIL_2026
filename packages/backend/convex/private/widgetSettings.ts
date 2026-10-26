@@ -52,6 +52,7 @@ const DEFAULT_APPEARANCE = {
   showPoweredBy: true,
   showHelpCenter: true,
   showChatHistoryDownload: true,
+  openingScreen: "chat" as const,
   launcherPosition: "bottom-right" as const,
   launcherOffsetX: 20,
   launcherOffsetY: 20,
@@ -74,6 +75,7 @@ const DEFAULT_WIDGET_COPY = {
   startChatLabel: "Start a chat",
   inputPlaceholder: "Type your message…",
   onlineLabel: "Online · replies instantly",
+  talkToHumanLabel: "Talk to a person",
 }
 
 const MAX_WIDGET_IMAGE_SIZE_BYTES = 5 * 1024 * 1024
@@ -210,6 +212,7 @@ const appearanceValidator = v.object({
   showPoweredBy: v.optional(v.boolean()),
   showHelpCenter: v.optional(v.boolean()),
   showChatHistoryDownload: v.optional(v.boolean()),
+  openingScreen: v.optional(v.union(v.literal("chat"), v.literal("home"))),
   launcherPosition: v.optional(
     v.union(v.literal("bottom-right"), v.literal("bottom-left"))
   ),
@@ -236,6 +239,7 @@ const widgetCopyValidator = v.object({
   startChatLabel: v.optional(v.string()),
   inputPlaceholder: v.optional(v.string()),
   onlineLabel: v.optional(v.string()),
+  talkToHumanLabel: v.optional(v.string()),
 })
 
 const widgetSettingsArgsValidator = {
@@ -297,6 +301,7 @@ type WidgetAppearance = {
   showPoweredBy?: boolean
   showHelpCenter?: boolean
   showChatHistoryDownload?: boolean
+  openingScreen?: "chat" | "home"
   launcherPosition?: "bottom-right" | "bottom-left"
   launcherOffsetX?: number
   launcherOffsetY?: number
@@ -319,6 +324,7 @@ type WidgetCopy = {
   startChatLabel?: string
   inputPlaceholder?: string
   onlineLabel?: string
+  talkToHumanLabel?: string
 }
 
 type HelpArticle = {
@@ -684,6 +690,10 @@ const mergeAppearance = (
     incoming?.showChatHistoryDownload ??
     base?.showChatHistoryDownload ??
     DEFAULT_APPEARANCE.showChatHistoryDownload,
+  openingScreen:
+    incoming?.openingScreen ??
+    base?.openingScreen ??
+    DEFAULT_APPEARANCE.openingScreen,
   launcherPosition:
     incoming?.launcherPosition ??
     base?.launcherPosition ??
@@ -760,6 +770,10 @@ const mergeWidgetCopy = (
     incoming?.onlineLabel ??
     base?.onlineLabel ??
     DEFAULT_WIDGET_COPY.onlineLabel,
+  talkToHumanLabel:
+    incoming?.talkToHumanLabel ??
+    base?.talkToHumanLabel ??
+    DEFAULT_WIDGET_COPY.talkToHumanLabel,
 })
 
 const legacyArticlesToArray = (articles: HelpArticles): HelpArticle[] => [

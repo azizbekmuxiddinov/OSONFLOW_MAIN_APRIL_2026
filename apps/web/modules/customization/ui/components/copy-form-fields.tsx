@@ -54,6 +54,7 @@ const CopyField = ({
     | "widgetCopy.startChatLabel"
     | "widgetCopy.inputPlaceholder"
     | "widgetCopy.onlineLabel"
+    | "widgetCopy.talkToHumanLabel"
   label: string
   description: string
   placeholder: string
@@ -160,6 +161,14 @@ export const CopyFormFields = ({ form }: CopyFormFieldsProps) => {
             limit={40}
             name="widgetCopy.onlineLabel"
             placeholder="Online · replies instantly"
+          />
+          <CopyField
+            description="Offered under the assistant's replies so a visitor can ask for a teammate."
+            form={form}
+            label="Talk to a person button"
+            limit={28}
+            name="widgetCopy.talkToHumanLabel"
+            placeholder="Talk to a person"
           />
         </div>
       </SettingsGroup>

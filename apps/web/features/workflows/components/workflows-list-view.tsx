@@ -41,6 +41,7 @@ import {
   ConsoleSearch,
 } from "@/modules/dashboard/ui/components/console"
 import {
+  PageBar,
   ReportFilter,
   ReportQuiet,
 } from "@/modules/dashboard/ui/components/report"
@@ -85,9 +86,6 @@ const FILTERS: Array<{ id: StatusFilter; label: string }> = [
 
 const statusOf = (workflow: WorkflowRow): WorkflowStatus =>
   workflow.isActive ? "live" : workflow.publishedAt ? "published" : "draft"
-
-const plural = (count: number, one: string, many: string) =>
-  count === 1 ? one : many
 
 export const WorkflowsListView = () => {
   const router = useRouter()
@@ -202,99 +200,86 @@ export const WorkflowsListView = () => {
 
   return (
     <ConsolePage width="wide">
-      <div className="report">
-        {/* Hero: which flow is answering, and how to make another. */}
-        <section className="pt-2 pb-10">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="console-eyebrow">Workflows</p>
-            {rows.length ? (
-              <div className="flex items-center gap-2">
+      <div className="report flex flex-col gap-5">
+        <PageBar
+          actions={
+            rows.length ? (
+              <>
                 <CreateWithAiDialog
                   trigger={
-                    <Button size="sm" variant="ghost">
+                    <Button size="sm" variant="outline">
                       <SparklesIcon data-icon="inline-start" />
                       Draft with AI
                     </Button>
                   }
                 />
                 {newWorkflowButton}
-              </div>
-            ) : null}
-          </div>
-
-          {workflows === undefined ? (
-            <div className="mt-6 space-y-4" aria-hidden>
-              <div className="h-12 w-2/3 max-w-xl animate-pulse rounded-xl bg-muted" />
-              <div className="h-5 w-full max-w-lg animate-pulse rounded-full bg-muted" />
-            </div>
-          ) : rows.length === 0 ? (
-            <>
-              <h1 className="report-headline mt-6 max-w-[20ch]">
-                Answer common questions with a flow you design.
-              </h1>
-              <p className="report-lede mt-5 max-w-[60ch]">
-                A workflow is a conversation you plan step by step — greet the
-                visitor, offer buttons, collect their phone number, hand over to
-                your team. Publish it and it answers every new chat in your
-                widget.
-              </p>
-              <div className="mt-7 flex flex-wrap items-center gap-2">
-                <CreateWithAiDialog
-                  trigger={
-                    <Button size="lg">
-                      <SparklesIcon data-icon="inline-start" />
-                      Describe it, AI drafts it
-                    </Button>
-                  }
-                />
-                <Button asChild size="lg" variant="outline">
-                  <Link href="/workflows/new">
-                    <PlusIcon data-icon="inline-start" />
-                    Start from a blank canvas
-                  </Link>
-                </Button>
-              </div>
-            </>
-          ) : live ? (
-            <>
-              <h1 className="report-headline mt-6 max-w-[24ch]">
-                <span className="report-headline-figure">{live.name}</span> is
-                answering your conversations.
-              </h1>
-              <p className="report-lede mt-5 max-w-[62ch]">
-                Every new chat in your widget runs through it.{" "}
-                {rows.length > 1 ? (
-                  <>
-                    <strong>{rows.length - 1}</strong> other{" "}
-                    {plural(rows.length - 1, "workflow waits", "workflows wait")}{" "}
-                    until you publish {plural(rows.length - 1, "it", "one")}{" "}
-                    in its place.
-                  </>
-                ) : (
-                  <>Duplicate it to try changes without touching what visitors see.</>
-                )}
-              </p>
-            </>
-          ) : (
-            <>
-              <h1 className="report-headline mt-6 max-w-[22ch]">
-                None of your workflows is answering yet.
-              </h1>
-              <p className="report-lede mt-5 max-w-[62ch]">
-                You have <strong>{rows.length}</strong>{" "}
-                {plural(rows.length, "workflow", "workflows")}, but your
-                assistant still handles every chat on its own. Open one and press{" "}
-                <strong>Publish</strong> to put it in front of visitors.
-              </p>
-            </>
-          )}
-        </section>
+              </>
+            ) : null
+          }
+          hint="Conversations you plan step by step: greet the visitor, offer buttons, collect details, hand over to your team. The published one answers every new chat in your widget."
+          title="Workflows"
+        />
 
         {workflows === undefined ? (
           <SkeletonRows count={4} />
-        ) : rows.length ? (
-          <>
-            <div className="flex flex-col gap-4 border-b border-[var(--report-rule)] sm:flex-row sm:items-end sm:justify-between">
+        ) : rows.length === 0 ? (
+          <section className="report-panel flex flex-col items-start gap-4 px-5 py-6 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+              <span className="workflows-medallion size-9" aria-hidden>
+                <WorkflowIcon className="size-4" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">
+                  Answer common questions with a flow you design
+                </p>
+                <p className="mt-1 max-w-[62ch] text-[0.8125rem] leading-relaxed text-muted-foreground">
+                  Describe what should happen and the AI drafts the steps, or
+                  start from a blank canvas.
+                </p>
+              </div>
+            </div>
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
+              <Button asChild size="sm" variant="outline">
+                <Link href="/workflows/new">
+                  <PlusIcon data-icon="inline-start" />
+                  Blank canvas
+                </Link>
+              </Button>
+              <CreateWithAiDialog
+                trigger={
+                  <Button size="sm">
+                    <SparklesIcon data-icon="inline-start" />
+                    Describe it, AI drafts it
+                  </Button>
+                }
+              />
+            </div>
+          </section>
+        ) : (
+          <section className="report-panel overflow-hidden">
+            {/* What visitors get right now, before the list of everything. */}
+            <div className="flex items-center gap-2.5 border-b border-[var(--console-hairline-soft)] bg-[color-mix(in_srgb,var(--muted)_35%,transparent)] px-4 py-2.5 text-[0.8125rem] sm:px-5">
+              <span
+                className="workflows-status-dot"
+                data-status={live ? "live" : "draft"}
+              />
+              {live ? (
+                <p className="min-w-0 truncate">
+                  <span className="font-medium">{live.name}</span>{" "}
+                  <span className="text-muted-foreground">
+                    is answering new conversations.
+                  </span>
+                </p>
+              ) : (
+                <p className="min-w-0 truncate text-muted-foreground">
+                  None of your workflows is answering yet. Your assistant
+                  handles every chat on its own until you publish one.
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-2 border-b border-[var(--console-hairline-soft)] px-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
               <div
                 aria-label="Filter workflows"
                 className="report-filters"
@@ -313,32 +298,40 @@ export const WorkflowsListView = () => {
               </div>
               <ConsoleSearch
                 aria-label="Search workflows"
-                className="mb-3 w-full sm:w-72"
+                className="mb-2 w-full sm:my-1.5 sm:w-64"
                 onChange={setSearch}
-                placeholder="Search by name or description"
+                placeholder="Search workflows"
                 value={search}
               />
             </div>
 
+            <div className="hidden grid-cols-[2rem_minmax(0,1.6fr)_minmax(0,1fr)_9rem_6.5rem] items-center gap-x-4 border-b border-[var(--console-hairline-soft)] px-4 py-2 sm:px-5 lg:grid">
+              <span />
+              <span className="console-label">Name</span>
+              <span className="console-label">Status</span>
+              <span className="console-label">Last edited</span>
+              <span />
+            </div>
+
             {visible.length ? (
-              <ul className="pb-6">
+              <ul>
                 {visible.map((workflow) => {
                   const status = statusOf(workflow)
 
                   return (
                     <li
-                      className="workflows-row grid grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-2 py-4 lg:grid-cols-[2.5rem_minmax(0,1.6fr)_minmax(0,1fr)_9rem_auto]"
+                      className="workflows-row grid grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-4 py-2.5 sm:px-5 lg:grid-cols-[2rem_minmax(0,1.6fr)_minmax(0,1fr)_9rem_6.5rem]"
                       key={workflow.id}
                     >
-                      <span className="workflows-medallion size-10" aria-hidden>
-                        <WorkflowIcon className="size-[18px]" />
+                      <span className="workflows-medallion size-8" aria-hidden>
+                        <WorkflowIcon className="size-4" />
                       </span>
 
                       <Link
                         className="workflows-row-link min-w-0"
                         href={`/workflows/${workflow.id}`}
                       >
-                        <span className="block truncate text-[0.95rem] font-medium text-foreground">
+                        <span className="block truncate text-[0.8125rem] font-medium text-foreground">
                           {workflow.name}
                         </span>
                         <span className="mt-0.5 block truncate text-xs text-muted-foreground">
@@ -363,14 +356,13 @@ export const WorkflowsListView = () => {
                       </p>
 
                       <p className="hidden text-xs text-muted-foreground lg:block">
-                        Edited{" "}
                         {formatDistanceToNow(workflow.updatedAt, {
                           addSuffix: true,
                         })}
                       </p>
 
                       <div className="col-start-3 row-start-1 flex items-center justify-end gap-1 lg:col-start-auto lg:row-start-auto">
-                        <Button asChild size="sm" variant="outline">
+                        <Button asChild size="sm" variant="ghost">
                           <Link href={`/workflows/${workflow.id}`}>
                             <span className="hidden sm:inline">Open</span>
                             <span className="sr-only sm:hidden">
@@ -434,7 +426,7 @@ export const WorkflowsListView = () => {
                 })}
               </ul>
             ) : (
-              <ReportQuiet>
+              <ReportQuiet className="m-4 sm:m-5">
                 {query
                   ? `No workflow matches “${search.trim()}”.`
                   : filter === "live"
@@ -454,8 +446,8 @@ export const WorkflowsListView = () => {
                 </button>
               </ReportQuiet>
             )}
-          </>
-        ) : null}
+          </section>
+        )}
       </div>
 
       <Dialog

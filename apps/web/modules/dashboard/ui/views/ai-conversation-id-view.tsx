@@ -200,8 +200,8 @@ export const AIConversationIdView = ({
   )
 
   return (
-    <div className="console-page flex h-full min-h-0 flex-1 flex-col gap-3 overflow-hidden p-3">
-      <header className="console-card shrink-0 px-3.5 py-3.5 sm:px-4.5 sm:py-4">
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background">
+      <header className="shrink-0 border-b border-[var(--console-hairline-soft)] px-4 py-3.5 sm:px-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex min-w-0 items-start gap-3">
             {isMobile ? (
@@ -212,7 +212,7 @@ export const AIConversationIdView = ({
                 variant="ghost"
               >
                 <ArrowLeftIcon className="size-4" />
-                <span className="sr-only">Back to AI voicechats</span>
+                <span className="sr-only">Back to voice calls</span>
               </Button>
             ) : null}
 
@@ -223,7 +223,7 @@ export const AIConversationIdView = ({
             />
 
             <div className="min-w-0">
-              <p className="console-eyebrow">AI voicechat</p>
+              <p className="console-eyebrow">Voice call</p>
               <h1 className="mt-1.5 truncate text-[1.05rem] font-semibold tracking-[-0.02em] text-foreground sm:text-[1.15rem]">
                 {getVisitorLabel(conversation)}
               </h1>
@@ -296,7 +296,7 @@ export const AIConversationIdView = ({
         </div>
       </header>
 
-      <section className="console-card flex min-h-0 flex-1 flex-col overflow-hidden">
+      <section className="flex min-h-0 flex-1 flex-col overflow-hidden bg-[color-mix(in_srgb,var(--muted)_28%,var(--background))]">
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[var(--console-hairline-soft)] px-4 py-3 lg:px-5">
           <div>
             <h2 className="console-section-title">Transcript</h2>
@@ -393,8 +393,8 @@ export const AIConversationIdView = ({
 
 const AIConversationIdSkeleton = () => {
   return (
-    <div className="console-page flex h-full min-h-0 flex-1 flex-col gap-3 overflow-hidden p-3">
-      <div className="console-card px-3.5 py-3.5 sm:px-4.5 sm:py-4">
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background">
+      <div className="border-b border-[var(--console-hairline-soft)] px-4 py-3.5 sm:px-5">
         <div className="flex items-start gap-3">
           <Skeleton className="size-10 shrink-0 rounded-full sm:size-11 lg:size-11" />
           <div className="min-w-0 flex-1 space-y-3">
@@ -418,7 +418,7 @@ const AIConversationIdSkeleton = () => {
         </div>
       </div>
 
-      <div className="console-card flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <div className="border-b border-[var(--console-hairline-soft)] px-4 py-3 lg:px-5">
           <Skeleton className="h-4 w-24" />
           <Skeleton className="mt-1.5 h-3 w-16" />

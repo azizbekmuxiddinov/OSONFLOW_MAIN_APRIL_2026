@@ -136,9 +136,15 @@ export type DashboardMapGroup = {
 
 export const DASHBOARD_MAP: DashboardMapGroup[] = [
   {
-    label: "Every day",
+    label: "Talk to customers",
     hint: "The pages you will actually live in once you are set up.",
     entries: [
+      {
+        title: "Home",
+        href: "/home",
+        description:
+          "Your day at a glance: what is waiting for you, and how the assistant did this week.",
+      },
       {
         title: "Conversations",
         href: "/conversations",
@@ -146,22 +152,28 @@ export const DASHBOARD_MAP: DashboardMapGroup[] = [
           "Every chat with a customer. Read them, reply yourself, and mark them done.",
       },
       {
-        title: "Leads",
-        href: "/leads",
-        description:
-          "People who left a name, email or phone number. Your follow-up list.",
-      },
-      {
-        title: "AI voicechats",
+        title: "Voice calls",
         href: "/ai-conversations",
         description:
           "Transcripts of spoken conversations, if you turn on voice.",
       },
       {
-        title: "AI performance",
-        href: "/analytics",
+        title: "Follow-ups",
+        href: "/follow-ups",
         description:
-          "How often the assistant finished the job on its own, and the questions it could not answer. Check it weekly.",
+          "Messages sent later to people who asked for something, so nobody is forgotten.",
+      },
+    ],
+  },
+  {
+    label: "Customers",
+    hint: "Who has been in touch, and what the assistant remembers about them.",
+    entries: [
+      {
+        title: "Leads",
+        href: "/leads",
+        description:
+          "People who left a name, email or phone number. Your follow-up list.",
       },
       {
         title: "Customer memory",
@@ -172,8 +184,8 @@ export const DASHBOARD_MAP: DashboardMapGroup[] = [
     ],
   },
   {
-    label: "Set up once",
-    hint: "You will visit these while getting started, then rarely again.",
+    label: "Teach your assistant",
+    hint: "What it knows and what it is allowed to do.",
     entries: [
       {
         title: "Set up with AI",
@@ -182,22 +194,40 @@ export const DASHBOARD_MAP: DashboardMapGroup[] = [
           "Give it your website address, answer a few questions, and it writes your knowledge base, instructions and chat window for you to review.",
       },
       {
-        title: "Knowledge base",
+        title: "Knowledge",
         href: "/files",
         description:
           "The documents and web pages the assistant is allowed to answer from. The single most important page here.",
       },
       {
-        title: "Widget customization",
-        href: "/customization",
+        title: "Answers",
+        href: "/teach",
         description:
-          "How the chat window looks and what it says, from colours to the greeting.",
+          "Questions it could not answer, with suggested replies for you to approve or correct.",
       },
       {
-        title: "Assistant tools",
+        title: "Tools",
         href: "/assistant-tools",
         description:
           "Things the assistant can do beyond talking — look something up, write a row into a spreadsheet, book a call.",
+      },
+      {
+        title: "Workflows",
+        href: "/workflows",
+        description:
+          "For questions you want answered the exact same way every time — a refund request, a booking — you can draw the steps instead of trusting the assistant to improvise.",
+      },
+    ],
+  },
+  {
+    label: "Put it on your website",
+    hint: "You will visit these while getting started, then rarely again.",
+    entries: [
+      {
+        title: "Widget",
+        href: "/customization",
+        description:
+          "How the chat window looks and what it says, from colours to the greeting.",
       },
       {
         title: "Integrations",
@@ -206,15 +236,27 @@ export const DASHBOARD_MAP: DashboardMapGroup[] = [
           "The code for your website, plus Telegram, Instagram and WhatsApp.",
       },
       {
-        title: "Workflows",
-        href: "/workflows",
+        title: "Telegram alerts",
+        href: "/team-alerts",
         description:
-          "For questions you want answered the exact same way every time — a refund request, a booking — you can draw the steps instead of trusting the assistant to improvise.",
+          "A message to your team's Telegram when a customer needs a person.",
+      },
+    ],
+  },
+  {
+    label: "See results",
+    hint: "Check it weekly.",
+    entries: [
+      {
+        title: "Analytics",
+        href: "/analytics",
+        description:
+          "How often the assistant finished the job on its own, and the questions it could not answer.",
       },
       {
-        title: "Plans & Billing",
+        title: "Plans & billing",
         href: "/billing",
-        description: "Your plan, usage and invoices.",
+        description: "Your plan, usage and invoices. Found under Settings.",
       },
     ],
   },

@@ -11,10 +11,23 @@ import {
 import { WidgetHeader } from "@/modules/widget/ui/components/widget-header"
 import { Button } from "@workspace/ui/components/button"
 import { useAtomValue, useSetAtom } from "jotai"
-import { ArrowLeftIcon, CheckCircle2Icon, ImagePlusIcon } from "lucide-react"
 import {
+  ArrowLeftIcon,
+  BookOpenIcon,
+  CheckCircle2Icon,
+  HistoryIcon,
+  ImagePlusIcon,
+  PhoneIcon,
+  UserRoundIcon,
+  XIcon,
+} from "lucide-react"
+import {
+  activeVoiceProviderAtom,
   agentIdAtom,
   chatReturnScreenAtom,
+  hasAnyVoiceAtom,
+  hasOpenAIRealtimeVoiceAtom,
+  homeScreenAtom,
   workflowOnlyAtom,
   contactSessionIdAtomFamily,
   conversationIdAtom,
@@ -82,6 +95,8 @@ import {
 import { cn } from "@workspace/ui/lib/utils"
 import { WidgetEmailCapture } from "../components/widget-email-capture"
 import { getWidgetMetadata } from "../../lib/widget-metadata"
+import { useHelpTopics } from "../../hooks/use-help-articles"
+import { useEnsureVoiceContactSession } from "../../hooks/use-ensure-voice-contact-session"
 
 // The composer can also be sent with images and no text, so emptiness is
 // checked at submit time against the attachment tray rather than by the schema.
@@ -313,6 +328,7 @@ export const WidgetChatScreen = () => {
   const setConversationId = useSetAtom(conversationIdAtom)
   const setPendingInitialMessage = useSetAtom(pendingInitialMessageAtom)
   const chatReturnScreen = useAtomValue(chatReturnScreenAtom)
+  const setChatReturnScreen = useSetAtom(chatReturnScreenAtom)
   const workflowOnly = useAtomValue(workflowOnlyAtom)
   const conversationId = useAtomValue(conversationIdAtom)
   const pendingInitialMessage = useAtomValue(pendingInitialMessageAtom)
@@ -360,6 +376,46 @@ export const WidgetChatScreen = () => {
   const onBack = () => {
     setConversationId(null)
     setScreen(chatReturnScreen)
+  }
+
+  // On an ask-first widget the chat is home, so there is nothing behind it
+  // unless the visitor came here from their history or the help centre.
+  const homeScreen = useAtomValue(homeScreenAtom)
+  const showBackButton =
+    !workflowOnly &&
+    (homeScreen === "selection" || chatReturnScreen !== "selection")
+  const helpTopics = useHelpTopics()
+  const canOpenHelp = !workflowOnly && helpTopics.length > 0
+  const hasAnyVoice = useAtomValue(hasAnyVoiceAtom)
+  const hasOpenAIRealtimeVoice = useAtomValue(hasOpenAIRealtimeVoiceAtom)
+  const setActiveVoiceProvider = useSetAtom(activeVoiceProviderAtom)
+  const { ensureSession } = useEnsureVoiceContactSession()
+  const canStartCall = hasAnyVoice && !workflowOnly
+  const requestHuman = useMutation(api.public.conversations.requestHuman)
+  const [isRequestingHuman, setIsRequestingHuman] = useState(false)
+
+  const closeWidget = () => {
+    window.parent?.postMessage({ type: "close" }, "*")
+  }
+
+  const openHistory = () => {
+    setChatReturnScreen("selection")
+    setScreen("inbox")
+  }
+
+  const openHelp = () => {
+    setScreen("help")
+  }
+
+  const startCall = () => {
+    void ensureSession().then((sessionId) => {
+      if (!sessionId) {
+        return
+      }
+
+      setActiveVoiceProvider(hasOpenAIRealtimeVoice ? "openai" : "gemini")
+      setScreen("voice")
+    })
   }
 
   const suggestions = useMemo(() => {
@@ -1337,11 +1393,46 @@ export const WidgetChatScreen = () => {
     markConversationAsRead,
   ])
 
+  // A way to a person stays in reach once the assistant has had its turn.
+  // Before the first message there is no conversation to hand over, and a
+  // workflow decides for itself when a person takes over.
+  const showHandoff =
+    !workflowOnly &&
+    !isDraft &&
+    conversation?.status === "unresolved" &&
+    userMessageCount > 0 &&
+    !isAwaitingResponse &&
+    !isInputLockedForEmail &&
+    !showOptimisticUserMessage &&
+    choiceRowButtons.length === 0
+
+  const onRequestHuman = async () => {
+    if (!conversationId || !contactSessionId || isRequestingHuman) {
+      return
+    }
+
+    setIsRequestingHuman(true)
+    try {
+      await requestHuman({ conversationId, contactSessionId })
+    } finally {
+      setIsRequestingHuman(false)
+    }
+  }
+
+  // The first screen of an ask-first widget: who the visitor is talking to,
+  // then the greeting and a few ways to start.
+  const showIntro =
+    isDraft &&
+    !workflowOnly &&
+    visibleMessages.length === 1 &&
+    visibleHeldMessages.length === 0 &&
+    !showOptimisticUserMessage
+
   return (
     <>
       <WidgetHeader className="owc-header relative z-10 flex shrink-0 items-center justify-between gap-2 px-3 py-3">
         <div className="flex min-w-0 items-center gap-2">
-          {workflowOnly ? null : (
+          {showBackButton ? (
             <Button
               className="owc-header-action size-8 shrink-0"
               onClick={onBack}
@@ -1351,7 +1442,7 @@ export const WidgetChatScreen = () => {
               <ArrowLeftIcon className="size-4" />
               <span className="sr-only">Back</span>
             </Button>
-          )}
+          ) : null}
 
           <span aria-hidden className="owc-header-avatar shrink-0">
             {theme.logoUrl ? (
@@ -1375,21 +1466,56 @@ export const WidgetChatScreen = () => {
           </div>
         </div>
 
-        {canDownloadChatHistory ? (
+        <div className="flex shrink-0 items-center">
+          {workflowOnly ? null : (
+            <Button
+              aria-label="Past conversations"
+              className="owc-header-action size-8"
+              onClick={openHistory}
+              size="icon"
+              title="Past conversations"
+              variant="transparent"
+            >
+              <HistoryIcon className="size-4" />
+            </Button>
+          )}
+          {canOpenHelp ? (
+            <Button
+              aria-label="Help articles"
+              className="owc-header-action size-8"
+              onClick={openHelp}
+              size="icon"
+              title="Help articles"
+              variant="transparent"
+            >
+              <BookOpenIcon className="size-4" />
+            </Button>
+          ) : null}
+          {canDownloadChatHistory ? (
+            <Button
+              aria-label="Download chat history"
+              className="owc-header-action size-8"
+              disabled={
+                !chatHistoryExport || chatHistoryExport.messages.length === 0
+              }
+              onClick={onDownloadChatHistory}
+              size="icon"
+              title="Download chat history"
+              variant="transparent"
+            >
+              <DownloadToLineIcon className="size-4" />
+            </Button>
+          ) : null}
           <Button
-            aria-label="Download chat history"
-            className="owc-header-action size-8 shrink-0"
-            disabled={
-              !chatHistoryExport || chatHistoryExport.messages.length === 0
-            }
-            onClick={onDownloadChatHistory}
+            aria-label="Close widget"
+            className="owc-header-action size-8"
+            onClick={closeWidget}
             size="icon"
-            title="Download chat history"
             variant="transparent"
           >
-            <DownloadToLineIcon className="size-4" />
+            <XIcon className="size-4" />
           </Button>
-        ) : null}
+        </div>
       </WidgetHeader>
       <AIConversation
         className="owc-thread"
@@ -1412,13 +1538,37 @@ export const WidgetChatScreen = () => {
         }}
       >
         <AIConversationContent className="owc-thread-content">
-          <InfiniteScrollTrigger
-            ref={topElementRef}
-            onLoadMore={handleLoadMore}
-            canLoadMore={canLoadMore}
-            isLoadingMore={isLoadingMore}
-            noMoreText="Beginning of chat"
-          />
+          {/* A brand-new chat has nothing above it to load. */}
+          {showIntro ? null : (
+            <InfiniteScrollTrigger
+              ref={topElementRef}
+              onLoadMore={handleLoadMore}
+              canLoadMore={canLoadMore}
+              isLoadingMore={isLoadingMore}
+              noMoreText="Beginning of chat"
+            />
+          )}
+          {showIntro ? (
+            <div className="owc-intro">
+              <span aria-hidden className="owc-intro-avatar">
+                {theme.logoUrl ? (
+                  <img
+                    alt=""
+                    className="owc-protected-image"
+                    draggable={false}
+                    src={theme.logoUrl}
+                  />
+                ) : (
+                  assistantInitials
+                )}
+              </span>
+              <p className="owc-intro-name">{theme.assistantName}</p>
+              <p className="owc-intro-status">
+                <span aria-hidden className="owc-intro-status-dot" />
+                {copy.onlineLabel}
+              </p>
+            </div>
+          ) : null}
           {visibleMessages.map((message) => {
             const messageAttachments = attachmentsByMessageId.get(message.id)
             const messageText = getUiMessageText(message)
@@ -1581,6 +1731,18 @@ export const WidgetChatScreen = () => {
             )
           })}
         </AISuggestions>
+      ) : showHandoff ? (
+        <AISuggestions className="owc-suggestions">
+          <AISuggestion
+            className="owc-suggestion owc-handoff"
+            disabled={isRequestingHuman}
+            onClick={() => void onRequestHuman()}
+            suggestion={copy.talkToHumanLabel}
+          >
+            <UserRoundIcon className="size-3.5" />
+            {copy.talkToHumanLabel}
+          </AISuggestion>
+        </AISuggestions>
       ) : null}
 
       <Form {...form}>
@@ -1704,6 +1866,19 @@ export const WidgetChatScreen = () => {
                 />
               )}
             />
+            {canStartCall ? (
+              <Button
+                aria-label="Start a voice call"
+                className="owc-composer-attach"
+                onClick={startCall}
+                size="icon"
+                title="Start a voice call"
+                type="button"
+                variant="transparent"
+              >
+                <PhoneIcon className="size-4" />
+              </Button>
+            ) : null}
             <AIInputSubmit
               aria-label="Send message"
               className="owc-composer-send"

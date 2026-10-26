@@ -20,7 +20,7 @@ export default function SsoCallbackPage() {
       </div>
 
       <AuthenticateWithRedirectCallback
-        signInFallbackRedirectUrl={appPath("/analytics")}
+        signInFallbackRedirectUrl={appPath("/home")}
         signUpFallbackRedirectUrl={appPath("/org-selection")}
       />
       <div id="clerk-captcha" />

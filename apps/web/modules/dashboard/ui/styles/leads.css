@@ -73,7 +73,7 @@
 /* ── list ──────────────────────────────────────────────────────────────── */
 
 .leads-row {
-  border-bottom: 1px solid var(--report-rule);
+  border-bottom: 1px solid var(--console-hairline-soft);
   transition: background-color 160ms var(--motion-snappy);
 }
 
@@ -185,4 +185,8 @@
   to {
     transform: scaleY(1);
   }
+}
+
+.leads-row:last-child {
+  border-bottom: 0;
 }

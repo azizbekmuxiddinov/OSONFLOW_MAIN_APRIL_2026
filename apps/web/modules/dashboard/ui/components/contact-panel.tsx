@@ -22,6 +22,7 @@ import {
   ClockIcon,
   GlobeIcon,
   MailIcon,
+  MessagesSquareIcon,
   MonitorIcon,
   RefreshCwIcon,
   SendIcon,
@@ -43,6 +44,12 @@ type InfoSection = {
   items: InfoItem[]
 }
 
+const STATUS_LABELS = {
+  unresolved: "Open",
+  escalated: "Waiting for a person",
+  resolved: "Closed",
+} as const
+
 export const ContactPanel = () => {
   const params = useParams()
   const conversationId = params.conversationId as Id<"conversations"> | null
@@ -59,6 +66,10 @@ export const ContactPanel = () => {
     profilePicUrl?: string
     followerCount?: number
   }>
+  const conversation = useQuery(
+    api.private.conversations.getOne,
+    conversationId ? { conversationId } : "skip"
+  )
   const customerMemory = useQuery(
     api.private.customerMemories.getByEmail,
     contactSession?.email ? { email: contactSession.email } : "skip"
@@ -292,152 +303,214 @@ export const ContactPanel = () => {
     return null
   }
 
+  const conversationSection: InfoSection | null = conversation
+    ? {
+        id: "conversation",
+        icon: MessagesSquareIcon,
+        title: "Conversation",
+        items: [
+          {
+            label: "Status",
+            value: (
+              <span className="inline-flex items-center gap-1.5">
+                <span
+                  aria-hidden
+                  className={cn(
+                    "size-1.5 rounded-full",
+                    conversation.status === "resolved"
+                      ? "bg-[var(--console-positive)]"
+                      : conversation.status === "escalated"
+                        ? "bg-[var(--console-warning)]"
+                        : "bg-[var(--accent-blue)]"
+                  )}
+                />
+                {STATUS_LABELS[conversation.status]}
+              </span>
+            ),
+          },
+          {
+            label: "Assignee",
+            value: conversation.assignedToName ?? "Unassigned",
+          },
+          {
+            label: "Priority",
+            value: conversation.priority
+              ? conversation.priority[0]!.toUpperCase() +
+                conversation.priority.slice(1)
+              : "None",
+          },
+          {
+            label: "Started",
+            value: new Date(conversation._creationTime).toLocaleString(),
+          },
+        ],
+      }
+    : null
+  const sections = [
+    ...(conversationSection ? [conversationSection] : []),
+    ...accordionSections,
+  ]
+
   return (
-    <div className="surface-panel flex h-full w-full min-w-0 flex-col overflow-x-hidden overflow-y-auto rounded-[30px] bg-background/90 text-foreground">
-      {/* Profile card */}
-      <div className="border-b border-border/70 px-4 pt-4 pb-4">
-        <div className="flex items-start gap-3">
-          <DicebearAvatar
-            badgeImageUrl={
-              countryInfo?.code
-                ? getCountryFlagUrl(countryInfo.code)
-                : undefined
-            }
-            imageUrl={instagramProfilePic}
-            seed={contactSession._id}
-            size={44}
-            className="shrink-0"
-          />
-          <div className="min-w-0 flex-1 pt-0.5">
-            <h4 className="truncate text-[14px] leading-snug font-semibold text-foreground">
-              {contactSession.name}
-            </h4>
-            <p className="mt-0.5 truncate text-[12px] text-muted-foreground">
-              {secondaryIdentity}
-            </p>
-            {isInstagramSession && instagramFullName && instagramUsername && (
-              <p className="mt-1 text-[11px] text-muted-foreground/70">
-                Instagram
+    <div className="flex h-full w-full min-w-0 flex-col overflow-x-hidden bg-background text-foreground">
+      {/* Intercom's details header: one tab, level with the thread header. */}
+      <div className="flex h-14 shrink-0 items-end gap-5 border-b border-[var(--console-hairline-soft)] px-4">
+        <span className="relative pb-3.5 text-[13px] font-medium text-foreground after:absolute after:inset-x-0 after:bottom-[-1px] after:h-0.5 after:rounded-full after:bg-[var(--accent-blue)]">
+          Details
+        </span>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {/* Profile */}
+        <div className="border-b border-[var(--console-hairline-soft)] px-4 py-4">
+          <div className="flex items-center gap-3">
+            <DicebearAvatar
+              badgeImageUrl={
+                countryInfo?.code
+                  ? getCountryFlagUrl(countryInfo.code)
+                  : undefined
+              }
+              className="shrink-0"
+              imageUrl={instagramProfilePic}
+              seed={contactSession._id}
+              size={40}
+            />
+            <div className="min-w-0 flex-1">
+              <h4 className="truncate text-sm leading-snug font-semibold text-foreground">
+                {contactSession.name}
+              </h4>
+              <p className="truncate text-xs text-muted-foreground">
+                {secondaryIdentity}
               </p>
-            )}
-            {countryInfo?.name && (
-              <p className="mt-1 text-[11px] text-muted-foreground/70">
-                {countryInfo.name}
-              </p>
-            )}
+              {countryInfo?.name || (isInstagramSession && instagramFullName) ? (
+                <p className="mt-0.5 truncate text-[11px] text-muted-foreground/80">
+                  {[
+                    isInstagramSession && instagramFullName && instagramUsername
+                      ? "Instagram"
+                      : null,
+                    countryInfo?.name,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {isTelegramSession && telegramUsername ? (
+              <Button asChild size="sm" variant="secondary">
+                <a
+                  href={`https://t.me/${telegramUsername}`}
+                  rel="noopener noreferrer"
+                  target="_blank"
+                >
+                  <SendIcon className="size-3.5" />
+                  Open in Telegram
+                </a>
+              </Button>
+            ) : null}
+            {!isInstagramSession && !isTelegramSession ? (
+              <Button asChild size="sm" variant="secondary">
+                <Link href={`mailto:${contactSession.email}`}>
+                  <MailIcon className="size-3.5" />
+                  Send email
+                </Link>
+              </Button>
+            ) : null}
+            {isInstagramSession ? (
+              <Button
+                disabled={isRefreshingInstagramProfile}
+                onClick={handleRefreshInstagramProfile}
+                size="sm"
+                type="button"
+                variant="secondary"
+              >
+                <RefreshCwIcon
+                  className={cn(
+                    "size-3.5",
+                    isRefreshingInstagramProfile && "animate-spin"
+                  )}
+                />
+                Refresh profile
+              </Button>
+            ) : null}
           </div>
         </div>
 
-        {isTelegramSession && telegramUsername && (
-          <Button asChild className="mt-3 w-full" size="sm" variant="outline">
-            <a
-              href={`https://t.me/${telegramUsername}`}
-              rel="noopener noreferrer"
-              target="_blank"
-            >
-              <SendIcon className="size-3.5" />
-              <span>Open in Telegram</span>
-            </a>
-          </Button>
-        )}
-        {!isInstagramSession && !isTelegramSession && (
-          <Button asChild className="mt-3 w-full" size="sm" variant="outline">
-            <Link href={`mailto:${contactSession.email}`}>
-              <MailIcon className="size-3.5" />
-              <span>Send Email</span>
-            </Link>
-          </Button>
-        )}
-        {isInstagramSession && (
-          <Button
-            className="mt-3 w-full"
-            disabled={isRefreshingInstagramProfile}
-            onClick={handleRefreshInstagramProfile}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            <RefreshCwIcon
-              className={cn(
-                "size-3.5",
-                isRefreshingInstagramProfile && "animate-spin"
-              )}
-            />
-            <span>Refresh Instagram Profile</span>
-          </Button>
-        )}
-      </div>
-
-      {/* Info sections */}
-      {contactSession.metadata && (
+        {/* Sections, all open, Intercom-style */}
         <Accordion
           className="w-full"
-          collapsible
-          defaultValue="device-info"
-          type="single"
+          defaultValue={[...sections.map((section) => section.id), "memory"]}
+          type="multiple"
         >
-          {accordionSections.map((section) => (
+          {sections.map((section) => (
             <AccordionItem
+              className="border-b border-[var(--console-hairline-soft)]"
               key={section.id}
               value={section.id}
-              className="border-b border-border/70 last:border-b-0"
             >
-              <AccordionTrigger className="flex w-full items-center gap-3 px-4 py-3 text-left text-[12px] font-medium text-foreground transition-colors hover:bg-muted/30 hover:no-underline">
-                <div className="flex items-center gap-2">
-                  <section.icon className="size-3.5 shrink-0 text-muted-foreground" />
-                  <span>{section.title}</span>
-                </div>
+              <AccordionTrigger className="px-4 py-3 text-[11px] font-semibold tracking-[0.06em] text-muted-foreground uppercase hover:bg-muted/30 hover:no-underline">
+                {section.title}
               </AccordionTrigger>
-              <AccordionContent className="px-4 pt-0 pb-3">
-                <div className="space-y-2">
+              <AccordionContent className="px-4 pt-0 pb-3.5">
+                <dl className="grid grid-cols-[92px_minmax(0,1fr)] gap-x-3 gap-y-2 text-xs">
                   {section.items.map((item) => (
-                    <div
-                      className="flex items-start justify-between gap-4"
-                      key={`${section.id}-${item.label}`}
-                    >
-                      <span className="shrink-0 text-[11px] text-muted-foreground">
-                        {item.label}
-                      </span>
-                      <span
-                        className={`text-right text-[11px] font-medium text-foreground ${item.className ?? ""}`}
+                    <div className="contents" key={`${section.id}-${item.label}`}>
+                      <dt className="text-muted-foreground">{item.label}</dt>
+                      <dd
+                        className={cn(
+                          "min-w-0 truncate text-foreground",
+                          item.className
+                        )}
                       >
                         {item.value}
-                      </span>
+                      </dd>
                     </div>
                   ))}
-                </div>
+                </dl>
               </AccordionContent>
             </AccordionItem>
           ))}
-        </Accordion>
-      )}
 
-      {customerMemory && (
-        <div className="border-t border-border/70 px-4 py-4">
-          <div className="flex items-center gap-2 text-[12px] font-medium text-foreground">
-            <BrainIcon className="size-3.5 text-muted-foreground" />
-            <span>Customer memory</span>
-          </div>
-          <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
-            {customerMemory.summary}
-          </p>
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {customerMemory.recentIntents.slice(0, 3).map((intent) => (
-              <Badge key={intent} variant="secondary" className="text-[10px]">
-                {intent.replaceAll("_", " ")}
-              </Badge>
-            ))}
-          </div>
-        </div>
-      )}
+          {customerMemory ? (
+            <AccordionItem className="border-b-0" value="memory">
+              <AccordionTrigger className="px-4 py-3 text-[11px] font-semibold tracking-[0.06em] text-muted-foreground uppercase hover:bg-muted/30 hover:no-underline">
+                <span className="flex items-center gap-1.5">
+                  <BrainIcon className="size-3.5" />
+                  Customer memory
+                </span>
+              </AccordionTrigger>
+              <AccordionContent className="px-4 pt-0 pb-4">
+                <p className="text-xs leading-relaxed text-foreground/85">
+                  {customerMemory.summary}
+                </p>
+                {customerMemory.recentIntents.length ? (
+                  <div className="mt-2.5 flex flex-wrap gap-1.5">
+                    {customerMemory.recentIntents.slice(0, 3).map((intent) => (
+                      <Badge
+                        className="text-[10px]"
+                        key={intent}
+                        variant="secondary"
+                      >
+                        {intent.replaceAll("_", " ")}
+                      </Badge>
+                    ))}
+                  </div>
+                ) : null}
+              </AccordionContent>
+            </AccordionItem>
+          ) : null}
+        </Accordion>
+      </div>
     </div>
   )
 }
 
 const ContactPanelSkeleton = () => {
   return (
-    <div className="surface-panel flex h-full w-full min-w-0 flex-col overflow-x-hidden overflow-y-auto rounded-[30px] bg-background/90 text-foreground">
-      <div className="border-b border-border/70 px-4 pt-4 pb-4">
+    <div className="flex h-full w-full min-w-0 flex-col overflow-x-hidden overflow-y-auto bg-background text-foreground">
+      <div className="border-b border-[var(--console-hairline-soft)] px-4 pt-4 pb-4">
         <div className="flex items-start gap-3">
           <div className="relative size-11 shrink-0">
             <Skeleton className="size-11 rounded-full" />
@@ -454,7 +527,7 @@ const ContactPanelSkeleton = () => {
 
       <div className="w-full">
         {Array.from({ length: 3 }).map((_, index) => (
-          <div className="border-b border-border/70 px-4 py-3" key={index}>
+          <div className="border-b border-[var(--console-hairline-soft)] px-4 py-3" key={index}>
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <Skeleton className="size-3.5 rounded" />
@@ -481,7 +554,7 @@ const ContactPanelSkeleton = () => {
         ))}
       </div>
 
-      <div className="border-t border-border/70 px-4 py-4">
+      <div className="border-t border-[var(--console-hairline-soft)] px-4 py-4">
         <div className="flex items-center gap-2">
           <Skeleton className="size-3.5 rounded" />
           <Skeleton className="h-3 w-28" />

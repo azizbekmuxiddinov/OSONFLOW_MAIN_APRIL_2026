@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react"
 import { api } from "@workspace/backend/_generated/api"
 import { useQuery } from "convex/react"
-import { ExternalLinkIcon, PaletteIcon } from "lucide-react"
+import { ExternalLinkIcon } from "lucide-react"
 
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -53,9 +53,7 @@ export const CustomizationView = () => {
             />
           </>
         }
-        description="Behaviour, copy, brand, launcher and voice for the widget your customers see. Everything is edited as a draft and published as a version you can roll back."
-        eyebrow="Visual system"
-        icon={PaletteIcon}
+        description="How the chat on your website looks, talks and behaves. Changes stay in a draft until you publish, and every published version can be rolled back."
         meta={
           <>
             <ConsoleMeta
@@ -82,7 +80,7 @@ export const CustomizationView = () => {
             />
           </>
         }
-        title="Widget customization"
+        title="Widget"
       />
 
       <CustomizationForm

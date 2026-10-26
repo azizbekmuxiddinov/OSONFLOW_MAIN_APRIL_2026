@@ -54,6 +54,7 @@ export const WidgetLoadingScreen = ({
   const setChatReturnScreen = useSetAtom(chatReturnScreenAtom)
   const { startConversation } = useStartWidgetConversation()
   const startingWorkflowRef = useRef(false)
+  const startingChatRef = useRef(false)
 
   const validateOrganization = useAction(api.public.organizations.validate)
   const setScreen = useSetAtom(screenAtom)
@@ -263,7 +264,40 @@ export const WidgetLoadingScreen = ({
       }
 
       setWorkflowOnly(false)
-      setScreen("selection")
+
+      if (
+        mergeWidgetAppearance(widgetSettings?.appearance).openingScreen ===
+        "home"
+      ) {
+        setScreen("selection")
+        return
+      }
+
+      // Ask first: pick up the visitor's open conversation where they left
+      // it, otherwise open a draft. Nothing is created until they write.
+      if (contactSessionId && recentConversations.isLoading) {
+        return
+      }
+
+      const latest = recentConversations.results[0] as
+        | { _id: string; status: string }
+        | undefined
+
+      if (latest && latest.status !== "resolved") {
+        setChatReturnScreen("selection")
+        setConversationId(latest._id as never)
+        setScreen("chat")
+        return
+      }
+
+      if (!startingChatRef.current) {
+        startingChatRef.current = true
+        void startConversation({
+          returnScreen: "selection",
+          captureDetailsInChat: true,
+        })
+      }
+
       return
     }
 

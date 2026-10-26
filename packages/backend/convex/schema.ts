@@ -179,6 +179,7 @@ const appearanceValidator = v.object({
   showPoweredBy: v.optional(v.boolean()),
   showHelpCenter: v.optional(v.boolean()),
   showChatHistoryDownload: v.optional(v.boolean()),
+  openingScreen: v.optional(v.union(v.literal("chat"), v.literal("home"))),
   launcherPosition: v.optional(
     v.union(v.literal("bottom-right"), v.literal("bottom-left"))
   ),
@@ -208,6 +209,7 @@ const widgetCopyValidator = v.object({
   startChatLabel: v.optional(v.string()),
   inputPlaceholder: v.optional(v.string()),
   onlineLabel: v.optional(v.string()),
+  talkToHumanLabel: v.optional(v.string()),
 })
 
 const widgetSettingsSnapshotValidator = v.object({

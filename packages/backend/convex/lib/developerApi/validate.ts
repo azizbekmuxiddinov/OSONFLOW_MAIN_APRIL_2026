@@ -387,6 +387,7 @@ export const APPEARANCE_SHAPE: Shape = {
   showPoweredBy: "boolean",
   showHelpCenter: "boolean",
   showChatHistoryDownload: "boolean",
+  openingScreen: ["chat", "home"],
   launcherPosition: ["bottom-right", "bottom-left"],
   launcherOffsetX: "number",
   launcherOffsetY: "number",
@@ -409,6 +410,7 @@ export const COPY_SHAPE: Shape = {
   startChatLabel: "string",
   inputPlaceholder: "string",
   onlineLabel: "string",
+  talkToHumanLabel: "string",
 }
 
 export const TOOL_CONFIG_SHAPE: Shape = {

@@ -22,7 +22,6 @@ import { Skeleton } from "@workspace/ui/components/skeleton"
 import {
   ArrowUpIcon,
   BookmarkIcon,
-  BookOpenIcon,
   CircleCheckIcon,
   EyeIcon,
   LibraryIcon,
@@ -30,11 +29,15 @@ import {
   TriangleAlertIcon,
   FileIcon,
   FileTextIcon,
+  FileUpIcon,
   GlobeIcon,
   Loader2Icon,
+  PenLineIcon,
   PlusIcon,
   TrashIcon,
+  WandSparklesIcon,
 } from "lucide-react"
+import Link from "next/link"
 import { UploadDialog } from "../components/upload-dialog"
 import { useMemo, useState } from "react"
 import { DeleteFileDialog } from "../components/delete-file-dialog"
@@ -402,6 +405,91 @@ function SourceRow({
 
 // ─── main view ────────────────────────────────────────────────────────────────
 
+/**
+ * Intercom's "Add content" list: every way to teach the assistant, one row
+ * each, with the row's + opening exactly that flow.
+ */
+const AddContentPanel = ({
+  onUpload,
+}: {
+  onUpload: (mode: "file" | "website") => void
+}) => {
+  const rows: {
+    title: string
+    description: string
+    icon: React.ComponentType<{ className?: string }>
+    action: { onClick: () => void } | { href: string }
+  }[] = [
+    {
+      title: "Upload a document",
+      description: "Price lists, policies, FAQs — PDF, DOCX, TXT or CSV.",
+      icon: FileUpIcon,
+      action: { onClick: () => onUpload("file") },
+    },
+    {
+      title: "Add a web page",
+      description: "A page from your website, read the way a customer sees it.",
+      icon: GlobeIcon,
+      action: { onClick: () => onUpload("website") },
+    },
+    {
+      title: "Let AI read your whole website",
+      description: "Point it at your site and review what it writes.",
+      icon: WandSparklesIcon,
+      action: { href: "/ai-setup" },
+    },
+    {
+      title: "Write answers yourself",
+      description: "Approve or correct replies for questions it missed.",
+      icon: PenLineIcon,
+      action: { href: "/teach" },
+    },
+  ]
+
+  return (
+    <ReportSection flush title="Add content">
+      <ul className="border-t border-[var(--console-hairline-soft)]">
+        {rows.map((row) => {
+          const inner = (
+            <>
+              <row.icon className="size-4 shrink-0 text-muted-foreground" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-[0.8125rem] font-medium text-foreground">
+                  {row.title}
+                </span>
+                <span className="block truncate text-xs text-muted-foreground">
+                  {row.description}
+                </span>
+              </span>
+              <PlusIcon className="size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" />
+            </>
+          )
+          const className =
+            "group flex w-full items-center gap-3 border-b border-[var(--console-hairline-soft)] px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-muted/40 sm:px-5"
+
+          return (
+            <li key={row.title}>
+              {"href" in row.action ? (
+                <Link className={className} href={row.action.href}>
+                  {inner}
+                </Link>
+              ) : (
+                <button
+                  className={className}
+                  onClick={row.action.onClick}
+                  type="button"
+                >
+                  {inner}
+                </button>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+    </ReportSection>
+  )
+}
+
 export const FilesView = () => {
   const getViewerContent = useAction(
     (api as any).private.files.getViewerContent
@@ -436,6 +524,11 @@ export const FilesView = () => {
 
   // ── local ui state ──────────────────────────────────────────────────────
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
+  const [uploadMode, setUploadMode] = useState<"file" | "website">("file")
+  const openUpload = (mode: "file" | "website") => {
+    setUploadMode(mode)
+    setUploadDialogOpen(true)
+  }
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [selectedFile, setSelectedFile] = useState<PublicFile | null>(null)
   const [viewerOpen, setViewerOpen] = useState(false)
@@ -587,6 +680,7 @@ export const FilesView = () => {
         open={deleteDialogOpen}
       />
       <UploadDialog
+        initialMode={uploadMode}
         onOpenChange={setUploadDialogOpen}
         open={uploadDialogOpen}
       />
@@ -659,13 +753,13 @@ export const FilesView = () => {
         <div className="report knowledge flex flex-col gap-4">
           <PageBar
             actions={
-              <Button onClick={() => setUploadDialogOpen(true)} size="sm">
+              <Button onClick={() => openUpload("file")} size="sm">
                 <PlusIcon data-icon="inline-start" />
-                Add source
+                Add content
               </Button>
             }
             hint="Price lists, policies, FAQs and web pages your assistant answers from — in your own words, not guesses."
-            title="Knowledge base"
+            title="Knowledge"
           />
 
           <FigureStrip className="md:grid-cols-3 xl:grid-cols-5">
@@ -710,10 +804,11 @@ export const FilesView = () => {
             <>
 
               <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_28rem]">
+                <div className="flex min-w-0 flex-col gap-4">
                 <ReportSection
                   flush
                   lede="Every document and web page your assistant searches before it replies. Open one to see exactly what it read."
-                  title="Sources"
+                  title="Content"
                 >
                   <div className="flex flex-col gap-3 border-b border-[var(--report-rule)] px-4 pt-1 sm:flex-row sm:items-end sm:justify-between">
                     {categories.length ? (
@@ -819,10 +914,13 @@ export const FilesView = () => {
                   </div>
                 </ReportSection>
 
-                <div className="flex flex-col gap-4">
+                <AddContentPanel onUpload={openUpload} />
+                </div>
+
+                <div className="flex flex-col gap-4 xl:sticky xl:top-0">
                   <ReportSection
                     lede="See the answer your assistant would give, and which sources it used. Nothing is sent to customers."
-                    title="Ask your knowledge base"
+                    title="Test it"
                   >
                     <AskKnowledge
                       disabled={stats.ready === 0}
@@ -900,19 +998,9 @@ export const FilesView = () => {
               </div>
             </>
           ) : (
-            <ReportSection title="Teach your assistant what your business knows">
-              <ReportQuiet icon={BookOpenIcon}>
-                Upload price lists, policies and FAQs, or add pages from your
-                website. Your assistant reads them and answers customers from
-                your own words — not guesses.
-              </ReportQuiet>
-              <div className="mt-4 flex justify-center">
-                <Button onClick={() => setUploadDialogOpen(true)} size="sm">
-                  <PlusIcon data-icon="inline-start" />
-                  Add your first source
-                </Button>
-              </div>
-            </ReportSection>
+            <div className="max-w-3xl">
+              <AddContentPanel onUpload={openUpload} />
+            </div>
           )}
         </div>
       </ConsolePage>

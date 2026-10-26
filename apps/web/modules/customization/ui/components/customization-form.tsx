@@ -1123,6 +1123,9 @@ export const CustomizationForm = ({
         onlineLabel:
           values.widgetCopy.onlineLabel.trim() ||
           DEFAULT_WIDGET_COPY.onlineLabel,
+        talkToHumanLabel:
+          values.widgetCopy.talkToHumanLabel.trim() ||
+          DEFAULT_WIDGET_COPY.talkToHumanLabel,
       }
       const openaiRealtimeSettings = {
         enabled: Boolean(values.openaiRealtimeSettings.enabled),
@@ -1389,50 +1392,18 @@ export const CustomizationForm = ({
         >
           {/* ── section nav ─────────────────────────────────────────────── */}
           <aside className="animate-enter min-w-0 xl:sticky xl:top-4">
-            <div className="console-card overflow-hidden">
-              <div className="border-b border-[var(--console-hairline-soft)] px-3.5 py-3">
-                <p className="console-eyebrow">Widget</p>
-                <p className="console-numeral mt-1.5 text-sm">
-                  v{publishedVersion}{" "}
-                  <span className="ml-1 text-[11px] font-normal text-muted-foreground">
-                    live
-                  </span>
-                </p>
-                <p className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                  <span
-                    aria-hidden
-                    className={cn(
-                      "console-dot",
-                      isDraftDifferentFromPublished
-                        ? "console-tone-warning"
-                        : "console-tone-positive"
-                    )}
-                  />
-                  {isDraftDifferentFromPublished
-                    ? "Draft has unpublished changes"
-                    : "Draft matches live"}
-                </p>
-              </div>
-
+            <div className="report-panel overflow-hidden">
               <TabsList className="flex h-auto w-full flex-row gap-1 overflow-x-auto bg-transparent p-2 xl:flex-col">
                 {SECTIONS.map((section) => (
                   <TabsTrigger
                     className={cn(
-                      "group flex h-auto w-full shrink-0 items-start gap-2.5 rounded-[10px] border border-transparent px-2.5 py-2 text-left",
-                      "data-active:border-[var(--console-hairline-soft)] data-active:bg-muted/60 data-active:shadow-none"
+                      "group flex h-auto w-full shrink-0 items-start gap-2.5 rounded-md border-0 px-2.5 py-2 text-left hover:bg-muted/50",
+                      "data-active:bg-muted data-active:shadow-none"
                     )}
                     key={section.id}
                     value={section.id}
                   >
-                    <span
-                      className={cn(
-                        "mt-px flex size-6 shrink-0 items-center justify-center rounded-[7px] border transition-colors",
-                        "border-[var(--console-hairline-soft)] bg-background text-muted-foreground",
-                        "group-data-active:border-primary/30 group-data-active:bg-primary/10 group-data-active:text-primary"
-                      )}
-                    >
-                      <section.icon className="size-3.5" />
-                    </span>
+                    <section.icon className="mt-0.5 size-4 shrink-0 text-muted-foreground group-data-active:text-foreground" />
                     <span className="hidden min-w-0 flex-1 xl:block">
                       <span className="block truncate text-xs font-medium text-foreground">
                         {section.label}
@@ -1466,12 +1437,10 @@ export const CustomizationForm = ({
 
           {/* ── editor ──────────────────────────────────────────────────── */}
           <main className="animate-enter min-w-0 space-y-4">
-            <section className="console-card overflow-hidden">
-              <div className="flex items-start justify-between gap-3 border-b border-[var(--console-hairline-soft)] px-4 py-4 sm:px-6">
-                <div className="flex min-w-0 items-start gap-3">
-                  <span className="console-medallion size-9 shrink-0">
-                    <activeSection.icon className="size-4" />
-                  </span>
+            <section className="report-panel overflow-hidden">
+              <div className="flex items-start justify-between gap-3 border-b border-[var(--console-hairline-soft)] px-4 py-3.5 sm:px-6">
+                <div className="flex min-w-0 items-start gap-2.5">
+                  <activeSection.icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                   <div className="min-w-0">
                     <h2 className="console-section-title">
                       {activeSection.label}

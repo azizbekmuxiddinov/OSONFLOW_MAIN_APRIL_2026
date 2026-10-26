@@ -7,6 +7,8 @@ import type { FunctionReturnType } from "convex/server"
 import { formatDistanceToNow } from "date-fns"
 import {
   ArrowUpRightIcon,
+  CircleDotIcon,
+  UserRoundIcon,
   AtSignIcon,
   DownloadIcon,
   MailIcon,
@@ -24,6 +26,13 @@ import { Button } from "@workspace/ui/components/button"
 import { useInfiniteScroll } from "@workspace/ui/hooks/use-infinite-scroll"
 import { InfiniteScrollTrigger } from "@workspace/ui/components/infinite-scroll-trigger"
 import { cn } from "@workspace/ui/lib/utils"
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@workspace/ui/components/sheet"
 import {
   formatCsvTimestamp,
   stringifyCsvRows,
@@ -398,7 +407,13 @@ const ContactLinks = ({ lead }: { lead: LeadRecord }) => {
   )
 }
 
-const LeadRow = ({ lead }: { lead: LeadRecord }) => {
+const LeadRow = ({
+  lead,
+  onOpen,
+}: {
+  lead: LeadRecord
+  onOpen: (lead: LeadRecord) => void
+}) => {
   const name = displayName(lead)
   const status = leadStatus(lead)
   const page = pathOf(lead.currentUrl)
@@ -414,13 +429,17 @@ const LeadRow = ({ lead }: { lead: LeadRecord }) => {
   const reachLine = reachCandidate === name ? undefined : reachCandidate
 
   return (
-    <li className="leads-row grid grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-2 py-2.5 lg:grid-cols-[2rem_minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,0.9fr)_10rem]">
-      <span className="leads-avatar size-8 text-[0.65rem]">{initialsOf(name)}</span>
+    <li className="leads-row grid grid-cols-[1.75rem_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-4 py-2.5 sm:px-5 lg:grid-cols-[1.75rem_minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,0.9fr)_10rem]">
+      <span className="leads-avatar size-7 text-[0.6rem]">{initialsOf(name)}</span>
 
-      {/* who */}
-      <div className="min-w-0">
+      {/* who — opens the profile, the way Intercom's people list does */}
+      <button
+        className="min-w-0 rounded-md text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/40"
+        onClick={() => onOpen(lead)}
+        type="button"
+      >
         <p className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-sm font-medium text-foreground">
+          <span className="truncate text-[0.8125rem] font-medium text-foreground">
             {name}
           </span>
           {lead.isNewcomer ? <span className="leads-new shrink-0">New</span> : null}
@@ -433,7 +452,7 @@ const LeadRow = ({ lead }: { lead: LeadRecord }) => {
             <span className="truncate">{reachLine.replace(/^@/, "")}</span>
           </p>
         ) : null}
-      </div>
+      </button>
 
       {/* how they found you — its own column on wide screens */}
       <p className="col-span-2 col-start-2 min-w-0 text-xs leading-relaxed text-muted-foreground lg:col-span-1 lg:col-start-auto">
@@ -491,6 +510,128 @@ const LeadRow = ({ lead }: { lead: LeadRecord }) => {
         ) : null}
       </div>
     </li>
+  )
+}
+
+/** An Attio-style column heading: a small glyph, then the name. */
+const ColumnHead = ({
+  icon: Icon,
+  children,
+}: {
+  icon: React.ComponentType<{ className?: string }>
+  children: React.ReactNode
+}) => (
+  <span className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-muted-foreground">
+    <Icon className="size-3.5 shrink-0" />
+    <span className="truncate">{children}</span>
+  </span>
+)
+
+/* ── profile drawer ─────────────────────────────────────────────────────── */
+
+/**
+ * A person's profile, opened from the list without leaving it — Intercom's
+ * user detail: who they are, how to reach them, where they came from, and what
+ * the assistant remembers.
+ */
+const LeadProfile = ({
+  lead,
+  onClose,
+}: {
+  lead: LeadRecord | null
+  onClose: () => void
+}) => {
+  const memory = useQuery(
+    api.private.customerMemories.getByEmail,
+    lead && isRealEmail(lead.email) ? { email: lead.email } : "skip"
+  )
+
+  if (!lead) {
+    return null
+  }
+
+  const name = displayName(lead)
+  const status = leadStatus(lead)
+  const page = pathOf(lead.currentUrl)
+  const referrer = hostOf(lead.referrer)
+  const rows: { label: string; value: React.ReactNode }[] = [
+    { label: "Channel", value: channelLabel(lead.channel) },
+    ...(isRealEmail(lead.email) ? [{ label: "Email", value: lead.email }] : []),
+    ...(lead.phone ? [{ label: "Phone", value: lead.phone }] : []),
+    ...(lead.socialHandle ? [{ label: "Handle", value: lead.socialHandle }] : []),
+    ...(page ? [{ label: "Page", value: pageName(page) }] : []),
+    ...(referrer && referrer !== hostOf(lead.currentUrl)
+      ? [{ label: "Came from", value: sourceName(referrer) }]
+      : []),
+    ...(lead.language ? [{ label: "Language", value: lead.language }] : []),
+    ...(lead.timezone ? [{ label: "Timezone", value: lead.timezone }] : []),
+    {
+      label: "First seen",
+      value: formatDistanceToNow(lead.firstSeenAt, { addSuffix: true }),
+    },
+    {
+      label: "Last active",
+      value: formatDistanceToNow(lead.lastActiveAt, { addSuffix: true }),
+    },
+    { label: "Conversations", value: lead.conversationCount },
+  ]
+
+  return (
+    <Sheet onOpenChange={(open) => !open && onClose()} open>
+      <SheetContent
+        className="w-[min(92vw,400px)] gap-0 overflow-y-auto p-0 sm:max-w-[400px]"
+        side="right"
+      >
+        <SheetHeader className="border-b border-[var(--console-hairline-soft)] px-5 py-5">
+          <div className="flex items-center gap-3">
+            <span className="leads-avatar size-11 text-sm">{initialsOf(name)}</span>
+            <div className="min-w-0">
+              <SheetTitle className="truncate text-base">{name}</SheetTitle>
+              <SheetDescription className="truncate text-xs">
+                {status ? status.label : "No conversation yet"}
+                {lead.isNewcomer ? " · New this week" : ""}
+              </SheetDescription>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-1">
+            <ContactLinks lead={lead} />
+            {lead.latestConversationId ? (
+              <Button asChild className="ml-1" size="sm">
+                <Link href={`/conversations/${lead.latestConversationId}`}>
+                  Open chat
+                  <ArrowUpRightIcon data-icon="inline-end" />
+                </Link>
+              </Button>
+            ) : null}
+          </div>
+        </SheetHeader>
+
+        <section className="border-b border-[var(--console-hairline-soft)] px-5 py-4">
+          <p className="mb-3 text-[11px] font-semibold tracking-[0.06em] text-muted-foreground uppercase">
+            Details
+          </p>
+          <dl className="grid grid-cols-[104px_minmax(0,1fr)] gap-x-3 gap-y-2.5 text-[13px]">
+            {rows.map((row) => (
+              <div className="contents" key={row.label}>
+                <dt className="text-muted-foreground">{row.label}</dt>
+                <dd className="min-w-0 truncate">{row.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+
+        {memory ? (
+          <section className="px-5 py-4">
+            <p className="mb-2 text-[11px] font-semibold tracking-[0.06em] text-muted-foreground uppercase">
+              What the assistant remembers
+            </p>
+            <p className="text-[13px] leading-relaxed text-foreground/85">
+              {memory.summary}
+            </p>
+          </section>
+        ) : null}
+      </SheetContent>
+    </Sheet>
   )
 }
 
@@ -632,6 +773,7 @@ export const LeadsView = () => {
   const [searchQuery, setSearchQuery] = useState("")
   const [segment, setSegment] = useState<LeadSegment>("all")
   const [isExporting, setIsExporting] = useState(false)
+  const [openLead, setOpenLead] = useState<LeadRecord | null>(null)
 
   const normalizedSearchQuery = searchQuery.trim()
 
@@ -723,6 +865,7 @@ export const LeadsView = () => {
 
   return (
     <ConsolePage width="wide">
+      <LeadProfile lead={openLead} onClose={() => setOpenLead(null)} />
       <div className="report flex flex-col gap-4">
         <PageBar
           actions={exportButton}
@@ -774,10 +917,9 @@ export const LeadsView = () => {
             <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
               <ReportSection
                 flush
-                lede="Filter, search and reach out in one click."
                 title="People"
               >
-                <div className="flex flex-col gap-3 border-b border-[var(--report-rule)] px-4 pt-1 sm:flex-row sm:items-end sm:justify-between">
+                <div className="flex flex-col gap-2 border-b border-[var(--console-hairline-soft)] px-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
                   <div
                     aria-label="Filter leads"
                     className="report-filters"
@@ -796,24 +938,38 @@ export const LeadsView = () => {
                   </div>
                   <ConsoleSearch
                     aria-label="Search leads"
-                    className="mb-2.5 w-full sm:w-64"
+                    className="mb-2 w-full sm:my-1.5 sm:w-64"
                     onChange={setSearchQuery}
                     placeholder="Search names, emails, pages"
                     value={searchQuery}
                   />
                 </div>
 
-                <div className="px-2 pb-2">
+                <div className="hidden items-center gap-x-3 border-b border-[var(--console-hairline-soft)] px-4 py-2 sm:px-5 lg:grid lg:grid-cols-[1.75rem_minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,0.9fr)_10rem]">
+                  <span />
+                  <ColumnHead icon={UserRoundIcon}>Person</ColumnHead>
+                  <ColumnHead icon={RadioTowerIcon}>Found you through</ColumnHead>
+                  <ColumnHead icon={CircleDotIcon}>Where it stands</ColumnHead>
+                  <span className="text-right text-xs font-medium text-muted-foreground">
+                    Reach out
+                  </span>
+                </div>
+
+                <div>
                   {isLoadingFirstPage ? (
                     <SkeletonRows className="border-t-0" count={6} trailing={2} />
                   ) : leads.results.length ? (
                     <ul>
                       {leads.results.map((lead) => (
-                        <LeadRow key={lead.contactSessionId} lead={lead} />
+                        <LeadRow
+                          key={lead.contactSessionId}
+                          lead={lead}
+                          onOpen={setOpenLead}
+                        />
                       ))}
                     </ul>
                   ) : (
-                    <div className="px-2">
+                    <div className="p-4 sm:p-5">
                       <ReportQuiet>
                         {normalizedSearchQuery
                           ? `No one matches “${normalizedSearchQuery}”.`
@@ -847,6 +1003,12 @@ export const LeadsView = () => {
                     ref={topElementRef}
                   />
                 </div>
+                {leads.results.length ? (
+                  <p className="border-t border-[var(--console-hairline-soft)] px-4 py-2 text-xs text-muted-foreground tabular-nums sm:px-5">
+                    {segmentCounts[segment]}{" "}
+                    <span>{segmentCounts[segment] === 1 ? "person" : "people"}</span>
+                  </p>
+                ) : null}
               </ReportSection>
 
               <div className="flex flex-col gap-4">

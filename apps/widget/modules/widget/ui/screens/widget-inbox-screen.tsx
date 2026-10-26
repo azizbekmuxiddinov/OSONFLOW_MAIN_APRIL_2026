@@ -27,6 +27,7 @@ import {
 import { cn } from "@workspace/ui/lib/utils"
 import { richMessagePreview } from "@workspace/ui/components/ai/rich-message"
 import { useStartWidgetConversation } from "../../hooks/use-start-widget-conversation"
+import { useOpenHome } from "../../hooks/use-open-home"
 
 const inboxPreviewMarkdownComponents: NonNullable<
   AIResponseProps["options"]
@@ -92,6 +93,7 @@ const EmptyInboxState = ({
 
 export const WidgetInboxScreen = () => {
   const setScreen = useSetAtom(screenAtom)
+  const { openHome } = useOpenHome()
   const organizationId = useAtomValue(organizationIdAtom)
   const contactSessionId = useAtomValue(
     contactSessionIdAtomFamily(organizationId || "")
@@ -135,7 +137,7 @@ export const WidgetInboxScreen = () => {
             <Button
               variant="transparent"
               size="icon"
-              onClick={() => setScreen("selection")}
+              onClick={() => openHome()}
             >
               <ArrowLeftIcon />
             </Button>

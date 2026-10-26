@@ -15,9 +15,11 @@ import {
 } from "../../atoms/widget-atoms"
 import { WidgetFooter } from "../components/widget-footer"
 import { useHelpTopics } from "../../hooks/use-help-articles"
+import { useOpenHome } from "../../hooks/use-open-home"
 
 export const WidgetHelpScreen = () => {
   const setScreen = useSetAtom(screenAtom)
+  const { openHome } = useOpenHome()
   const setSelectedHelpArticle = useSetAtom(selectedHelpArticleAtom)
   const setSelectedHelpTopic = useSetAtom(selectedHelpTopicAtom)
   const [searchQuery, setSearchQuery] = useAtom(helpSearchQueryAtom)
@@ -26,7 +28,7 @@ export const WidgetHelpScreen = () => {
 
   useEffect(() => {
     if (helpTopics.length === 0) {
-      setScreen("selection")
+      openHome()
       return
     }
 
@@ -35,7 +37,9 @@ export const WidgetHelpScreen = () => {
     })
 
     return () => window.cancelAnimationFrame(frameId)
-  }, [helpTopics.length, setScreen])
+    // Only re-run when the topics change; `openHome` is rebuilt every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [helpTopics.length])
 
   const filteredArticles = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
@@ -86,7 +90,7 @@ export const WidgetHelpScreen = () => {
             <Button
               aria-label="Close help"
               className="size-9 rounded-full text-zinc-500 hover:bg-zinc-100"
-              onClick={() => setScreen("selection")}
+              onClick={() => openHome()}
               size="icon"
               type="button"
               variant="ghost"

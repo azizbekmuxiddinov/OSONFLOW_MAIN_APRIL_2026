@@ -8,6 +8,9 @@ import { supportAgent } from "./ai/agents/supportAgent"
 export const escalate = internalMutation({
   args: {
     threadId: v.string(),
+    // Who asked for a person: the assistant deciding it cannot help, or the
+    // visitor pressing the widget's "Talk to a person" button.
+    source: v.optional(v.union(v.literal("ai"), v.literal("visitor"))),
   },
   handler: async (ctx, args) => {
     const conversation = await ctx.db
@@ -40,7 +43,7 @@ export const escalate = internalMutation({
             threadId: args.threadId,
             previousStatus,
             status: "escalated",
-            source: "ai",
+            source: args.source ?? "ai",
           },
         }
       )

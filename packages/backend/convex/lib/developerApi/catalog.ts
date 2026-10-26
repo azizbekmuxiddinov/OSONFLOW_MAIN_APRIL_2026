@@ -610,6 +610,7 @@ const EXAMPLE_ASSISTANT_SETTINGS = {
     startChatLabel: "Suhbatni boshlash",
     inputPlaceholder: "Xabar yozing…",
     onlineLabel: "Onlayn",
+    talkToHumanLabel: "Operator bilan gaplashish",
   },
   theme: { primaryColor: "#4f46e5", assistantName: "Example Shop" },
   appearance: { launcherPosition: "bottom-right", showPoweredBy: true },
@@ -1654,7 +1655,7 @@ export const DEVELOPER_API_ENDPOINTS: DeveloperApiEndpoint[] = [
         name: "copy",
         type: "object",
         description:
-          "Widget text: `homeGreeting`, `homeHeadline`, `startChatLabel`, `inputPlaceholder`, `onlineLabel`.",
+          "Widget text: `homeGreeting`, `homeHeadline`, `startChatLabel`, `inputPlaceholder`, `onlineLabel`, `talkToHumanLabel`.",
       },
       {
         name: "theme",

@@ -5,6 +5,8 @@ import { SearchIcon, XIcon } from "lucide-react"
 
 import { Skeleton } from "@workspace/ui/components/skeleton"
 import { cn } from "@workspace/ui/lib/utils"
+import "../styles/report.css"
+import { SubnavToggle } from "./shell/subnav-toggle"
 
 /**
  * Console primitives — the shared shell for every dashboard tab outside the
@@ -81,37 +83,37 @@ export const ConsoleHeader = ({
   actions?: React.ReactNode
   className?: string
 }) => (
-  <header className={cn("flex flex-col gap-5", className)}>
-    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between lg:gap-8">
-      <div className="flex min-w-0 items-start gap-3.5">
-        {Icon ? (
-          <span className="console-medallion mt-0.5 size-10 shrink-0">
-            <Icon className="size-[18px]" />
-          </span>
-        ) : null}
-        <div className="min-w-0">
-          {eyebrow ? <p className="console-eyebrow">{eyebrow}</p> : null}
-          <h1 className={cn("console-title", eyebrow && "mt-2")}>{title}</h1>
-          {description ? (
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-              {description}
-            </p>
-          ) : null}
-          {meta ? (
-            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
-              {meta}
-            </div>
-          ) : null}
-        </div>
+  <header
+    className={cn(
+      "flex flex-col gap-3 pb-1 lg:flex-row lg:items-center lg:justify-between lg:gap-8",
+      className
+    )}
+  >
+    {/* `icon` stays in the signature so callers keep compiling; the compact
+        header no longer draws a medallion beside the title. */}
+    <div className="min-w-0" data-icon={Icon ? "" : undefined}>
+      {eyebrow ? <p className="console-eyebrow mb-1.5">{eyebrow}</p> : null}
+      <div className="flex items-center gap-2">
+        <SubnavToggle className="-ml-1.5" />
+        <h1 className="console-title">{title}</h1>
       </div>
-
-      {actions ? (
-        <div className="flex shrink-0 flex-wrap items-center gap-2 lg:justify-end">
-          {actions}
+      {description ? (
+        <p className="mt-1 line-clamp-2 max-w-3xl text-[0.8125rem] leading-relaxed text-muted-foreground">
+          {description}
+        </p>
+      ) : null}
+      {meta ? (
+        <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-2">
+          {meta}
         </div>
       ) : null}
     </div>
-    <div className="console-rule" />
+
+    {actions ? (
+      <div className="flex shrink-0 flex-wrap items-center gap-2 lg:justify-end">
+        {actions}
+      </div>
+    ) : null}
   </header>
 )
 
@@ -149,7 +151,7 @@ export const StatGrid = ({
 }) => (
   <section
     className={cn(
-      "grid gap-3",
+      "report-strip grid",
       columns === 2 && "grid-cols-1 sm:grid-cols-2",
       columns === 3 && "grid-cols-2 lg:grid-cols-3",
       columns === 4 && "grid-cols-2 xl:grid-cols-4",
@@ -183,16 +185,23 @@ export const Stat = ({
 }) => (
   <div
     className={cn(
-      flat ? "console-inset" : "console-card",
-      "px-4 py-3.5 sm:px-4.5",
+      flat ? "console-inset" : "bg-card",
+      "px-4 py-3.5 sm:px-5",
       className
     )}
   >
     <div className="flex items-start justify-between gap-3">
       <p className="console-label truncate">{label}</p>
       {Icon ? (
-        <span className={cn("shrink-0", toneClass[tone])}>
-          <Icon className="size-4" />
+        <span
+          className={cn(
+            "shrink-0 opacity-80",
+            tone === "neutral" || tone === "accent"
+              ? "text-muted-foreground"
+              : toneClass[tone]
+          )}
+        >
+          <Icon className="size-3.5" />
         </span>
       ) : null}
     </div>
@@ -253,15 +262,13 @@ export const PanelHeader = ({
 }) => (
   <div
     className={cn(
-      "flex flex-col gap-3 border-b border-[var(--console-hairline-soft)] px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5",
+      "flex flex-col gap-2 border-b border-[var(--console-hairline-soft)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5",
       className
     )}
   >
     <div className="flex min-w-0 items-start gap-3">
       {Icon ? (
-        <span className="console-medallion size-8 shrink-0">
-          <Icon className="size-4" />
-        </span>
+        <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
       ) : null}
       <div className="min-w-0">
         <h2 className="console-section-title truncate">{title}</h2>

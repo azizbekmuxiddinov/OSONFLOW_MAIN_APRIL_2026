@@ -9,7 +9,7 @@
 
 .memory-row {
   position: relative;
-  border-bottom: 1px solid var(--report-rule);
+  border-bottom: 1px solid var(--console-hairline-soft);
   transition: background-color 180ms var(--motion-snappy);
 }
 
@@ -25,10 +25,7 @@
 }
 
 .memory-row-button[aria-current="true"] {
-  background: var(--glass-raised, var(--card));
-  box-shadow:
-    var(--glass-edge, none),
-    0 8px 24px -14px rgb(30 41 90 / 0.3);
+  background: var(--muted);
 }
 
 /* Narrow screens: the first row is only the desktop default, so it is not

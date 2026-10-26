@@ -11,6 +11,7 @@ import {
   MessageSquareTextIcon,
   MousePointerClickIcon,
   MoveIcon,
+  PanelTopIcon,
   SparklesIcon,
   TimerIcon,
   WandSparklesIcon,
@@ -33,6 +34,7 @@ import {
   type WidgetLauncherAttention,
   type WidgetAutoOpenFrequency,
   type WidgetLauncherPosition,
+  type WidgetOpeningScreen,
 } from "@workspace/ui/lib/widget-customization"
 
 import { FormSchema } from "../../types"
@@ -211,6 +213,15 @@ const positionOptions: Array<{
   { value: "bottom-left", label: "Bottom left", hint: "Clears right rails" },
 ]
 
+const openingScreenOptions: Array<{
+  value: WidgetOpeningScreen
+  label: string
+  hint: string
+}> = [
+  { value: "chat", label: "The conversation", hint: "Visitors type straight away" },
+  { value: "home", label: "The home screen", hint: "Greeting and help articles first" },
+]
+
 const autoOpenFrequencyOptions: Array<{
   value: WidgetAutoOpenFrequency
   label: string
@@ -265,6 +276,32 @@ export const AppearanceFormFields = ({ form }: AppearanceFormFieldsProps) => {
 
   return (
     <div className="min-w-0">
+      <SettingsGroup
+        description="What a visitor sees the moment the widget opens. Past chats and help articles stay one tap away either way."
+        icon={PanelTopIcon}
+        title="Opens on"
+      >
+        <FormField
+          control={form.control}
+          name="appearance.openingScreen"
+          render={({ field }) => (
+            <FormItem className="min-w-0 space-y-0">
+              <FormControl>
+                <OptionCards
+                  columns={2}
+                  onChange={field.onChange}
+                  options={openingScreenOptions}
+                  value={field.value}
+                />
+              </FormControl>
+              <FormMessage className="mt-1.5" />
+            </FormItem>
+          )}
+        />
+      </SettingsGroup>
+
+      <SettingsDivider />
+
       <SettingsGroup
         description="The button that sits on your customer's page when the widget is closed."
         icon={MousePointerClickIcon}

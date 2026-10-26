@@ -49,13 +49,13 @@ export function LanguageSwitcher({
         asChild
         tooltip={`${t("Language")}: ${LANGUAGE_LABELS[language]}`}
         className={cn(
-          "relative h-11 cursor-pointer rounded-2xl border-0 bg-transparent px-2.5 text-sidebar-foreground group-data-[collapsible=icon]:size-11 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0 hover:bg-sidebar-accent/70 group-data-[collapsible=icon]:[&>span]:hidden",
+          "relative h-8 cursor-pointer rounded-md border-0 bg-transparent px-2 text-[13px] text-sidebar-foreground/80 group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0 hover:bg-sidebar-accent/70 group-data-[collapsible=icon]:[&>span]:hidden",
           className
         )}
       >
         <label title={`${t("Language")}: ${LANGUAGE_LABELS[language]}`}>
           <LanguagesIcon className="size-4 shrink-0" aria-hidden="true" />
-          <span className="text-sm font-semibold">
+          <span>
             {LANGUAGE_LABELS[language]}
           </span>
           <select

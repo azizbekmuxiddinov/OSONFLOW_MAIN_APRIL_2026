@@ -27,6 +27,7 @@ import {
 import { useSetAtom, useAtomValue } from "jotai"
 import { mergeWidgetTheme } from "@workspace/ui/lib/widget-customization"
 import { useStartWidgetConversation } from "../../hooks/use-start-widget-conversation"
+import { useOpenHome } from "../../hooks/use-open-home"
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 
@@ -52,6 +53,7 @@ const toCssImageUrl = (url: string) => url.replaceAll('"', "%22")
 
 export const WidgetAuthScreen = () => {
   const setScreen = useSetAtom(screenAtom)
+  const { openHome } = useOpenHome()
   const organizationId = useAtomValue(organizationIdAtom)
   const widgetMode = useAtomValue(widgetModeAtom)
   const widgetSettings = useAtomValue(widgetSettingsAtom)
@@ -139,7 +141,7 @@ export const WidgetAuthScreen = () => {
         return
       }
 
-      setScreen("selection")
+      openHome()
     } catch {
       form.setError("email", {
         type: "server",

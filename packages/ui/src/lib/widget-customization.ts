@@ -17,6 +17,11 @@ export type WidgetFontFamily = "sans" | "serif" | "mono" | "rounded"
 export type WidgetLauncherPosition = "bottom-right" | "bottom-left"
 /** How often the widget is allowed to open itself. */
 export type WidgetAutoOpenFrequency = "session" | "visitor" | "always"
+/**
+ * What a visitor sees first. `chat` drops them straight into a conversation
+ * with the assistant; `home` shows the branded hub with help articles first.
+ */
+export type WidgetOpeningScreen = "chat" | "home"
 
 export type WidgetThemeSettings = {
   primaryColor: string
@@ -57,6 +62,7 @@ export type WidgetAppearanceSettings = {
   showPoweredBy: boolean
   showHelpCenter: boolean
   showChatHistoryDownload: boolean
+  openingScreen: WidgetOpeningScreen
   launcherPosition: WidgetLauncherPosition
   launcherOffsetX: number
   launcherOffsetY: number
@@ -83,6 +89,8 @@ export type WidgetCopySettings = {
   startChatLabel: string
   inputPlaceholder: string
   onlineLabel: string
+  /** The header button that hands the conversation to a teammate. */
+  talkToHumanLabel: string
 }
 
 export const DEFAULT_WIDGET_THEME: WidgetThemeSettings = {
@@ -122,6 +130,7 @@ export const DEFAULT_WIDGET_APPEARANCE: WidgetAppearanceSettings = {
   showPoweredBy: true,
   showHelpCenter: true,
   showChatHistoryDownload: true,
+  openingScreen: "chat",
   launcherPosition: "bottom-right",
   launcherOffsetX: 20,
   launcherOffsetY: 20,
@@ -144,6 +153,7 @@ export const DEFAULT_WIDGET_COPY: WidgetCopySettings = {
   startChatLabel: "Start a chat",
   inputPlaceholder: "Type your message…",
   onlineLabel: "Online · replies instantly",
+  talkToHumanLabel: "Talk to a person",
 }
 
 /** Typeface stacks the widget maps `theme.fontFamily` onto. */
@@ -390,6 +400,8 @@ const AUTO_OPEN_FREQUENCIES: readonly WidgetAutoOpenFrequency[] = [
   "always",
 ]
 
+const OPENING_SCREENS: readonly WidgetOpeningScreen[] = ["chat", "home"]
+
 export const mergeWidgetTheme = (
   theme?: Partial<WidgetThemeSettings> | null
 ): WidgetThemeSettings => {
@@ -505,6 +517,11 @@ export const mergeWidgetAppearance = (
       AUTO_OPEN_FREQUENCIES,
       DEFAULT_WIDGET_APPEARANCE.autoOpenFrequency
     ),
+    openingScreen: sanitizeOption(
+      merged.openingScreen,
+      OPENING_SCREENS,
+      DEFAULT_WIDGET_APPEARANCE.openingScreen
+    ),
     notificationSoundEnabled: merged.notificationSoundEnabled !== false,
     imageUploadsEnabled: merged.imageUploadsEnabled !== false,
     imageUploadMaxSizeMb: clampImageUploadMaxSizeMb(
@@ -550,6 +567,11 @@ export const mergeWidgetCopy = (
       merged.onlineLabel,
       DEFAULT_WIDGET_COPY.onlineLabel,
       40
+    ),
+    talkToHumanLabel: sanitizeText(
+      merged.talkToHumanLabel,
+      DEFAULT_WIDGET_COPY.talkToHumanLabel,
+      28
     ),
   }
 }

@@ -3,11 +3,15 @@
 import { useQuery } from "convex/react"
 import { useSearchParams } from "next/navigation"
 import { api } from "@workspace/backend/_generated/api"
-import { CheckCircle2Icon, CreditCardIcon } from "lucide-react"
+import {
+  CheckCircle2Icon,
+  CreditCardIcon,
+  ExternalLinkIcon,
+} from "lucide-react"
 
+import { Button } from "@workspace/ui/components/button"
 import {
   ConsoleHeader,
-  ConsoleMeta,
   ConsolePage,
 } from "@/modules/dashboard/ui/components/console"
 import { PricingTable } from "../components/pricing-table"
@@ -20,30 +24,37 @@ export const BillingView = () => {
   const showCheckoutSuccess = Boolean(checkoutId) && isPro
 
   return (
-    <ConsolePage className="max-w-4xl" width="narrow">
+    <ConsolePage>
       <ConsoleHeader
-        description={
-          isPro
-            ? "Your workspace has full access to premium AI features. Invoices and payment methods live in the Polar portal."
-            : "Start on the free workspace and move to Pro when you need voice AI, knowledge base training, and analytics."
-        }
-        eyebrow="Growth"
-        icon={CreditCardIcon}
-        meta={
+        actions={
           subscription ? (
-            <ConsoleMeta
-              dot
-              label="Plan"
-              tone={isPro ? "positive" : "neutral"}
-              value={isPro ? "Pro" : "Free"}
-            />
+            isPro ? (
+              <Button asChild size="sm" variant="outline">
+                <a href="/api/polar/portal">
+                  <ExternalLinkIcon className="size-3.5" />
+                  Invoices and payment
+                </a>
+              </Button>
+            ) : (
+              <Button asChild size="sm">
+                <a href="/api/polar/checkout">
+                  <CreditCardIcon className="size-3.5" />
+                  Upgrade to Pro
+                </a>
+              </Button>
+            )
           ) : null
         }
-        title={isPro ? "Your Pro plan" : "Plans & billing"}
+        description={
+          isPro
+            ? "You have every premium feature. Invoices and payment methods live in the Polar portal."
+            : "Start free and move to Pro when you need voice, knowledge base training and analytics."
+        }
+        title="Plans & billing"
       />
 
       {showCheckoutSuccess ? (
-        <div className="console-card console-tone-positive flex items-start gap-3 px-4 py-3.5">
+        <div className="report-panel console-tone-positive flex items-start gap-3 px-4 py-3.5">
           <CheckCircle2Icon className="mt-0.5 size-4 shrink-0" />
           <div>
             <p className="text-sm font-medium text-foreground">

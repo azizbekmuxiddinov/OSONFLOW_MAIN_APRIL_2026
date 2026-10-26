@@ -5,12 +5,13 @@ import "../launcher-attention.css"
 import { useState, type CSSProperties, type ReactNode } from "react"
 import {
   ArrowUpIcon,
+  BookOpenIcon,
   ChevronRightIcon,
   CircleHelpIcon,
   DownloadIcon,
+  HistoryIcon,
   ImagePlusIcon,
   MessageSquareTextIcon,
-  MinusIcon,
   MonitorIcon,
   MoonIcon,
   PhoneCallIcon,
@@ -18,6 +19,7 @@ import {
   SmartphoneIcon,
   SparklesIcon,
   SunIcon,
+  UserRoundIcon,
   XIcon,
 } from "lucide-react"
 
@@ -42,7 +44,7 @@ import {
  * break the real widget.
  */
 
-type PreviewScreen = "home" | "chat" | "launcher"
+type PreviewScreen = "home" | "start" | "chat" | "launcher"
 type DeviceMode = "desktop" | "mobile"
 
 type WidgetLivePreviewProps = {
@@ -202,6 +204,7 @@ const ChatScreenMock = ({
   greetMessage,
   suggestions,
   darkMode,
+  stage,
 }: {
   theme: WidgetThemeSettings
   appearance: WidgetAppearanceSettings
@@ -209,7 +212,10 @@ const ChatScreenMock = ({
   greetMessage: string
   suggestions: string[]
   darkMode: boolean
+  /** `start`: the first screen of an ask-first widget; `reply`: mid-chat. */
+  stage: "start" | "reply"
 }) => {
+  const isStart = stage === "start"
   const userTextColor = getContrastingTextColor(theme.userBubbleColor)
   const botTextColor = getContrastingTextColor(theme.botBubbleColor, "#111111")
   const primaryTextColor = getContrastingTextColor(theme.primaryColor)
@@ -253,14 +259,19 @@ const ChatScreenMock = ({
           </div>
         </div>
         <div className="relative flex shrink-0 items-center gap-0.5 text-white/70">
+          <span className="flex size-6 items-center justify-center rounded-full">
+            <HistoryIcon className="size-3" />
+          </span>
+          {appearance.showHelpCenter ? (
+            <span className="flex size-6 items-center justify-center rounded-full">
+              <BookOpenIcon className="size-3" />
+            </span>
+          ) : null}
           {appearance.showChatHistoryDownload ? (
             <span className="flex size-6 items-center justify-center rounded-full">
               <DownloadIcon className="size-3" />
             </span>
           ) : null}
-          <span className="flex size-6 items-center justify-center rounded-full">
-            <MinusIcon className="size-3" />
-          </span>
           <span className="flex size-6 items-center justify-center rounded-full">
             <XIcon className="size-3" />
           </span>
@@ -268,6 +279,44 @@ const ChatScreenMock = ({
       </div>
 
       <div className="flex-1 space-y-2.5 overflow-hidden px-3.5 py-3.5">
+        {isStart ? (
+          <div className="flex flex-col items-center gap-1 pt-2 pb-3 text-center">
+            <span
+              className="mb-1.5 flex size-10 items-center justify-center overflow-hidden rounded-xl text-white"
+              style={{
+                background: `linear-gradient(135deg, ${theme.headerGradientStart}, ${theme.headerGradientEnd})`,
+              }}
+            >
+              {theme.logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  alt="Brand"
+                  className="size-full bg-white object-cover"
+                  src={theme.logoUrl}
+                />
+              ) : (
+                <SparklesIcon className="size-4" />
+              )}
+            </span>
+            <p
+              className={cn(
+                "text-[11.5px] font-semibold",
+                darkMode ? "text-zinc-100" : "text-zinc-900"
+              )}
+            >
+              {theme.assistantName}
+            </p>
+            <p
+              className={cn(
+                "flex items-center gap-1 text-[9px]",
+                darkMode ? "text-zinc-500" : "text-zinc-500"
+              )}
+            >
+              <span className="size-1.5 rounded-full bg-emerald-500" />
+              {copy.onlineLabel}
+            </p>
+          </div>
+        ) : null}
         <div
           className="max-w-[88%] px-3 py-2 text-[10.5px] leading-relaxed"
           style={{
@@ -279,22 +328,49 @@ const ChatScreenMock = ({
           {greetMessage || "Hi! How can I help you today?"}
         </div>
 
-        <div className="flex justify-end">
-          <div
-            className="max-w-[82%] px-3 py-2 text-[10.5px] leading-relaxed"
-            style={{
-              backgroundColor: theme.userBubbleColor,
-              color: userTextColor,
-              borderRadius: `${bubbleRadius}px ${bubbleRadius}px 4px ${bubbleRadius}px`,
-            }}
-          >
-            Can you walk me through this?
-          </div>
-        </div>
+        {isStart ? null : (
+          <>
+            <div className="flex justify-end">
+              <div
+                className="max-w-[82%] px-3 py-2 text-[10.5px] leading-relaxed"
+                style={{
+                  backgroundColor: theme.userBubbleColor,
+                  color: userTextColor,
+                  borderRadius: `${bubbleRadius}px ${bubbleRadius}px 4px ${bubbleRadius}px`,
+                }}
+              >
+                Can you walk me through this?
+              </div>
+            </div>
+            <div
+              className="max-w-[88%] px-3 py-2 text-[10.5px] leading-relaxed"
+              style={{
+                backgroundColor: theme.botBubbleColor,
+                color: botTextColor,
+                borderRadius: `4px ${bubbleRadius}px ${bubbleRadius}px ${bubbleRadius}px`,
+              }}
+            >
+              Of course — here is how it works, step by step.
+            </div>
+            <div className="flex justify-end pt-1">
+              <span
+                className={cn(
+                  "flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px]",
+                  darkMode
+                    ? "border-zinc-700 bg-zinc-900 text-zinc-400"
+                    : "border-zinc-200 bg-white text-zinc-500"
+                )}
+              >
+                <UserRoundIcon className="size-2.5" />
+                {copy.talkToHumanLabel}
+              </span>
+            </div>
+          </>
+        )}
 
-        {suggestions.length > 0 ? (
+        {isStart && suggestions.length > 0 ? (
           <div className="flex flex-wrap justify-end gap-1 pt-1">
-            {suggestions.slice(0, 2).map((suggestion) => (
+            {suggestions.slice(0, 3).map((suggestion) => (
               <span
                 className={cn(
                   "truncate rounded-full border px-2 py-0.5 text-[9px]",
@@ -607,14 +683,26 @@ export const WidgetLivePreview = ({
   copy,
   voiceOnly = false,
 }: WidgetLivePreviewProps) => {
-  const [screen, setScreen] = useState<PreviewScreen>("home")
+  const isAskFirst = appearance.openingScreen === "chat"
+  const [screen, setScreen] = useState<PreviewScreen>(
+    isAskFirst ? "start" : "home"
+  )
   const [deviceMode, setDeviceMode] = useState<DeviceMode>("desktop")
   const [darkMode, setDarkMode] = useState(false)
 
   const isMobile = deviceMode === "mobile"
   const frameHeight = isMobile ? 372 : 396
   const alignRight = appearance.launcherPosition === "bottom-right"
-  const effectiveScreen: PreviewScreen = voiceOnly && screen === "home" ? "chat" : screen
+  // Switching "Opens on" can leave the preview on a tab the other layout lacks.
+  const effectiveScreen: PreviewScreen = voiceOnly
+    ? screen === "launcher"
+      ? "launcher"
+      : "chat"
+    : isAskFirst && screen === "home"
+      ? "start"
+      : !isAskFirst && screen === "start"
+        ? "home"
+        : screen
 
   const screenOptions: Array<{
     value: PreviewScreen
@@ -624,11 +712,17 @@ export const WidgetLivePreview = ({
         { value: "chat", label: "Voice" },
         { value: "launcher", label: "Launcher" },
       ]
-    : [
-        { value: "home", label: "Home" },
-        { value: "chat", label: "Chat" },
-        { value: "launcher", label: "Launcher" },
-      ]
+    : isAskFirst
+      ? [
+          { value: "start", label: "First screen" },
+          { value: "chat", label: "In a chat" },
+          { value: "launcher", label: "Launcher" },
+        ]
+      : [
+          { value: "home", label: "Home" },
+          { value: "chat", label: "Chat" },
+          { value: "launcher", label: "Launcher" },
+        ]
 
   const surface = voiceOnly ? (
     <VoiceScreenMock appearance={appearance} darkMode={darkMode} />
@@ -640,21 +734,19 @@ export const WidgetLivePreview = ({
       copy={copy}
       darkMode={darkMode}
       greetMessage={greetMessage}
+      stage={effectiveScreen === "start" ? "start" : "reply"}
       suggestions={suggestions}
       theme={theme}
     />
   )
 
   return (
-    <section className="console-card overflow-hidden">
+    <section className="report-panel overflow-hidden">
       <div className="flex flex-col gap-3 border-b border-[var(--console-hairline-soft)] px-4 py-3.5">
         <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0">
-            <p className="console-eyebrow">Preview</p>
-            <h2 className="console-section-title mt-1">
-              {voiceOnly ? "Voice widget" : "Your widget"}
-            </h2>
-          </div>
+          <h2 className="console-section-title min-w-0 truncate">
+            {voiceOnly ? "Voice widget preview" : "Preview"}
+          </h2>
           <div className="flex shrink-0 items-center gap-1.5">
             <button
               aria-label={

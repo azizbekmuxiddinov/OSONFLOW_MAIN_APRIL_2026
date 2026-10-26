@@ -59,11 +59,18 @@ export const useStartWidgetConversation = () => {
     returnScreen = "selection",
     contactSessionId: providedSessionId,
     createImmediately = false,
+    captureDetailsInChat = shouldCaptureDetailsInChat,
   }: {
     initialMessage?: string
     returnScreen?: ChatReturnScreen
     contactSessionId?: Id<"contactSessions">
     createImmediately?: boolean
+    /**
+     * Ask for name and email inside the chat, after the first message, rather
+     * than on a form before it. An ask-first widget always does this, so the
+     * visitor can type straight away even when voice is also offered.
+     */
+    captureDetailsInChat?: boolean
   } = {}) => {
     if (!organizationId) {
       setScreen("error")
@@ -73,7 +80,7 @@ export const useStartWidgetConversation = () => {
 
     let sessionId = providedSessionId ?? contactSessionId
 
-    if (!sessionId && !shouldCaptureDetailsInChat) {
+    if (!sessionId && !captureDetailsInChat) {
       setPendingStartChat({
         initialMessage,
         returnScreen,
@@ -115,7 +122,7 @@ export const useStartWidgetConversation = () => {
     } catch {
       setPendingInitialMessage(null)
 
-      if (shouldCaptureDetailsInChat) {
+      if (captureDetailsInChat) {
         setScreen("error")
         setErrorMessage("Unable to start chat")
         return

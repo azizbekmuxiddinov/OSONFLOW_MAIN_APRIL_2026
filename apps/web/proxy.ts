@@ -40,7 +40,7 @@ const isAuthEntryRoute = createRouteMatcher(["/sign-in(.*)", "/sign-up(.*)"])
 // Where a signed-in user lands when no destination was requested. An
 // organization that has not finished the first-run guide is moved on to
 // /start by the dashboard itself, which needs data the proxy cannot read.
-const DEFAULT_APP_LANDING = "/conversations"
+const DEFAULT_APP_LANDING = "/home"
 
 // Every top-level segment that belongs to the authenticated app. Used only to
 // decide whether an unknown URL on the marketing host is worth redirecting to
@@ -57,6 +57,7 @@ const isAppRoute = createRouteMatcher([
   "/create-organization(.*)",
   "/customer-memory(.*)",
   "/customization(.*)",
+  "/home(.*)",
   "/developers(.*)",
   "/files(.*)",
   "/integrations(.*)",
@@ -69,6 +70,7 @@ const isAppRoute = createRouteMatcher([
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/sso-callback(.*)",
+  "/settings(.*)",
   "/start(.*)",
   "/widget-preview(.*)",
 ])

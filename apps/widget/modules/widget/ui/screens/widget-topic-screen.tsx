@@ -18,9 +18,11 @@ import {
   type WidgetHelpArticle,
 } from "../../atoms/widget-atoms"
 import { WidgetFooter } from "../components/widget-footer"
+import { useOpenHome } from "../../hooks/use-open-home"
 
 export const WidgetTopicScreen = () => {
   const setScreen = useSetAtom(screenAtom)
+  const { openHome } = useOpenHome()
   const topic = useAtomValue(selectedHelpTopicAtom)
   const setSelectedHelpArticle = useSetAtom(selectedHelpArticleAtom)
   const [searchQuery, setSearchQuery] = useAtom(helpSearchQueryAtom)
@@ -85,7 +87,7 @@ export const WidgetTopicScreen = () => {
             <Button
               aria-label="Close topic"
               className="size-9 rounded-full text-zinc-500 hover:bg-zinc-100"
-              onClick={() => setScreen("selection")}
+              onClick={() => openHome()}
               size="icon"
               type="button"
               variant="ghost"

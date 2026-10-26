@@ -34,11 +34,9 @@ export const SettingsGroup = ({
 }) => (
   <section className={cn("min-w-0", className)}>
     <div className="flex flex-wrap items-start justify-between gap-3">
-      <div className="flex min-w-0 items-start gap-3">
+      <div className="flex min-w-0 items-start gap-2.5">
         {Icon ? (
-          <span className="console-medallion mt-px size-8 shrink-0">
-            <Icon className="size-4" />
-          </span>
+          <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
         ) : null}
         <div className="min-w-0">
           <h3 className="console-section-title">{title}</h3>
@@ -58,7 +56,9 @@ export const SettingsGroup = ({
 )
 
 /** Hairline divider between groups inside one tab. */
-export const SettingsDivider = () => <div className="console-rule my-7" />
+export const SettingsDivider = () => (
+  <div className="my-6 h-px bg-[var(--console-hairline-soft)]" />
+)
 
 /* ── rows ───────────────────────────────────────────────────────────────── */
 

@@ -2479,7 +2479,7 @@ export const IntegrationsView = () => {
               </Pill>
             )
           }
-          title="Setup & integrations"
+          title="Integrations"
         />
 
         {/* Every connection and its state in one row; the selected one opens

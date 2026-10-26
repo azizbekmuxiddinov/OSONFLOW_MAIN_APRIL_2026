@@ -69,6 +69,7 @@ import {
   statusFilterAtom,
 } from "../../atoms"
 import { downloadConversationExport } from "../lib/conversation-export"
+import { SubnavToggle } from "./shell/subnav-toggle"
 import {
   CONVERSATION_PRIORITIES,
   ConversationPriorityBadge,
@@ -116,6 +117,18 @@ const FILTER_OPTIONS: {
   { label: "Priority", value: "prioritized", icon: FlagIcon },
 ]
 
+const INBOX_VIEW_TITLES: Record<string, string> = {
+  all: "All conversations",
+  unresolved: "Open",
+  escalated: "Waiting for you",
+  resolved: "Resolved",
+  assigned_to_me: "Mine",
+  unassigned: "Unassigned",
+  workflow: "From workflows",
+  widget: "Answered by the assistant",
+  prioritized: "With a priority",
+}
+
 const STATUS_ACCENT: Record<string, string> = {
   unresolved: "bg-amber-400",
   escalated: "bg-red-500",
@@ -125,7 +138,7 @@ const STATUS_ACCENT: Record<string, string> = {
 const highlightMatch = (value: string | undefined, query: string) => {
   if (!value) {
     return (
-      <span className="text-sidebar-foreground/55 italic">No messages yet</span>
+      <span className="text-muted-foreground italic">No messages yet</span>
     )
   }
 
@@ -175,6 +188,18 @@ export const ConversationsPanel = () => {
   const setSourceFilter = useSetAtom(sourceFilterAtom)
   const priorityFilter = useAtomValue(priorityFilterAtom)
   const setPriorityFilter = useSetAtom(priorityFilterAtom)
+
+  // The list is titled after the view the Inbox sidebar has selected.
+  const activeViewLabel =
+    INBOX_VIEW_TITLES[
+      priorityFilter !== "all"
+        ? priorityFilter
+        : sourceFilter !== "all"
+          ? sourceFilter
+          : assignmentFilter !== "all"
+            ? assignmentFilter
+            : statusFilter
+    ] ?? "Conversations"
 
   const combinedFilterValue: CombinedFilterValue =
     priorityFilter !== "all"
@@ -229,12 +254,55 @@ export const ConversationsPanel = () => {
     loadSize: 10,
   })
 
+  // The latest list and open conversation, for the keyboard handler below,
+  // which is registered once.
+  const keyboardStateRef = useRef({ ids: [] as string[], pathname })
   useEffect(() => {
-    const handleShortcut = (event: KeyboardEvent) => {
-      const isFocusSearch =
-        (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k"
+    keyboardStateRef.current = {
+      ids: filteredConversations.map((conversation) => conversation._id),
+      pathname,
+    }
+  })
 
-      if (!isFocusSearch) {
+  useEffect(() => {
+    // "/" jumps to the list's own search; J and K step through the list the
+    // way Intercom and Linear do; ⌘K belongs to the dashboard-wide search.
+    const handleShortcut = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null
+      const isTyping =
+        target?.isContentEditable ||
+        target?.tagName === "INPUT" ||
+        target?.tagName === "TEXTAREA" ||
+        target?.tagName === "SELECT"
+
+      if (isTyping || event.metaKey || event.ctrlKey || event.altKey) {
+        return
+      }
+
+      if (event.key === "j" || event.key === "k") {
+        const { ids, pathname: currentPath } = keyboardStateRef.current
+        if (!ids.length) {
+          return
+        }
+
+        const currentIndex = ids.findIndex(
+          (id) => currentPath === `/conversations/${id}`
+        )
+        const nextIndex =
+          currentIndex === -1
+            ? 0
+            : event.key === "j"
+              ? Math.min(currentIndex + 1, ids.length - 1)
+              : Math.max(currentIndex - 1, 0)
+
+        if (nextIndex !== currentIndex) {
+          event.preventDefault()
+          router.push(`/conversations/${ids[nextIndex]}`)
+        }
+        return
+      }
+
+      if (event.key !== "/") {
         return
       }
 
@@ -248,7 +316,7 @@ export const ConversationsPanel = () => {
     return () => {
       window.removeEventListener("keydown", handleShortcut)
     }
-  }, [])
+  }, [router])
 
   const handleFilterChange = (value: CombinedFilterValue) => {
     // The chips are one row but four dimensions, so picking one clears the
@@ -325,15 +393,18 @@ export const ConversationsPanel = () => {
   }
 
   return (
-    <div className="surface-sidebar flex h-full min-h-0 w-full flex-col overflow-hidden rounded-[30px] text-sidebar-foreground">
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[color-mix(in_srgb,var(--canvas)_60%,var(--background))] text-foreground">
       {/* Panel header */}
-      <div className="shrink-0 border-b border-sidebar-border/70 bg-sidebar/72 px-3 pt-3.5 pb-2.5 backdrop-blur-xl supports-[backdrop-filter]:bg-sidebar/64">
-        <div className="mb-2.5 flex items-center justify-between">
-          <h2 className="text-[13px] font-semibold tracking-tight text-sidebar-foreground">
-            Conversations
-          </h2>
+      <div className="shrink-0 px-3 pt-3 pb-2">
+        <div className="mb-2.5 flex h-7 items-center justify-between gap-2 px-1">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <SubnavToggle className="-ml-1.5" />
+            <h2 className="truncate text-[1.0625rem] font-semibold tracking-tight text-foreground">
+              {activeViewLabel}
+            </h2>
+          </div>
           {conversations.results.length > 0 && (
-            <span className="rounded-full bg-sidebar-accent px-2 py-0.5 text-[11px] font-medium text-sidebar-foreground/70 tabular-nums">
+            <span className="text-xs text-muted-foreground tabular-nums">
               {normalizedSearchQuery
                 ? `${filteredConversations.length} / ${conversations.results.length}`
                 : conversations.results.length}
@@ -343,10 +414,10 @@ export const ConversationsPanel = () => {
 
         {/* Search bar */}
         <div className="relative mb-2.5">
-          <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-sidebar-foreground/55" />
+          <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             aria-label="Search conversations"
-            className="h-8 border border-sidebar-border/60 bg-sidebar-accent/80 pr-14 pl-8 text-sm text-sidebar-foreground shadow-none transition-all placeholder:text-sidebar-foreground/45 focus-visible:border-sidebar-ring focus-visible:bg-sidebar focus-visible:ring-0"
+            className="h-8 rounded-lg border border-[var(--console-hairline-soft)] bg-background pr-14 pl-8 text-sm text-foreground shadow-none transition-colors placeholder:text-muted-foreground focus-visible:border-[var(--console-hairline)] focus-visible:ring-0"
             onChange={(event) => setSearchQuery(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Escape" && searchQuery) {
@@ -371,21 +442,22 @@ export const ConversationsPanel = () => {
                 size="icon"
                 type="button"
                 variant="ghost"
-                className="size-6 text-sidebar-foreground/65 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                className="size-6 text-muted-foreground hover:bg-muted hover:text-foreground"
               >
                 <XIcon className="size-3" />
                 <span className="sr-only">Clear search</span>
               </Button>
             ) : (
-              <Kbd className="hidden bg-sidebar-accent text-[10px] text-sidebar-foreground/70 md:inline-flex">
-                ⌘K
+              <Kbd className="hidden bg-muted text-[10px] text-muted-foreground md:inline-flex">
+                /
               </Kbd>
             )}
           </div>
         </div>
 
-        {/* Filter chips */}
-        <div className="-mx-0.5 flex gap-1 overflow-x-auto px-0.5 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {/* Filter chips — on phones only; on a wide screen the Inbox sidebar
+            lists the same views. */}
+        <div className="-mx-0.5 flex gap-1 overflow-x-auto px-0.5 pb-0.5 [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden">
           {FILTER_OPTIONS.map((option) => {
             const isActive = combinedFilterValue === option.value
             const Icon = option.icon
@@ -400,10 +472,10 @@ export const ConversationsPanel = () => {
                 onClick={() => handleFilterChange(option.value)}
                 type="button"
                 className={cn(
-                  "flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition-all duration-150",
+                  "flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors duration-150",
                   isActive
-                    ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-[0_14px_28px_-20px_color-mix(in_srgb,var(--sidebar-primary)_70%,transparent)]"
-                    : "bg-sidebar-accent/82 text-sidebar-foreground/72 hover:bg-sidebar-accent/94 hover:text-sidebar-accent-foreground"
+                    ? "bg-muted text-foreground"
+                    : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
                 )}
               >
                 <Icon className="size-3" />
@@ -419,35 +491,35 @@ export const ConversationsPanel = () => {
         <SkeletonConversations />
       ) : (
         <ScrollArea className="min-h-0 flex-1">
-          <div className="flex w-full flex-col gap-1 p-2.5 pr-3.5">
+          <div className="flex w-full flex-col gap-px p-1.5">
             {!conversations.results.length &&
             !normalizedSearchQuery &&
             !hasActiveFilters ? (
               <div className="mx-auto mt-10 flex max-w-[220px] flex-col items-center gap-3 text-center">
-                <div className="flex size-12 items-center justify-center rounded-2xl border border-sidebar-border bg-sidebar-accent/55">
-                  <InboxIcon className="size-5 text-sidebar-foreground/55" />
+                <div className="flex size-12 items-center justify-center rounded-2xl border border-[var(--console-hairline-soft)] bg-muted/60">
+                  <InboxIcon className="size-5 text-muted-foreground" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-sidebar-foreground">
+                  <p className="text-sm font-medium text-foreground">
                     No conversations yet
                   </p>
-                  <p className="mt-1 text-[12px] text-sidebar-foreground/60">
+                  <p className="mt-1 text-[12px] text-muted-foreground">
                     Customer messages from your widget will appear here.
                   </p>
                 </div>
               </div>
             ) : !hasSearchResults && (normalizedSearchQuery || hasActiveFilters) ? (
               <div className="mx-auto mt-10 flex max-w-[200px] flex-col items-center gap-3 text-center">
-                <div className="flex size-11 items-center justify-center rounded-2xl border border-sidebar-border bg-sidebar-accent/55">
-                  <InboxIcon className="size-5 text-sidebar-foreground/55" />
+                <div className="flex size-11 items-center justify-center rounded-2xl border border-[var(--console-hairline-soft)] bg-muted/60">
+                  <InboxIcon className="size-5 text-muted-foreground" />
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-sidebar-foreground">
+                  <p className="text-xs font-medium text-foreground">
                     {normalizedSearchQuery
                       ? "No results found"
                       : "No conversations match this view"}
                   </p>
-                  <p className="mt-0.5 text-[11px] text-sidebar-foreground/60">
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
                     {normalizedSearchQuery
                       ? "Try searching by name, email, or message"
                       : "Reset the filters to see every conversation."}
@@ -506,10 +578,10 @@ export const ConversationsPanel = () => {
                     <ContextMenuTrigger asChild>
                       <Link
                         className={cn(
-                          "group relative flex cursor-pointer items-start gap-2.5 rounded-2xl border px-3 py-2.5 text-sm leading-tight transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm",
+                          "group relative flex cursor-pointer items-start gap-2.5 rounded-lg px-2.5 py-2.5 text-sm leading-tight transition-colors duration-150",
                           isActive
-                            ? "border-sidebar-border/80 bg-sidebar-accent/92 text-sidebar-accent-foreground shadow-[0_18px_36px_-24px_rgba(15,23,42,0.45)]"
-                            : "border-transparent bg-transparent hover:border-sidebar-border/70 hover:bg-sidebar-accent/62 hover:text-sidebar-accent-foreground"
+                            ? "bg-background text-foreground shadow-[0_1px_2px_rgb(0_0_0/0.06)] ring-1 ring-[var(--console-hairline-soft)]"
+                            : "hover:bg-background/70"
                         )}
                         href={`/conversations/${conversation._id}`}
                       >
@@ -526,7 +598,7 @@ export const ConversationsPanel = () => {
 
                         <DicebearAvatar
                           seed={conversation.contactSession._id}
-                          size={36}
+                          size={32}
                           imageUrl={instagramProfilePic}
                           badgeImageUrl={countryFlagUrl}
                           className="mt-0.5 shrink-0"
@@ -541,7 +613,7 @@ export const ConversationsPanel = () => {
                                 normalizedSearchQuery
                               )}
                             </span>
-                            <span className="ml-1 shrink-0 text-[11px] text-sidebar-foreground/55 tabular-nums">
+                            <span className="ml-1 shrink-0 text-[11px] text-muted-foreground tabular-nums">
                               {formatConversationTime(activityTimestamp)}
                             </span>
                           </div>
@@ -591,14 +663,14 @@ export const ConversationsPanel = () => {
                           {/* Message preview */}
                           <div className="mt-1.5 flex min-w-0 items-center gap-1">
                             {isLastMessageFromOperator && (
-                              <CornerUpLeftIcon className="size-3 shrink-0 text-sidebar-foreground/55" />
+                              <CornerUpLeftIcon className="size-3 shrink-0 text-muted-foreground" />
                             )}
                             <span
                               className={cn(
                                 "min-w-0 truncate text-[12px]",
                                 isLastMessageFromOperator
-                                  ? "text-sidebar-foreground/60"
-                                  : "font-medium text-sidebar-foreground"
+                                  ? "text-muted-foreground"
+                                  : "font-medium text-foreground"
                               )}
                             >
                               {highlightMatch(
@@ -744,38 +816,38 @@ export const ConversationsPanel = () => {
 
 const SkeletonConversations = () => {
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-auto p-2.5">
+    <div className="flex min-h-0 flex-1 flex-col gap-px overflow-auto p-1.5">
       {Array.from({ length: 6 }).map((_, index) => (
         <div
-          className="relative flex items-start gap-2.5 rounded-2xl border border-transparent px-3 py-2.5"
+          className="relative flex items-start gap-2.5 rounded-lg px-2.5 py-2.5"
           key={index}
         >
           <div className="relative mt-0.5 size-9 shrink-0">
-            <Skeleton className="size-9 rounded-full bg-sidebar-accent" />
-            <Skeleton className="absolute right-0 bottom-0 size-3.5 rounded-full border-2 border-sidebar bg-sidebar" />
+            <Skeleton className="size-9 rounded-full bg-muted" />
+            <Skeleton className="absolute right-0 bottom-0 size-3.5 rounded-full border-2 border-background bg-background" />
           </div>
           <div className="min-w-0 flex-1 space-y-2">
             <div className="flex items-center justify-between gap-2">
-              <Skeleton className="h-3.5 w-32 bg-sidebar-accent" />
-              <Skeleton className="h-3 w-10 shrink-0 bg-sidebar-accent" />
+              <Skeleton className="h-3.5 w-32 bg-muted" />
+              <Skeleton className="h-3 w-10 shrink-0 bg-muted" />
             </div>
             <Skeleton
               className={cn(
-                "h-3.5 rounded-full bg-sidebar-accent",
+                "h-3.5 rounded-full bg-muted",
                 index % 3 === 0 ? "w-12" : "w-9"
               )}
             />
             <div className="flex items-center justify-between gap-2 pt-0.5">
               <div className="flex min-w-0 flex-1 items-center gap-1">
-                <Skeleton className="size-3 shrink-0 bg-sidebar-accent" />
+                <Skeleton className="size-3 shrink-0 bg-muted" />
                 <Skeleton
                   className={cn(
-                    "h-3 bg-sidebar-accent",
+                    "h-3 bg-muted",
                     index % 2 === 0 ? "w-4/5" : "w-2/3"
                   )}
                 />
               </div>
-              <Skeleton className="size-4 shrink-0 rounded-full bg-sidebar-accent" />
+              <Skeleton className="size-4 shrink-0 rounded-full bg-muted" />
             </div>
           </div>
         </div>

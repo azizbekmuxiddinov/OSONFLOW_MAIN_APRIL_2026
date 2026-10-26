@@ -6,6 +6,7 @@ import { Id } from "@workspace/backend/_generated/dataModel"
 import { api } from "@workspace/backend/_generated/api"
 import type { FunctionReturnType } from "convex/server"
 import { atom } from "jotai"
+import { mergeWidgetAppearance } from "@workspace/ui/lib/widget-customization"
 
 export type VoiceProvider = "gemini" | "openai"
 export type ChatReturnScreen = "selection" | "help" | "inbox"
@@ -88,6 +89,17 @@ export const hasGeminiLiveVoiceAtom = atom((get) => {
   const settings = get(widgetSettingsAtom)
   return Boolean(settings?.geminiLiveSettings?.enabled)
 })
+
+/**
+ * Where "home" is for this widget. An ask-first widget treats the chat itself
+ * as home; one set to open on the hub keeps the branded selection screen.
+ */
+export const homeScreenAtom = atom<"chat" | "selection">((get) =>
+  mergeWidgetAppearance(get(widgetSettingsAtom)?.appearance).openingScreen ===
+  "home"
+    ? "selection"
+    : "chat"
+)
 
 export const hasAnyVoiceAtom = atom(
   (get) => get(hasOpenAIRealtimeVoiceAtom) || get(hasGeminiLiveVoiceAtom)

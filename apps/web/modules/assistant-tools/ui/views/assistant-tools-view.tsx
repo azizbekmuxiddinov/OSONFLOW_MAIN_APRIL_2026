@@ -1307,7 +1307,7 @@ export const AssistantToolsView = () => {
             <Pill tone="neutral">All connected apps switched off</Pill>
           ) : null
         }
-        title="Assistant tools"
+        title="Tools"
       />
 
       {attentionTools.length ? (

@@ -4453,4 +4453,780 @@ export const supplementalTranslations: Record<string, TranslationValue> = {
     uz: "Hali ochiq",
     ru: "Ещё открыт",
   },
+  "Talk to customers": {
+    uz: "Mijozlar bilan muloqot",
+    ru: "Общение с клиентами",
+  },
+  "Voice calls": {
+    uz: "Ovozli qo'ng'iroqlar",
+    ru: "Голосовые звонки",
+  },
+  "Knowledge": {
+    uz: "Bilimlar",
+    ru: "Знания",
+  },
+  "Put it on your website": {
+    uz: "Saytingizga joylang",
+    ru: "Разместите на сайте",
+  },
+  "Widget": {
+    uz: "Vidjet",
+    ru: "Виджет",
+  },
+  "See results": {
+    uz: "Natijalar",
+    ru: "Результаты",
+  },
+  "Settings": {
+    uz: "Sozlamalar",
+    ru: "Настройки",
+  },
+  "Plans & billing": {
+    uz: "Tariflar va to'lov",
+    ru: "Тарифы и оплата",
+  },
+  "Good morning": {
+    uz: "Xayrli tong",
+    ru: "Доброе утро",
+  },
+  "Good afternoon": {
+    uz: "Xayrli kun",
+    ru: "Добрый день",
+  },
+  "Good evening": {
+    uz: "Xayrli kech",
+    ru: "Добрый вечер",
+  },
+  "Edit widget": {
+    uz: "Vidjetni tahrirlash",
+    ru: "Изменить виджет",
+  },
+  "Open inbox": {
+    uz: "Suhbatlarni ochish",
+    ru: "Открыть входящие",
+  },
+  "Finish setting up": {
+    uz: "Sozlashni yakunlang",
+    ru: "Завершите настройку",
+  },
+  "A few short steps before your assistant can answer customers.": {
+    uz: "Yordamchingiz mijozlarga javob berishi uchun bir necha qisqa qadam qoldi.",
+    ru: "Несколько коротких шагов — и ассистент начнёт отвечать клиентам.",
+  },
+  "Steps done": {
+    uz: "Bajarilgan qadamlar",
+    ru: "Шагов выполнено",
+  },
+  "Last 7 days": {
+    uz: "Oxirgi 7 kun",
+    ru: "Последние 7 дней",
+  },
+  "chat": {
+    uz: "chat",
+    ru: "чат",
+  },
+  "voice": {
+    uz: "ovozli",
+    ru: "голос",
+  },
+  "Answered by AI": {
+    uz: "AI javob berdi",
+    ru: "Ответил AI",
+  },
+  "Resolved without a teammate": {
+    uz: "Xodimsiz hal qilindi",
+    ru: "Решено без сотрудника",
+  },
+  "Right now": {
+    uz: "Hozir",
+    ru: "Сейчас",
+  },
+  "Handed over by the assistant": {
+    uz: "Yordamchi topshirgan",
+    ru: "Передано ассистентом",
+  },
+  "New leads": {
+    uz: "Yangi lidlar",
+    ru: "Новые лиды",
+  },
+  "in total": {
+    uz: "jami",
+    ru: "всего",
+  },
+  "All conversations": {
+    uz: "Barcha suhbatlar",
+    ru: "Все разговоры",
+  },
+  "Conversations your assistant handed to a person.": {
+    uz: "Yordamchingiz xodimga topshirgan suhbatlar.",
+    ru: "Разговоры, которые ассистент передал человеку.",
+  },
+  "Nothing is waiting for you": {
+    uz: "Sizni kutayotgan narsa yo'q",
+    ru: "Вас ничего не ждёт",
+  },
+  "When your assistant hands a conversation over, it shows up here.": {
+    uz: "Yordamchi suhbatni topshirganda, u shu yerda paydo bo'ladi.",
+    ru: "Когда ассистент передаст разговор, он появится здесь.",
+  },
+  "Teach answers": {
+    uz: "Javoblarni o'rgatish",
+    ru: "Обучить ответам",
+  },
+  "Questions it couldn't answer": {
+    uz: "Javob bera olmagan savollar",
+    ru: "Вопросы без ответа",
+  },
+  "Your assistant had an answer for every question this week.": {
+    uz: "Bu hafta yordamchingiz har bir savolga javob topdi.",
+    ru: "На этой неделе ассистент ответил на все вопросы.",
+  },
+  "What customers ask about": {
+    uz: "Mijozlar nima haqida so'raydi",
+    ru: "О чём спрашивают клиенты",
+  },
+  "Topics appear here once customers start writing in.": {
+    uz: "Mijozlar yoza boshlagach, mavzular shu yerda chiqadi.",
+    ru: "Темы появятся, когда клиенты начнут писать.",
+  },
+  "Opens on": {
+    uz: "Ochilganda",
+    ru: "Открывается на",
+  },
+  "What a visitor sees the moment the widget opens. Past chats and help articles stay one tap away either way.": {
+    uz: "Vidjet ochilganda tashrif buyuruvchi birinchi nimani ko'radi. Oldingi suhbatlar va yordam maqolalari har doim bir bosishda.",
+    ru: "Что посетитель видит сразу при открытии виджета. Прошлые чаты и статьи помощи в любом случае в одном касании.",
+  },
+  "The conversation": {
+    uz: "Suhbat",
+    ru: "Разговор",
+  },
+  "Visitors type straight away": {
+    uz: "Tashrif buyuruvchi darhol yozadi",
+    ru: "Посетитель сразу пишет",
+  },
+  "The home screen": {
+    uz: "Bosh ekran",
+    ru: "Главный экран",
+  },
+  "Greeting and help articles first": {
+    uz: "Avval salomlashuv va yordam maqolalari",
+    ru: "Сначала приветствие и статьи помощи",
+  },
+  "Talk to a person button": {
+    uz: "«Xodim bilan gaplashish» tugmasi",
+    ru: "Кнопка «Поговорить с человеком»",
+  },
+  "Offered under the assistant's replies so a visitor can ask for a teammate.": {
+    uz: "Yordamchi javoblari ostida chiqadi, tashrif buyuruvchi xodimni chaqira oladi.",
+    ru: "Показывается под ответами ассистента, чтобы посетитель мог позвать сотрудника.",
+  },
+  "Your day at a glance: what is waiting for you, and how the assistant did this week.": {
+    uz: "Kuningiz bir qarashda: sizni nima kutmoqda va yordamchi bu hafta qanday ishladi.",
+    ru: "Ваш день одним взглядом: что вас ждёт и как ассистент сработал за неделю.",
+  },
+  "Messages sent later to people who asked for something, so nobody is forgotten.": {
+    uz: "Biror narsa so'raganlarga keyinroq yuboriladigan xabarlar — hech kim unutilmaydi.",
+    ru: "Сообщения, отправляемые позже тем, кто что-то просил, — никто не забыт.",
+  },
+  "Who has been in touch, and what the assistant remembers about them.": {
+    uz: "Kim bog'langan va yordamchi ular haqida nimani eslaydi.",
+    ru: "Кто обращался и что ассистент о них помнит.",
+  },
+  "What it knows and what it is allowed to do.": {
+    uz: "U nimani biladi va nima qilishiga ruxsat bor.",
+    ru: "Что он знает и что ему разрешено делать.",
+  },
+  "Questions it could not answer, with suggested replies for you to approve or correct.": {
+    uz: "Javob bera olmagan savollar va siz tasdiqlashingiz yoki tuzatishingiz uchun taklif qilingan javoblar.",
+    ru: "Вопросы без ответа с предложенными ответами — подтвердите или исправьте.",
+  },
+  "A message to your team's Telegram when a customer needs a person.": {
+    uz: "Mijozga xodim kerak bo'lganda jamoangiz Telegramiga xabar.",
+    ru: "Сообщение в Telegram вашей команды, когда клиенту нужен человек.",
+  },
+  "Check it weekly.": {
+    uz: "Har hafta tekshiring.",
+    ru: "Проверяйте еженедельно.",
+  },
+  "How often the assistant finished the job on its own, and the questions it could not answer.": {
+    uz: "Yordamchi ishni qanchalik tez-tez o'zi yakunlagani va javob bera olmagan savollar.",
+    ru: "Как часто ассистент справлялся сам и на какие вопросы не ответил.",
+  },
+  "Your plan, usage and invoices. Found under Settings.": {
+    uz: "Tarifingiz, foydalanish va hisob-fakturalar. Sozlamalar bo'limida.",
+    ru: "Ваш тариф, использование и счета. В разделе «Настройки».",
+  },
+  "Free": {
+    uz: "Bepul",
+    ru: "Бесплатно",
+  },
+  "Pro": {
+    uz: "Pro",
+    ru: "Pro",
+  },
+  "Current": {
+    uz: "Joriy",
+    ru: "Текущий",
+  },
+  "Support inbox and website chat widget": {
+    uz: "Suhbatlar oynasi va sayt chat vidjeti",
+    ru: "Входящие и чат-виджет для сайта",
+  },
+  "Knowledge base files and website training": {
+    uz: "Bilimlar bazasi fayllari va saytdan o'rganish",
+    ru: "Файлы базы знаний и обучение по сайту",
+  },
+  "AI voice support": {
+    uz: "AI ovozli yordam",
+    ru: "Голосовая поддержка AI",
+  },
+  "Premium integrations": {
+    uz: "Premium integratsiyalar",
+    ru: "Премиум-интеграции",
+  },
+  "Customer memory and analytics": {
+    uz: "Mijozlar xotirasi va analitika",
+    ru: "Память о клиентах и аналитика",
+  },
+  "Team-ready organization billing": {
+    uz: "Jamoa uchun tashkilot to'lovi",
+    ru: "Оплата для организации и команды",
+  },
+  "The core support inbox and widget.": {
+    uz: "Asosiy suhbatlar oynasi va vidjet.",
+    ru: "Базовые входящие и виджет.",
+  },
+  "Billed through Polar. Cancel anytime.": {
+    uz: "Polar orqali to'lanadi. Istalgan vaqtda bekor qiling.",
+    ru: "Оплата через Polar. Отмена в любой момент.",
+  },
+  "Polar handles checkout, tax, receipts and invoices.": {
+    uz: "To'lov, soliq, cheklar va hisob-fakturalarni Polar boshqaradi.",
+    ru: "Оплату, налоги, чеки и счета ведёт Polar.",
+  },
+  "Manage billing": {
+    uz: "To'lovni boshqarish",
+    ru: "Управлять оплатой",
+  },
+  "Invoices and payment": {
+    uz: "Hisob-fakturalar va to'lov",
+    ru: "Счета и оплата",
+  },
+  "Plan": {
+    uz: "Tarif",
+    ru: "Тариф",
+  },
+  "Renews on": {
+    uz: "Yangilanadi",
+    ru: "Продлится",
+  },
+  "Access ends": {
+    uz: "Kirish tugaydi",
+    ru: "Доступ до",
+  },
+  "Price": {
+    uz: "Narx",
+    ru: "Цена",
+  },
+  "Free forever": {
+    uz: "Doimiy bepul",
+    ru: "Бесплатно навсегда",
+  },
+  "You have every premium feature. Invoices and payment methods live in the Polar portal.": {
+    uz: "Barcha premium imkoniyatlar sizda. Hisob-fakturalar va to'lov usullari Polar portalida.",
+    ru: "У вас все премиум-функции. Счета и способы оплаты — в портале Polar.",
+  },
+  "Start free and move to Pro when you need voice, knowledge base training and analytics.": {
+    uz: "Bepul boshlang va ovoz, bilimlar bazasi va analitika kerak bo'lganda Pro'ga o'ting.",
+    ru: "Начните бесплатно и переходите на Pro, когда понадобятся голос, база знаний и аналитика.",
+  },
+  "Your last payment did not go through. Update your card in Polar to keep Pro features running.": {
+    uz: "Oxirgi to'lov o'tmadi. Pro imkoniyatlari ishlashda davom etishi uchun Polar'da kartangizni yangilang.",
+    ru: "Последний платёж не прошёл. Обновите карту в Polar, чтобы Pro продолжал работать.",
+  },
+  "/ month": {
+    uz: "/ oy",
+    ru: "/ мес.",
+  },
+  "Conversations you plan step by step: greet the visitor, offer buttons, collect details, hand over to your team. The published one answers every new chat in your widget.": {
+    uz: "Qadamma-qadam rejalashtiriladigan suhbatlar: salomlashish, tugmalar, ma'lumot yig'ish, jamoaga topshirish. Nashr qilingani vidjetdagi har bir yangi chatga javob beradi.",
+    ru: "Разговоры, которые вы планируете по шагам: приветствие, кнопки, сбор данных, передача команде. Опубликованный отвечает на каждый новый чат в виджете.",
+  },
+  "Answer common questions with a flow you design": {
+    uz: "Ko'p beriladigan savollarga o'zingiz tuzgan oqim bilan javob bering",
+    ru: "Отвечайте на частые вопросы по сценарию, который вы задали",
+  },
+  "Describe what should happen and the AI drafts the steps, or start from a blank canvas.": {
+    uz: "Nima bo'lishi kerakligini yozing — AI qadamlarni tuzadi, yoki bo'sh kanvasdan boshlang.",
+    ru: "Опишите, что должно происходить, и AI набросает шаги — или начните с чистого листа.",
+  },
+  "Blank canvas": {
+    uz: "Bo'sh kanvas",
+    ru: "Чистый лист",
+  },
+  "Describe it, AI drafts it": {
+    uz: "Tasvirlang, AI tuzadi",
+    ru: "Опишите — AI набросает",
+  },
+  "Draft with AI": {
+    uz: "AI bilan tuzish",
+    ru: "Набросать с AI",
+  },
+  "is answering new conversations.": {
+    uz: "yangi suhbatlarga javob bermoqda.",
+    ru: "отвечает на новые разговоры.",
+  },
+  "None of your workflows is answering yet. Your assistant handles every chat on its own until you publish one.": {
+    uz: "Hozircha hech bir workflow javob bermayapti. Birini nashr qilmaguningizcha yordamchi har bir chatni o'zi boshqaradi.",
+    ru: "Пока ни один workflow не отвечает. Пока вы не опубликуете один, ассистент ведёт все чаты сам.",
+  },
+  "Search workflows": {
+    uz: "Workflowlarni qidirish",
+    ru: "Поиск workflow",
+  },
+  "Last edited": {
+    uz: "Oxirgi tahrir",
+    ru: "Изменён",
+  },
+  "How the chat on your website looks, talks and behaves. Changes stay in a draft until you publish, and every published version can be rolled back.": {
+    uz: "Saytingizdagi chat qanday ko'rinishi, gapirishi va ishlashi. O'zgarishlar nashr qilinmaguncha qoralamada qoladi, har bir nashr qilingan versiyani qaytarish mumkin.",
+    ru: "Как чат на вашем сайте выглядит, говорит и работает. Изменения остаются в черновике до публикации, любую опубликованную версию можно откатить.",
+  },
+  "First screen": {
+    uz: "Birinchi ekran",
+    ru: "Первый экран",
+  },
+  "In a chat": {
+    uz: "Suhbat ichida",
+    ru: "В разговоре",
+  },
+  "Voice widget preview": {
+    uz: "Ovozli vidjet ko'rinishi",
+    ru: "Превью голосового виджета",
+  },
+  "When a visitor talks to your assistant, the transcript appears here.": {
+    uz: "Tashrif buyuruvchi yordamchi bilan gaplashganda, matni shu yerda paydo bo'ladi.",
+    ru: "Когда посетитель поговорит с ассистентом, расшифровка появится здесь.",
+  },
+  "Pick a call from the list to read the full transcript, with the page it started on and how long it lasted.": {
+    uz: "To'liq matnni, qaysi sahifada boshlangani va qancha davom etganini ko'rish uchun ro'yxatdan qo'ng'iroqni tanlang.",
+    ru: "Выберите звонок, чтобы прочитать расшифровку, страницу, с которой он начался, и длительность.",
+  },
+  "No voice calls yet": {
+    uz: "Hozircha ovozli qo'ng'iroqlar yo'q",
+    ru: "Голосовых звонков пока нет",
+  },
+  "Voice call": {
+    uz: "Ovozli qo'ng'iroq",
+    ru: "Голосовой звонок",
+  },
+  "Search voice calls": {
+    uz: "Qo'ng'iroqlarni qidirish",
+    ru: "Поиск звонков",
+  },
+  "Person": {
+    uz: "Shaxs",
+    ru: "Человек",
+  },
+  "Found you through": {
+    uz: "Qayerdan topdi",
+    ru: "Откуда пришёл",
+  },
+  "Where it stands": {
+    uz: "Holati",
+    ru: "Статус",
+  },
+  "Reach out": {
+    uz: "Bog'lanish",
+    ru: "Связаться",
+  },
+  "Reports": {
+    uz: "Hisobotlar",
+    ru: "Отчёты",
+  },
+  "Answered by the assistant": {
+    uz: "Yordamchi javob bergan",
+    ru: "Ответил ассистент",
+  },
+  "From workflows": {
+    uz: "Workflowlardan",
+    ru: "Из workflow",
+  },
+  "With a priority": {
+    uz: "Muhimligi belgilangan",
+    ru: "С приоритетом",
+  },
+  "Train": {
+    uz: "O'rgatish",
+    ru: "Обучение",
+  },
+  "Act": {
+    uz: "Harakatlar",
+    ru: "Действия",
+  },
+  "Workspace": {
+    uz: "Ish maydoni",
+    ru: "Рабочее пространство",
+  },
+  "Personal": {
+    uz: "Shaxsiy",
+    ru: "Личное",
+  },
+  "Organization": {
+    uz: "Tashkilot",
+    ru: "Организация",
+  },
+  "All settings": {
+    uz: "Barcha sozlamalar",
+    ru: "Все настройки",
+  },
+  "Get set up": {
+    uz: "Sozlashni yakunlang",
+    ru: "Завершите настройку",
+  },
+  "Finish the last steps so your assistant can answer customers.": {
+    uz: "Yordamchingiz mijozlarga javob berishi uchun oxirgi qadamlarni bajaring.",
+    ru: "Завершите последние шаги, чтобы ассистент начал отвечать клиентам.",
+  },
+  "Hide sidebar": {
+    uz: "Yon panelni yashirish",
+    ru: "Скрыть панель",
+  },
+  "Show sidebar": {
+    uz: "Yon panelni ko'rsatish",
+    ru: "Показать панель",
+  },
+  "Open menu": {
+    uz: "Menyuni ochish",
+    ru: "Открыть меню",
+  },
+  "Menu": {
+    uz: "Menyu",
+    ru: "Меню",
+  },
+  "Last 90 days": {
+    uz: "Oxirgi 90 kun",
+    ru: "Последние 90 дней",
+  },
+  "How your assistant and team handled conversations: what got resolved, what was handed over, and what it still needs to learn.": {
+    uz: "Yordamchi va jamoangiz suhbatlarni qanday boshqargani: nima hal qilindi, nima topshirildi va yana nimani o'rganishi kerak.",
+    ru: "Как ассистент и команда вели разговоры: что решено, что передано и чему ещё нужно научиться.",
+  },
+  "How the chat on your website looks, talks and behaves.": {
+    uz: "Saytingizdagi chat qanday ko'rinishi, gapirishi va ishlashi.",
+    ru: "Как чат на сайте выглядит, говорит и работает.",
+  },
+  "Website code, Telegram, Instagram and WhatsApp.": {
+    uz: "Sayt kodi, Telegram, Instagram va WhatsApp.",
+    ru: "Код для сайта, Telegram, Instagram и WhatsApp.",
+  },
+  "Check in when customers go quiet, and send broadcasts.": {
+    uz: "Mijozlar jim qolganda xabar oling va ommaviy xabarlar yuboring.",
+    ru: "Напоминайте, когда клиенты замолчали, и делайте рассылки.",
+  },
+  "The documents and pages your assistant answers from.": {
+    uz: "Yordamchingiz javob beradigan hujjatlar va sahifalar.",
+    ru: "Документы и страницы, по которым отвечает ассистент.",
+  },
+  "Approve or correct replies for questions it missed.": {
+    uz: "U javob bera olmagan savollar uchun javoblarni tasdiqlang yoki tuzating.",
+    ru: "Подтверждайте или исправляйте ответы на пропущенные вопросы.",
+  },
+  "Apps your assistant can use while it chats.": {
+    uz: "Yordamchi suhbat davomida foydalanadigan ilovalar.",
+    ru: "Приложения, которыми ассистент пользуется в чате.",
+  },
+  "Conversations you plan step by step.": {
+    uz: "Qadamma-qadam rejalashtiriladigan suhbatlar.",
+    ru: "Разговоры, которые вы планируете по шагам.",
+  },
+  "Point it at your website and review what it writes.": {
+    uz: "Saytingizni ko'rsating va u yozganini tekshiring.",
+    ru: "Укажите сайт и проверьте, что он напишет.",
+  },
+  "Tell your team when a customer needs a person.": {
+    uz: "Mijozga xodim kerak bo'lganda jamoangizga xabar bering.",
+    ru: "Сообщайте команде, когда клиенту нужен человек.",
+  },
+  "Name, logo and the people in your workspace.": {
+    uz: "Nom, logotip va ish maydoningizdagi odamlar.",
+    ru: "Название, логотип и люди в пространстве.",
+  },
+  "Your plan, invoices and payment method.": {
+    uz: "Tarifingiz, hisob-fakturalar va to'lov usuli.",
+    ru: "Ваш тариф, счета и способ оплаты.",
+  },
+  "Copy this setup into another organization.": {
+    uz: "Bu sozlamalarni boshqa tashkilotga ko'chiring.",
+    ru: "Скопируйте эту настройку в другую организацию.",
+  },
+  "Keys, usage and request logs for your developers.": {
+    uz: "Dasturchilar uchun kalitlar, foydalanish va so'rovlar jurnali.",
+    ru: "Ключи, использование и журнал запросов для разработчиков.",
+  },
+  "Name, email, password and how you sign in.": {
+    uz: "Ism, email, parol va kirish usuli.",
+    ru: "Имя, email, пароль и способ входа.",
+  },
+  "person": {
+    uz: "kishi",
+    ru: "человек",
+  },
+  "people": {
+    uz: "kishi",
+    ru: "человек",
+  },
+  "Search and actions": {
+    uz: "Qidiruv va amallar",
+    ru: "Поиск и действия",
+  },
+  "Search · ⌘K": {
+    uz: "Qidiruv · ⌘K",
+    ru: "Поиск · ⌘K",
+  },
+  "Search pages, conversations and actions…": {
+    uz: "Sahifalar, suhbatlar va amallarni qidiring…",
+    ru: "Ищите страницы, разговоры и действия…",
+  },
+  "Go to": {
+    uz: "O'tish",
+    ru: "Перейти",
+  },
+  "Add knowledge": {
+    uz: "Bilim qo'shish",
+    ru: "Добавить знания",
+  },
+  "Files, web pages, FAQs": {
+    uz: "Fayllar, veb-sahifalar, FAQ",
+    ru: "Файлы, веб-страницы, FAQ",
+  },
+  "Preview your widget": {
+    uz: "Vidjetni ko'rish",
+    ru: "Просмотреть виджет",
+  },
+  "Open the setup guide": {
+    uz: "Sozlash qo'llanmasini ochish",
+    ru: "Открыть мастер настройки",
+  },
+  "Switch to light mode": {
+    uz: "Yorug' rejimga o'tish",
+    ru: "Светлая тема",
+  },
+  "Switch to dark mode": {
+    uz: "Qorong'i rejimga o'tish",
+    ru: "Тёмная тема",
+  },
+  "Searching…": {
+    uz: "Qidirilmoqda…",
+    ru: "Поиск…",
+  },
+  "Nothing matches that.": {
+    uz: "Hech narsa topilmadi.",
+    ru: "Ничего не найдено.",
+  },
+  "↑↓ to move": {
+    uz: "↑↓ harakatlanish",
+    ru: "↑↓ перемещение",
+  },
+  "↵ to open": {
+    uz: "↵ ochish",
+    ru: "↵ открыть",
+  },
+  "⌘K anywhere": {
+    uz: "⌘K istalgan joyda",
+    ru: "⌘K откуда угодно",
+  },
+  "Reopen": {
+    uz: "Qayta ochish",
+    ru: "Открыть снова",
+  },
+  "Close conversation": {
+    uz: "Suhbatni yopish",
+    ru: "Закрыть разговор",
+  },
+  "Conversation closed": {
+    uz: "Suhbat yopildi",
+    ru: "Разговор закрыт",
+  },
+  "Conversation reopened": {
+    uz: "Suhbat qayta ochildi",
+    ru: "Разговор открыт снова",
+  },
+  "Marked as waiting for a person": {
+    uz: "Xodim kutmoqda deb belgilandi",
+    ru: "Отмечено: ждёт человека",
+  },
+  "Undo": {
+    uz: "Bekor qilish",
+    ru: "Отменить",
+  },
+  "Give back to the assistant": {
+    uz: "Yordamchiga qaytarish",
+    ru: "Вернуть ассистенту",
+  },
+  "Mark as waiting for a person": {
+    uz: "Xodim kutmoqda deb belgilash",
+    ru: "Отметить: ждёт человека",
+  },
+  "Could not update the conversation. Please try again.": {
+    uz: "Suhbatni yangilab bo'lmadi. Qayta urinib ko'ring.",
+    ru: "Не удалось обновить разговор. Попробуйте ещё раз.",
+  },
+  "Details": {
+    uz: "Tafsilotlar",
+    ru: "Подробности",
+  },
+  "Conversation": {
+    uz: "Suhbat",
+    ru: "Разговор",
+  },
+  "Assignee": {
+    uz: "Mas'ul",
+    ru: "Исполнитель",
+  },
+  "Waiting for a person": {
+    uz: "Xodim kutmoqda",
+    ru: "Ждёт человека",
+  },
+  "Closed": {
+    uz: "Yopilgan",
+    ru: "Закрыт",
+  },
+  "Send email": {
+    uz: "Email yuborish",
+    ru: "Отправить email",
+  },
+  "Refresh profile": {
+    uz: "Profilni yangilash",
+    ru: "Обновить профиль",
+  },
+  "Move through the list": {
+    uz: "Ro'yxat bo'ylab yurish",
+    ru: "Двигаться по списку",
+  },
+  "Search it": {
+    uz: "Qidirish",
+    ru: "Искать",
+  },
+  "Go anywhere": {
+    uz: "Istalgan joyga o'tish",
+    ru: "Перейти куда угодно",
+  },
+  "Add content": {
+    uz: "Kontent qo'shish",
+    ru: "Добавить контент",
+  },
+  "Content": {
+    uz: "Kontent",
+    ru: "Контент",
+  },
+  "Test it": {
+    uz: "Sinab ko'ring",
+    ru: "Проверьте",
+  },
+  "Upload a document": {
+    uz: "Hujjat yuklash",
+    ru: "Загрузить документ",
+  },
+  "Price lists, policies, FAQs — PDF, DOCX, TXT or CSV.": {
+    uz: "Narxlar, qoidalar, FAQ — PDF, DOCX, TXT yoki CSV.",
+    ru: "Прайсы, правила, FAQ — PDF, DOCX, TXT или CSV.",
+  },
+  "A page from your website, read the way a customer sees it.": {
+    uz: "Saytingizdagi sahifa, mijoz qanday ko'rsa shunday o'qiladi.",
+    ru: "Страница сайта, прочитанная так, как её видит клиент.",
+  },
+  "Let AI read your whole website": {
+    uz: "AI butun saytingizni o'qisin",
+    ru: "Пусть AI прочитает весь сайт",
+  },
+  "Write answers yourself": {
+    uz: "Javoblarni o'zingiz yozing",
+    ru: "Напишите ответы сами",
+  },
+  "Phone": {
+    uz: "Telefon",
+    ru: "Телефон",
+  },
+  "Handle": {
+    uz: "Nik",
+    ru: "Ник",
+  },
+  "Page": {
+    uz: "Sahifa",
+    ru: "Страница",
+  },
+  "Came from": {
+    uz: "Qayerdan kelgan",
+    ru: "Откуда пришёл",
+  },
+  "First seen": {
+    uz: "Birinchi ko'rilgan",
+    ru: "Впервые",
+  },
+  "Last active": {
+    uz: "Oxirgi faollik",
+    ru: "Последняя активность",
+  },
+  "No conversation yet": {
+    uz: "Hozircha suhbat yo'q",
+    ru: "Разговоров пока нет",
+  },
+  "New this week": {
+    uz: "Bu hafta yangi",
+    ru: "Новый на этой неделе",
+  },
+  "What the assistant remembers": {
+    uz: "Yordamchi nimani eslaydi",
+    ru: "Что помнит ассистент",
+  },
+  "Session": {
+    uz: "Seans",
+    ru: "Сессия",
+  },
+  "Keyboard shortcuts": {
+    uz: "Klaviatura yorliqlari",
+    ru: "Горячие клавиши",
+  },
+  "Move around the dashboard without reaching for the mouse.": {
+    uz: "Panelda sichqonchasiz harakatlaning.",
+    ru: "Перемещайтесь по панели без мыши.",
+  },
+  "Anywhere": {
+    uz: "Istalgan joyda",
+    ru: "Везде",
+  },
+  "Search pages, conversations and actions": {
+    uz: "Sahifalar, suhbatlar va amallarni qidirish",
+    ru: "Поиск страниц, разговоров и действий",
+  },
+  "Show these shortcuts": {
+    uz: "Bu yorliqlarni ko'rsatish",
+    ru: "Показать эти клавиши",
+  },
+  "Next conversation": {
+    uz: "Keyingi suhbat",
+    ru: "Следующий разговор",
+  },
+  "Previous conversation": {
+    uz: "Oldingi suhbat",
+    ru: "Предыдущий разговор",
+  },
+  "Search the list": {
+    uz: "Ro'yxatdan qidirish",
+    ru: "Поиск по списку",
+  },
+  "Send a reply": {
+    uz: "Javob yuborish",
+    ru: "Отправить ответ",
+  },
+  "New line in a reply": {
+    uz: "Javobda yangi qator",
+    ru: "Новая строка в ответе",
+  },
+  "Insert a saved reply (in the reply box)": {
+    uz: "Saqlangan javobni qo'yish (javob oynasida)",
+    ru: "Вставить сохранённый ответ (в поле ответа)",
+  },
 }

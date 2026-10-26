@@ -1,30 +1,10 @@
 "use client"
 
-import {
-  CheckIcon,
-  CreditCardIcon,
-  ExternalLinkIcon,
-  SparklesIcon,
-} from "lucide-react"
+import { CheckIcon, CreditCardIcon, ExternalLinkIcon, MinusIcon } from "lucide-react"
 
-import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@workspace/ui/components/card"
 import { Skeleton } from "@workspace/ui/components/skeleton"
-
-const proFeatures = [
-  "AI voice support and premium integrations",
-  "Knowledge base files and website training",
-  "Customer memory and analytics",
-  "Team-ready organization billing",
-]
+import { cn } from "@workspace/ui/lib/utils"
 
 type SubscriptionState = {
   isActive: boolean
@@ -38,7 +18,17 @@ type PricingTableProps = {
   subscription: SubscriptionState
 }
 
-const formatRenewalDate = (timestamp: number | null) => {
+/** What each plan includes, row by row, the way billing pages compare plans. */
+const PLAN_ROWS: { feature: string; free: boolean; pro: boolean }[] = [
+  { feature: "Support inbox and website chat widget", free: true, pro: true },
+  { feature: "Knowledge base files and website training", free: false, pro: true },
+  { feature: "AI voice support", free: false, pro: true },
+  { feature: "Premium integrations", free: false, pro: true },
+  { feature: "Customer memory and analytics", free: false, pro: true },
+  { feature: "Team-ready organization billing", free: false, pro: true },
+]
+
+const formatDate = (timestamp: number | null) => {
   if (!timestamp) {
     return null
   }
@@ -65,129 +55,179 @@ const formatStatusLabel = (status: string | null) => {
   }
 }
 
-const getStatusVariant = (
-  status: string | null
-): "default" | "secondary" | "destructive" | "outline" => {
-  switch (status) {
-    case "active":
-    case "trialing":
-      return "default"
-    case "past_due":
-      return "destructive"
-    default:
-      return "outline"
-  }
-}
-
+/** The account's plan in four figures, then the plan comparison. */
 export const PricingTable = ({ subscription }: PricingTableProps) => {
   if (subscription === undefined) {
     return (
-      <div className="grid gap-4 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-        <Skeleton className="h-56 rounded-[14px]" />
+      <div className="flex flex-col gap-4">
+        <Skeleton className="h-24 rounded-[14px]" />
         <Skeleton className="h-80 rounded-[14px]" />
       </div>
     )
   }
 
   const isPro = subscription.isPro
-  const renewalDate = formatRenewalDate(subscription.currentPeriodEnd)
+  const periodEnd = formatDate(subscription.currentPeriodEnd)
+  const isPastDue = subscription.status === "past_due"
+  const isCanceled = subscription.status === "canceled"
 
   return (
-    <div className="grid gap-4 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-      <Card
-        className={`console-card ${isPro ? "opacity-70" : ""}`}
-      >
-        <CardHeader>
-          <CardTitle>Free workspace</CardTitle>
-          <CardDescription>
-            Keep building with the core support inbox and widget.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="console-numeral text-3xl">$0</div>
-          <p className="text-sm text-muted-foreground">
-            {isPro
-              ? "Core features remain available. Premium AI tools are unlocked on Pro."
-              : "Your workspace can stay on the free plan until you need premium AI features."}
-          </p>
-        </CardContent>
-      </Card>
-
-      <Card
-        className={`console-card ${
-          isPro ? "border-foreground/25" : "border-foreground/15"
-        }`}
-      >
-        <CardHeader>
-          <div className="flex flex-wrap items-center gap-2">
-            {isPro ? (
-              <Badge variant="default">Current plan</Badge>
-            ) : (
-              <div className="flex items-center gap-2 text-primary">
-                <SparklesIcon className="size-4" />
-                <span className="text-sm font-medium">Recommended</span>
-              </div>
-            )}
-            {isPro && subscription.status ? (
-              <Badge variant={getStatusVariant(subscription.status)}>
-                {formatStatusLabel(subscription.status)}
-              </Badge>
-            ) : null}
-          </div>
-          <CardTitle>Pro</CardTitle>
-          <CardDescription>
-            {isPro
-              ? "Billed through Polar. Update payment details or cancel anytime."
-              : "Upgrade through Polar. Polar handles checkout, tax, receipts, and subscription management."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          <div>
-            <span className="console-numeral text-3xl">$29.99</span>
-            <span className="text-sm text-muted-foreground"> / month</span>
-          </div>
-          {isPro && renewalDate ? (
-            <p className="text-sm text-muted-foreground">
-              {subscription.status === "canceled"
-                ? `Access ends ${renewalDate}`
-                : `Renews on ${renewalDate}`}
-            </p>
-          ) : null}
-          <div className="space-y-2">
-            {proFeatures.map((feature) => (
-              <div className="flex items-start gap-2 text-sm" key={feature}>
-                <CheckIcon className="mt-0.5 size-4 shrink-0 text-primary" />
-                <span>{feature}</span>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-        <CardFooter className="flex flex-col gap-2 sm:flex-row">
-          {isPro ? (
-            <Button asChild className="w-full">
-              <a href="/api/polar/portal">
-                <ExternalLinkIcon className="size-4" />
-                Manage billing in Polar
-              </a>
-            </Button>
-          ) : (
+    <div className="flex flex-col gap-5">
+      <section className="report-strip grid grid-cols-2 lg:grid-cols-4">
+        <Cell label="Plan" value={isPro ? "Pro" : "Free"} />
+        <Cell
+          label="Status"
+          tone={isPastDue ? "critical" : isPro ? "positive" : "neutral"}
+          value={isPro ? formatStatusLabel(subscription.status) : "Free forever"}
+        />
+        <Cell
+          label={isCanceled ? "Access ends" : "Renews on"}
+          value={isPro && periodEnd ? periodEnd : "—"}
+        />
+        <Cell
+          label="Price"
+          value={
             <>
-              <Button asChild className="w-full sm:flex-1">
-                <a href="/api/polar/checkout">
-                  <CreditCardIcon className="size-4" />
-                  Upgrade with Polar
-                </a>
-              </Button>
-              <Button asChild className="w-full sm:flex-1" variant="outline">
-                <a href="/api/polar/portal">
-                  <ExternalLinkIcon className="size-4" />
-                  Manage billing
-                </a>
-              </Button>
+              {isPro ? "$29.99" : "$0"}
+              <span className="ml-1 text-sm font-normal text-muted-foreground">
+                / month
+              </span>
             </>
-          )}
-        </CardFooter>
-      </Card>
+          }
+        />
+      </section>
+
+      {isPastDue ? (
+        <p className="report-panel px-4 py-3 text-[0.8125rem] text-[var(--console-critical)] sm:px-5">
+          Your last payment did not go through. Update your card in Polar to
+          keep Pro features running.
+        </p>
+      ) : null}
+
+      <section className="report-panel overflow-x-auto">
+        <table className="w-full min-w-[560px] border-collapse text-[0.8125rem]">
+          <thead>
+            <tr className="border-b border-[var(--console-hairline-soft)] align-bottom">
+              <th className="px-4 py-4 text-left font-normal sm:px-5">
+                <span className="console-label">Compare plans</span>
+              </th>
+              <PlanHeading
+                current={!isPro}
+                name="Free"
+                note="The core support inbox and widget."
+                price="$0"
+              />
+              <PlanHeading
+                current={isPro}
+                name="Pro"
+                note="Billed through Polar. Cancel anytime."
+                price="$29.99"
+              />
+            </tr>
+          </thead>
+          <tbody>
+            {PLAN_ROWS.map((row) => (
+              <tr
+                className="border-b border-[var(--console-hairline-soft)] last:border-b-0"
+                key={row.feature}
+              >
+                <td className="px-4 py-2.5 sm:px-5">{row.feature}</td>
+                <Included value={row.free} />
+                <Included value={row.pro} />
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="border-t border-[var(--console-hairline-soft)]">
+              <td className="px-4 py-3.5 text-xs text-muted-foreground sm:px-5">
+                Polar handles checkout, tax, receipts and invoices.
+              </td>
+              <td className="px-4 py-3.5" />
+              <td className="px-4 py-3.5">
+                {isPro ? (
+                  <Button asChild size="sm" variant="outline">
+                    <a href="/api/polar/portal">
+                      <ExternalLinkIcon className="size-3.5" />
+                      Manage billing
+                    </a>
+                  </Button>
+                ) : (
+                  <Button asChild size="sm">
+                    <a href="/api/polar/checkout">
+                      <CreditCardIcon className="size-3.5" />
+                      Upgrade to Pro
+                    </a>
+                  </Button>
+                )}
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </section>
     </div>
   )
 }
+
+const Cell = ({
+  label,
+  value,
+  tone = "neutral",
+}: {
+  label: string
+  value: React.ReactNode
+  tone?: "neutral" | "positive" | "critical"
+}) => (
+  <div className="flex min-w-0 flex-col gap-2 px-4 py-3.5 sm:px-5">
+    <span className="console-label">{label}</span>
+    <span
+      className={cn(
+        "console-numeral truncate text-xl leading-none",
+        tone === "positive" && "text-[var(--console-positive)]",
+        tone === "critical" && "text-[var(--console-critical)]"
+      )}
+    >
+      {value}
+    </span>
+  </div>
+)
+
+const PlanHeading = ({
+  name,
+  price,
+  note,
+  current,
+}: {
+  name: string
+  price: string
+  note: string
+  current: boolean
+}) => (
+  <th className="w-[28%] px-4 py-4 text-left align-bottom font-normal">
+    <div className="flex items-center gap-2">
+      <span className="text-sm font-semibold">{name}</span>
+      {current ? (
+        <span className="rounded-full bg-foreground px-2 py-0.5 text-[10px] font-medium text-background">
+          Current
+        </span>
+      ) : null}
+    </div>
+    <p className="mt-1.5">
+      <span className="console-numeral text-2xl">{price}</span>
+      <span className="text-xs text-muted-foreground"> / month</span>
+    </p>
+    <p className="mt-1 text-xs text-muted-foreground">{note}</p>
+  </th>
+)
+
+const Included = ({ value }: { value: boolean }) => (
+  <td className="px-4 py-2.5">
+    {value ? (
+      <CheckIcon aria-label="Included" className="size-4 text-foreground" />
+    ) : (
+      <MinusIcon
+        aria-label="Not included"
+        className="size-4 text-muted-foreground/50"
+      />
+    )}
+  </td>
+)

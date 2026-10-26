@@ -3,16 +3,16 @@ import { Button } from "@workspace/ui/components/button"
 import { ScrollArea } from "@workspace/ui/components/scroll-area"
 import { useOpenAIRealtime } from "@/modules/widget/hooks/use-openai-realtime"
 import { useGeminiLive } from "@/modules/widget/hooks/use-gemini-live"
-import { useAtomValue, useSetAtom } from "jotai"
+import { useAtomValue } from "jotai"
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react"
 import {
   activeVoiceProviderAtom,
-  screenAtom,
   widgetSettingsAtom,
   type WidgetMode,
 } from "../../atoms/widget-atoms"
 import { cn } from "@workspace/ui/lib/utils"
 import { mergeWidgetTheme } from "@workspace/ui/lib/widget-customization"
+import { useOpenHome } from "../../hooks/use-open-home"
 
 type TranscriptMessage =
   | {
@@ -445,7 +445,7 @@ const VoiceCallUI = ({
   startCall,
   endCall,
 }: VoiceCallUIProps) => {
-  const setScreen = useSetAtom(screenAtom)
+  const { openHome } = useOpenHome()
   const [view, setView] = useState<"talk" | "transcript">("talk")
   const isActive = isConnected || isConnecting
   const microphoneLevel = useMicrophoneActivity(isConnected)
@@ -473,7 +473,7 @@ const VoiceCallUI = ({
       return
     }
 
-    setScreen("selection")
+    openHome()
   }
 
   return (

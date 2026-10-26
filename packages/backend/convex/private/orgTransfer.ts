@@ -223,6 +223,10 @@ const pickAppearance = (value: unknown) => {
     showPoweredBy: pickBoolean(value.showPoweredBy),
     showHelpCenter: pickBoolean(value.showHelpCenter),
     showChatHistoryDownload: pickBoolean(value.showChatHistoryDownload),
+    openingScreen:
+      value.openingScreen === "chat" || value.openingScreen === "home"
+        ? value.openingScreen
+        : undefined,
     launcherPosition:
       value.launcherPosition === "bottom-right" ||
       value.launcherPosition === "bottom-left"
@@ -256,6 +260,7 @@ const pickWidgetCopy = (value: unknown) => {
     startChatLabel: pickString(value.startChatLabel),
     inputPlaceholder: pickString(value.inputPlaceholder),
     onlineLabel: pickString(value.onlineLabel),
+    talkToHumanLabel: pickString(value.talkToHumanLabel),
   })
 }
 

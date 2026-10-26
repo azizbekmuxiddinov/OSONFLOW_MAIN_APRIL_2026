@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useOrganization } from "@clerk/nextjs"
 import { api } from "@workspace/backend/_generated/api"
 import { useMutation, useQuery } from "convex/react"
@@ -39,8 +39,12 @@ export const GetStartedView = () => {
   const finishGuide = useMutation(api.private.onboarding.finish)
   const skipGuide = useMutation(api.private.onboarding.skip)
 
+  // Home links straight to a step with `?step=`; anything else is ignored.
+  const searchParams = useSearchParams()
+  const requestedStep = searchParams.get("step")
   const [selectedStep, setSelectedStep] = useState<OnboardingStepId | null>(
-    null
+    () =>
+      ONBOARDING_STEPS.find((step) => step.id === requestedStep)?.id ?? null
   )
   const [isLeaving, setIsLeaving] = useState(false)
   const [isMapOpen, setIsMapOpen] = useState(false)
@@ -94,7 +98,7 @@ export const GetStartedView = () => {
       } else {
         await skipGuide()
       }
-      router.push("/conversations")
+      router.push("/home")
     } catch {
       toast.error("Could not save that. Please try again.")
       setIsLeaving(false)
