@@ -202,6 +202,23 @@ export const AnalyticsSkeleton = () => (
   <Frame label="Loading analytics">
     <SkeletonHero />
     <SkeletonFigures count={6} />
+    {/* Conversations over time: a row of columns on a baseline. */}
+    <SkeletonSection>
+      <div
+        aria-hidden
+        className="flex h-44 items-end justify-between gap-1.5 border-b border-[var(--console-hairline)]"
+      >
+        {[34, 52, 28, 61, 45, 72, 38, 22, 57, 66, 41, 30, 49, 78, 55, 36, 63, 44, 26, 58, 69, 47, 33, 54].map(
+          (height, index) => (
+            <Skeleton
+              className="max-w-6 flex-1 rounded-t-[4px] rounded-b-none"
+              key={index}
+              style={{ height: `${height}%` }}
+            />
+          )
+        )}
+      </div>
+    </SkeletonSection>
     <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
       <SkeletonSection>
         <div className="flex items-center gap-4">

@@ -8,6 +8,7 @@ import { formatDistanceToNow } from "date-fns"
 import {
   ArrowUpRightIcon,
   CalendarIcon,
+  ChartColumnBigIcon,
   ChevronDownIcon,
   CircleCheckIcon,
   DownloadIcon,
@@ -16,6 +17,7 @@ import {
   LightbulbIcon,
   MessagesSquareIcon,
   SparklesIcon,
+  TableIcon,
   TimerIcon,
   UsersIcon,
   MessageSquareIcon,
@@ -40,9 +42,11 @@ import {
   stringifyCsvRows,
   type CsvValue,
 } from "../lib/conversation-export"
+import { ActivityChart } from "../components/activity-chart"
 import { ConsolePage } from "../components/console"
 import { AnalyticsSkeleton } from "../components/report-skeleton"
 import {
+  Delta,
   FigureStrip,
   PageBar,
   ReportQuiet,
@@ -121,6 +125,13 @@ const percentOf = (part: number, whole: number) =>
  */
 const getOutcomes = (overview: Overview) => {
   const total = overview.totalConversations
+  // Counted per conversation on the server; the arithmetic below is only the
+  // fallback for a backend that has not been updated yet.
+  const exact = overview.outcomeCounts as Overview["outcomeCounts"] | undefined
+  if (exact) {
+    return { total, counts: exact }
+  }
+
   const resolved = Math.min(overview.resolved, total)
   const handed = Math.min(overview.escalated, total - resolved)
   const open = Math.max(0, total - resolved - handed)
@@ -538,13 +549,19 @@ const WINDOW_LABELS: Record<number, string> = {
   90: "Last 90 days",
 }
 
+/** Minutes ahead of UTC on this device, so a "day" is the viewer's day. */
+const utcOffsetMinutes = () => -new Date().getTimezoneOffset()
+
 export const AnalyticsView = () => {
   const { t } = useLanguage()
   const [isExporting, setIsExporting] = useState(false)
   const convex = useConvex()
   const [windowDays, setWindowDays] = useState<number>(30)
+  const [activityView, setActivityView] = useState<"chart" | "table">("chart")
+  const [utcOffset] = useState(utcOffsetMinutes)
   const latestOverview = useQuery(api.private.analytics.getOverview, {
     windowDays,
+    utcOffsetMinutes: utcOffset,
   })
   // Keep the last numbers on screen while a new range loads, instead of
   // blanking the whole report back to its skeleton.
@@ -566,6 +583,17 @@ export const AnalyticsView = () => {
     ? `${humanSavedHours}h ${humanSavedRemainder}m`
     : `${overview.humanSavedMinutes}m`
   const answerRate = total ? 100 - overview.unansweredRate : 0
+
+  // The period before this one. Rates only mean something when it had
+  // conversations, and nothing is compared when the scan could not reach it.
+  const earlier = overview.previous as Overview["previous"] | undefined
+  const previous = earlier?.isComplete ? earlier : undefined
+  const previousRates =
+    previous && previous.totalConversations > 0 && total > 0
+      ? previous
+      : undefined
+  const earlierPeriod = `the ${overview.windowDays} days before`
+  const daily = (overview.daily as Overview["daily"] | undefined) ?? []
 
   const handleDownloadCsv = async () => {
     setIsExporting(true)
@@ -726,6 +754,18 @@ export const AnalyticsView = () => {
 
         <FigureStrip className="md:grid-cols-3 xl:grid-cols-6">
           <StripFigure
+            delta={
+              <Delta
+                current={total}
+                goodWhen="neutral"
+                hint={
+                  previous
+                    ? `${previous.totalConversations} in ${earlierPeriod}`
+                    : undefined
+                }
+                previous={previous?.totalConversations}
+              />
+            }
             icon={MessagesSquareIcon}
             label="Conversations"
             note="Analysed in this window"
@@ -733,6 +773,18 @@ export const AnalyticsView = () => {
             value={total}
           />
           <StripFigure
+            delta={
+              <Delta
+                current={overview.resolutionRate}
+                hint={
+                  previousRates
+                    ? `${previousRates.resolutionRate}% in ${earlierPeriod}`
+                    : undefined
+                }
+                kind="points"
+                previous={previousRates?.resolutionRate}
+              />
+            }
             icon={SparklesIcon}
             label="Resolved by the assistant"
             note="Solved without your team"
@@ -740,6 +792,19 @@ export const AnalyticsView = () => {
             value={`${percentOf(counts.resolved, total)}%`}
           />
           <StripFigure
+            delta={
+              <Delta
+                current={overview.escalationRate}
+                goodWhen="down"
+                hint={
+                  previousRates
+                    ? `${previousRates.escalationRate}% in ${earlierPeriod}`
+                    : undefined
+                }
+                kind="points"
+                previous={previousRates?.escalationRate}
+              />
+            }
             icon={UsersIcon}
             label="Handed to a person"
             note="Share of conversations your team took over"
@@ -747,6 +812,20 @@ export const AnalyticsView = () => {
             value={`${overview.escalationRate}%`}
           />
           <StripFigure
+            delta={
+              <Delta
+                current={answerRate}
+                hint={
+                  previousRates
+                    ? `${100 - previousRates.unansweredRate}% in ${earlierPeriod}`
+                    : undefined
+                }
+                kind="points"
+                previous={
+                  previousRates ? 100 - previousRates.unansweredRate : undefined
+                }
+              />
+            }
             icon={CircleCheckIcon}
             label="Answered fully"
             note="Customers who got a complete answer"
@@ -754,6 +833,19 @@ export const AnalyticsView = () => {
             value={`${answerRate}%`}
           />
           <StripFigure
+            delta={
+              <Delta
+                current={overview.averageHumanResponseMs}
+                goodWhen="down"
+                hint={
+                  previous?.averageHumanResponseMs
+                    ? `${formatDuration(previous.averageHumanResponseMs)} in ${earlierPeriod}`
+                    : undefined
+                }
+                kind="duration"
+                previous={previous?.averageHumanResponseMs}
+              />
+            }
             icon={TimerIcon}
             label="First human reply"
             note="From the customer's first message to your team's reply"
@@ -761,6 +853,18 @@ export const AnalyticsView = () => {
             value={formatDuration(overview.averageHumanResponseMs)}
           />
           <StripFigure
+            delta={
+              <Delta
+                current={overview.humanSavedMinutes}
+                hint={
+                  previous
+                    ? `${previous.humanSavedMinutes}m in ${earlierPeriod}`
+                    : undefined
+                }
+                kind="duration"
+                previous={previous?.humanSavedMinutes}
+              />
+            }
             icon={HourglassIcon}
             label="Time saved"
             note="Support minutes the assistant handled for you"
@@ -768,6 +872,46 @@ export const AnalyticsView = () => {
             value={savedTimeLabel}
           />
         </FigureStrip>
+
+        <ReportSection
+          actions={
+            total > 0 ? (
+              <div
+                aria-label="Show as"
+                className="flex items-center gap-0.5 rounded-lg bg-muted/70 p-0.5"
+                role="group"
+              >
+                {(
+                  [
+                    { id: "chart", label: "Chart", icon: ChartColumnBigIcon },
+                    { id: "table", label: "Table", icon: TableIcon },
+                  ] as const
+                ).map((option) => (
+                  <button
+                    aria-pressed={activityView === option.id}
+                    className={cn(
+                      "flex h-6 items-center gap-1.5 rounded-md px-2 text-xs font-medium transition-colors",
+                      activityView === option.id
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                    key={option.id}
+                    onClick={() => setActivityView(option.id)}
+                    type="button"
+                  >
+                    <option.icon className="size-3.5" />
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            ) : null
+          }
+          className={cn("transition-opacity", isChangingRange && "opacity-60")}
+          lede="How many conversations came in, and how each one ended."
+          title="Conversations over time"
+        >
+          <ActivityChart daily={daily} view={activityView} />
+        </ReportSection>
 
         <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
           <ReportSection

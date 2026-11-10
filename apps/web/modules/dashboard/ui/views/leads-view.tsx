@@ -1,10 +1,11 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useConvex, usePaginatedQuery, useQuery } from "convex/react"
 import type { FunctionReturnType } from "convex/server"
 import { formatDistanceToNow } from "date-fns"
+import { useAtom } from "jotai/react"
 import {
   ArrowUpRightIcon,
   CircleDotIcon,
@@ -33,6 +34,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@workspace/ui/components/sheet"
+import { pendingLeadSearchAtom } from "../../atoms"
 import {
   formatCsvTimestamp,
   stringifyCsvRows,
@@ -774,6 +776,22 @@ export const LeadsView = () => {
   const [segment, setSegment] = useState<LeadSegment>("all")
   const [isExporting, setIsExporting] = useState(false)
   const [openLead, setOpenLead] = useState<LeadRecord | null>(null)
+
+  // A person picked in the command menu arrives as a search to apply once.
+  const [pendingSearch, setPendingSearch] = useAtom(pendingLeadSearchAtom)
+  const [appliedSearch, setAppliedSearch] = useState<string | null>(null)
+  if (pendingSearch !== appliedSearch) {
+    setAppliedSearch(pendingSearch)
+    if (pendingSearch !== null) {
+      setSegment("all")
+      setSearchQuery(pendingSearch)
+    }
+  }
+  useEffect(() => {
+    if (pendingSearch !== null) {
+      setPendingSearch(null)
+    }
+  }, [pendingSearch, setPendingSearch])
 
   const normalizedSearchQuery = searchQuery.trim()
 

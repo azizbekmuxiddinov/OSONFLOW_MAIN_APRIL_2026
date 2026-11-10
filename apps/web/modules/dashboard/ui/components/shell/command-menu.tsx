@@ -1,50 +1,80 @@
 "use client"
 
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useMemo, useRef, useState } from "react"
-import { usePaginatedQuery } from "convex/react"
+import { useMutation, usePaginatedQuery } from "convex/react"
+import { useSetAtom } from "jotai/react"
 import { useTheme } from "next-themes"
 import { api } from "@workspace/backend/_generated/api"
 import {
+  CheckCheckIcon,
   CompassIcon,
   CornerDownLeftIcon,
-  ExternalLinkIcon,
   KeyboardIcon,
+  LayoutGridIcon,
   MoonIcon,
+  PlayIcon,
   PlusIcon,
   SearchIcon,
+  UserPlusIcon,
   type LucideIcon,
 } from "lucide-react"
+import { toast } from "sonner"
 
 import { Dialog, DialogContent, DialogTitle } from "@workspace/ui/components/dialog"
 import { DicebearAvatar } from "@workspace/ui/components/dicebear-avatar"
 import { richMessagePreview } from "@workspace/ui/components/ai/rich-message"
 import { cn } from "@workspace/ui/lib/utils"
 
+import { pendingLeadSearchAtom } from "../../../atoms"
 import {
   useConversationView,
   type ConversationView,
 } from "../../hooks/use-conversation-view"
-import { NAV_AREAS } from "./navigation"
+import { NAV_AREAS, goToKeyFor } from "./navigation"
+import { readRecentPages } from "./recent-pages"
 
 /**
  * ⌘K, the way Intercom's "Search actions" bar works: type to jump to any page
- * or inbox view, find a conversation by the customer's name or words in it,
- * or run a common action — all without leaving the keyboard.
+ * or inbox view, find a conversation or a person by name, or run a common
+ * action — all without leaving the keyboard. With nothing typed it opens on
+ * the pages you were on last.
  */
+
+const GROUPS = ["Recent", "Conversations", "People", "Go to", "Actions"] as const
 
 type CommandItem = {
   id: string
-  group: "Conversations" | "Go to" | "Actions"
+  group: (typeof GROUPS)[number]
   label: string
   hint?: string
   icon?: LucideIcon
   avatarSeed?: string
   keywords?: string
+  /** A shortcut that does the same thing, shown at the end of the row. */
+  keys?: string[]
   run: () => void
 }
 
+const RECENT_LIMIT = 4
+
 const normalize = (value: string) => value.toLowerCase().trim()
+
+/** Messaging channels store a placeholder address; it is not a real inbox. */
+const isRealEmail = (email: string) =>
+  Boolean(email) && !/\.local$/i.test(email.trim())
+
+/** The latest value, once typing has paused: one search, not one per key. */
+const useSettled = <T,>(value: T, delayMs: number) => {
+  const [settled, setSettled] = useState(value)
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSettled(value), delayMs)
+    return () => window.clearTimeout(timer)
+  }, [value, delayMs])
+
+  return settled
+}
 
 export const CommandMenu = ({
   open,
@@ -56,18 +86,41 @@ export const CommandMenu = ({
   onShowShortcuts: () => void
 }) => {
   const router = useRouter()
+  const pathname = usePathname()
   const { resolvedTheme, setTheme } = useTheme()
   const { setView } = useConversationView()
+  const setPendingLeadSearch = useSetAtom(pendingLeadSearchAtom)
+  const markConversationsRead = useMutation(
+    api.private.conversations.markAllAsRead
+  )
+  const markVoiceRead = useMutation(api.private.aiConversations.markAllAsRead)
   const [query, setQuery] = useState("")
   const [activeIndex, setActiveIndex] = useState(0)
   const listRef = useRef<HTMLDivElement>(null)
 
   const search = normalize(query)
+  // What the server is asked for trails the typing slightly.
+  const settledSearch = useSettled(search, 180)
+  const remoteSearch =
+    open && search.length >= 2 && settledSearch.length >= 2
+      ? settledSearch
+      : null
   const conversations = usePaginatedQuery(
     api.private.conversations.getMany,
-    open && search.length >= 2 ? { searchQuery: search } : "skip",
+    remoteSearch ? { searchQuery: remoteSearch } : "skip",
     { initialNumItems: 5 }
   )
+  const people = usePaginatedQuery(
+    api.private.leads.getMany,
+    remoteSearch ? { searchQuery: remoteSearch } : "skip",
+    { initialNumItems: 4 }
+  )
+  const isSearchingRemote =
+    search.length >= 2 &&
+    (settledSearch !== search || conversations.isLoading || people.isLoading)
+
+  // Read when the menu opens; the list is this browser's own history.
+  const recentUrls = useMemo(() => (open ? readRecentPages() : []), [open])
 
   const close = () => onOpenChange(false)
 
@@ -99,6 +152,13 @@ export const CommandMenu = ({
           hint: area.label === page.title ? undefined : area.label,
           icon: page.icon,
           keywords: `${area.label} ${page.title}`,
+          keys: (() => {
+            const key = goToKeyFor(
+              page.url,
+              "view" in page ? page.view : undefined
+            )
+            return key ? ["G", key.toUpperCase()] : undefined
+          })(),
           run: () => go(page.url, "view" in page ? page.view : undefined),
         })
       }
@@ -109,7 +169,31 @@ export const CommandMenu = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // The pages opened last, minus the one already on screen.
+  const currentUrl = `/${pathname.split("/")[1] ?? ""}`
+  const recentItems: CommandItem[] = recentUrls
+    .filter((url) => url !== currentUrl)
+    .flatMap((url) => {
+      const page = navigationItems.find((item) =>
+        item.id.startsWith(`go-${url}|`)
+      )
+      return page ? [{ ...page, id: `recent-${url}`, group: "Recent" as const }] : []
+    })
+    .slice(0, RECENT_LIMIT)
+
   const actionItems: CommandItem[] = [
+    {
+      id: "action-preview-widget",
+      group: "Actions",
+      label: "Try your assistant",
+      hint: "Opens your chat in a new tab",
+      icon: PlayIcon,
+      keywords: "preview widget chat test open",
+      run: () => {
+        window.open("/widget-preview", "_blank")
+        close()
+      },
+    },
     {
       id: "action-new-workflow",
       group: "Actions",
@@ -128,14 +212,34 @@ export const CommandMenu = ({
       run: () => go("/files"),
     },
     {
-      id: "action-preview-widget",
+      id: "action-connect-channel",
       group: "Actions",
-      label: "Preview your widget",
-      icon: ExternalLinkIcon,
-      keywords: "chat test open",
+      label: "Connect a channel",
+      hint: "Telegram, WhatsApp, Instagram",
+      icon: LayoutGridIcon,
+      keywords: "integration messaging bot",
+      run: () => go("/integrations"),
+    },
+    {
+      id: "action-invite",
+      group: "Actions",
+      label: "Invite a teammate",
+      icon: UserPlusIcon,
+      keywords: "team member colleague add user organization",
+      run: () => go("/organization-settings"),
+    },
+    {
+      id: "action-mark-read",
+      group: "Actions",
+      label: "Mark everything as read",
+      hint: "Conversations and voice calls",
+      icon: CheckCheckIcon,
+      keywords: "unread clear inbox seen",
       run: () => {
-        window.open("/widget-preview", "_blank")
         close()
+        void Promise.all([markConversationsRead({}), markVoiceRead({})])
+          .then(() => toast.success("Everything is marked as read"))
+          .catch(() => toast.error("Couldn't mark everything as read"))
       },
     },
     {
@@ -172,7 +276,7 @@ export const CommandMenu = ({
   ]
 
   const conversationItems: CommandItem[] =
-    search.length >= 2
+    remoteSearch
       ? conversations.results.map((conversation) => ({
           id: `conversation-${conversation._id}`,
           group: "Conversations",
@@ -187,6 +291,31 @@ export const CommandMenu = ({
         }))
       : []
 
+  // A person opens the Leads list narrowed to them. The search is handed over
+  // in memory rather than in the address bar.
+  const peopleItems: CommandItem[] = remoteSearch
+    ? people.results.map((lead) => {
+        const email = isRealEmail(lead.email) ? lead.email : undefined
+        const label =
+          lead.name?.trim() || lead.socialHandle || email || "Unnamed visitor"
+        const reach = [email, lead.phone, lead.socialHandle].find(
+          (value) => value && value !== label
+        )
+
+        return {
+          id: `person-${lead.contactSessionId}`,
+          group: "People" as const,
+          label,
+          hint: reach ?? undefined,
+          avatarSeed: lead.contactSessionId,
+          run: () => {
+            setPendingLeadSearch(email ?? label)
+            go("/leads")
+          },
+        }
+      })
+    : []
+
   const matches = (item: CommandItem) =>
     !search ||
     normalize(`${item.label} ${item.keywords ?? ""} ${item.hint ?? ""}`).includes(
@@ -194,11 +323,13 @@ export const CommandMenu = ({
     )
 
   const items = [
+    ...(search ? [] : recentItems),
     ...conversationItems,
+    ...peopleItems,
     ...navigationItems.filter(matches),
     ...actionItems.filter(matches),
   ]
-  const groups = (["Conversations", "Go to", "Actions"] as const)
+  const groups = GROUPS
     .map((group) => ({
       group,
       items: items.filter((item) => item.group === group),
@@ -246,7 +377,7 @@ export const CommandMenu = ({
         <div className="flex items-center gap-3 border-b border-foreground/[0.07] px-4">
           <SearchIcon className="size-[18px] shrink-0 text-muted-foreground" />
           <input
-            aria-label="Search pages, conversations and actions"
+            aria-label="Search pages, people, conversations and actions"
             autoFocus
             className="h-[52px] min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-muted-foreground/80"
             onChange={(event) => {
@@ -254,7 +385,7 @@ export const CommandMenu = ({
               setActiveIndex(0)
             }}
             onKeyDown={onKeyDown}
-            placeholder="Search pages, conversations and actions…"
+            placeholder="Search pages, people, conversations and actions…"
             value={query}
           />
           <Key>Esc</Key>
@@ -270,9 +401,7 @@ export const CommandMenu = ({
                 <SearchIcon className="size-4" />
               </span>
               <p className="text-[13px] text-muted-foreground">
-                {search.length >= 2 && conversations.isLoading
-                  ? "Searching…"
-                  : "Nothing matches that."}
+                {isSearchingRemote ? "Searching…" : "Nothing matches that."}
               </p>
             </div>
           ) : (
@@ -323,12 +452,20 @@ export const CommandMenu = ({
                       ) : (
                         <span className="flex-1" />
                       )}
-                      <CornerDownLeftIcon
-                        className={cn(
-                          "size-3.5 shrink-0 text-muted-foreground transition-opacity duration-100",
-                          isActive ? "opacity-100" : "opacity-0"
-                        )}
-                      />
+                      {item.keys && !isActive ? (
+                        <span className="flex shrink-0 items-center gap-1">
+                          {item.keys.map((key) => (
+                            <Key key={key}>{key}</Key>
+                          ))}
+                        </span>
+                      ) : (
+                        <CornerDownLeftIcon
+                          className={cn(
+                            "size-3.5 shrink-0 text-muted-foreground transition-opacity duration-100",
+                            isActive ? "opacity-100" : "opacity-0"
+                          )}
+                        />
+                      )}
                     </button>
                   )
                 })}

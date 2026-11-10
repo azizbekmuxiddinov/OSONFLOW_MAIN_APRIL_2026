@@ -1,5 +1,7 @@
 import type * as React from "react"
+import { ArrowDownIcon, ArrowUpIcon, MinusIcon } from "lucide-react"
 
+import { Hint } from "@workspace/ui/components/hint"
 import { cn } from "@workspace/ui/lib/utils"
 
 import { SubnavToggle } from "./shell/subnav-toggle"
@@ -82,12 +84,84 @@ const isEmptyFigure = (value: React.ReactNode) =>
   value === "—" ||
   (typeof value === "string" && /^0(%|m| ?min)?$/.test(value.trim()))
 
+/**
+ * How a figure moved against the period before it: an arrow for direction, a
+ * tone for whether that is good news, and the old value on hover. Renders
+ * nothing when there is no earlier period to compare with.
+ */
+export const Delta = ({
+  current,
+  previous,
+  kind = "count",
+  goodWhen = "up",
+  hint,
+}: {
+  current: number | null | undefined
+  previous: number | null | undefined
+  /** `count` and `duration` compare as a percentage, `points` as a difference. */
+  kind?: "count" | "points" | "duration"
+  /** Which direction is good news; `neutral` never colours the chip. */
+  goodWhen?: "up" | "down" | "neutral"
+  /** What the earlier value was, in words. */
+  hint?: string
+}) => {
+  if (
+    current === null ||
+    current === undefined ||
+    previous === null ||
+    previous === undefined
+  ) {
+    return null
+  }
+
+  let text: string
+  let direction: "up" | "down" | "flat"
+
+  if (kind === "points") {
+    const difference = Math.round(current - previous)
+    direction = difference > 0 ? "up" : difference < 0 ? "down" : "flat"
+    text = difference === 0 ? "Same" : `${Math.abs(difference)} pts`
+  } else if (previous === 0) {
+    if (current === 0) {
+      return null
+    }
+    direction = "up"
+    text = "New"
+  } else {
+    const change = Math.round(((current - previous) / previous) * 100)
+    direction = change > 0 ? "up" : change < 0 ? "down" : "flat"
+    text = change === 0 ? "Same" : `${Math.abs(change)}%`
+  }
+
+  const tone =
+    direction === "flat" || goodWhen === "neutral"
+      ? "neutral"
+      : direction === goodWhen
+        ? "good"
+        : "bad"
+  const Icon =
+    direction === "up" ? ArrowUpIcon : direction === "down" ? ArrowDownIcon : MinusIcon
+  const spoken =
+    direction === "flat" ? "No change" : direction === "up" ? "Up" : "Down"
+
+  const chip = (
+    <span className="report-delta" data-tone={tone}>
+      <Icon aria-hidden className="size-3" strokeWidth={2.4} />
+      <span className="sr-only">{spoken} </span>
+      {text}
+    </span>
+  )
+
+  return hint ? <Hint text={hint}>{chip}</Hint> : chip
+}
+
 export const StripFigure = ({
   label,
   value,
   note,
   icon: Icon,
   tone = "neutral",
+  delta,
   className,
 }: {
   label: string
@@ -95,6 +169,8 @@ export const StripFigure = ({
   note?: string
   icon?: IconType
   tone?: ReportTone
+  /** A `Delta`, shown beside the icon when there is something to compare. */
+  delta?: React.ReactNode
   className?: string
 }) => (
   <div className={cn("report-stat min-w-0 px-4 py-4 sm:px-5", className)}>
@@ -105,11 +181,14 @@ export const StripFigure = ({
       >
         {value}
       </p>
-      {Icon ? (
-        <span className="report-stat-icon mt-1" data-tone={tone}>
-          <Icon className="size-3.5" />
-        </span>
-      ) : null}
+      <span className="flex shrink-0 items-center gap-1.5">
+        {delta}
+        {Icon ? (
+          <span className="report-stat-icon mt-1" data-tone={tone}>
+            <Icon className="size-3.5" />
+          </span>
+        ) : null}
+      </span>
     </div>
     <p className="mt-2 truncate text-[0.8125rem] text-muted-foreground">
       {label}

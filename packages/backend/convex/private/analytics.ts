@@ -57,13 +57,30 @@ const groupCounts = <T extends string>(values: T[]) => {
     .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/** Insights are read newest first, capped so the query stays cheap. */
+const INSIGHT_SCAN_LIMIT = 1000
+
+/**
+ * One exclusive outcome per conversation. The flags can overlap (escalated,
+ * then resolved), so resolution wins, then the hand-off, and the rest is open.
+ */
+const outcomeOf = (insight: { wasResolved: boolean; wasEscalated: boolean }) =>
+  insight.wasResolved ? "resolved" : insight.wasEscalated ? "handed" : "open"
+
 export const getAnalyticsOverviewForOrganization = async (
   ctx: QueryCtx,
   organizationId: string,
-  args: { windowDays?: number }
+  args: { windowDays?: number; utcOffsetMinutes?: number }
 ) => {
   const windowDays = Math.max(1, Math.min(args.windowDays ?? 30, 365))
-  const cutoff = Date.now() - windowDays * 24 * 60 * 60 * 1000
+  const now = Date.now()
+  const cutoff = now - windowDays * DAY_MS
+  const previousCutoff = cutoff - windowDays * DAY_MS
+  // The viewer's clock, so "today" on the chart is their today.
+  const offsetMs =
+    Math.max(-14 * 60, Math.min(args.utcOffsetMinutes ?? 0, 14 * 60)) * 60_000
 
   const allInsights = await ctx.db
     .query("conversationInsights")
@@ -71,9 +88,52 @@ export const getAnalyticsOverviewForOrganization = async (
       q.eq("organizationId", organizationId)
     )
     .order("desc")
-    .take(1000)
+    .take(INSIGHT_SCAN_LIMIT)
 
   const insights = allInsights.filter((insight) => insight.updatedAt >= cutoff)
+
+  // The window before this one, for "compared with" figures. It is only
+  // trustworthy when the scan reached all the way back through it.
+  const previousInsights = allInsights.filter(
+    (insight) =>
+      insight.updatedAt < cutoff && insight.updatedAt >= previousCutoff
+  )
+  const oldestScanned = allInsights[allInsights.length - 1]
+  const isPreviousComplete =
+    allInsights.length < INSIGHT_SCAN_LIMIT ||
+    (oldestScanned !== undefined && oldestScanned.updatedAt < previousCutoff)
+  const previousResponseTimes = previousInsights
+    .map((insight) => insight.firstHumanResponseMs)
+    .filter((value): value is number => typeof value === "number")
+
+  // One bucket per calendar day in the viewer's timezone, oldest first, so
+  // the days always add up to the totals above them.
+  const dayIndexOf = (timestamp: number) =>
+    Math.floor((timestamp + offsetMs) / DAY_MS)
+  const todayIndex = dayIndexOf(now)
+  const firstDayIndex = dayIndexOf(cutoff)
+  const daily = Array.from(
+    { length: todayIndex - firstDayIndex + 1 },
+    (_, index) => ({
+      // Local midnight of the day, as a UTC timestamp.
+      day: (firstDayIndex + index) * DAY_MS - offsetMs,
+      resolved: 0,
+      handed: 0,
+      open: 0,
+    })
+  )
+  const outcomeCounts = { resolved: 0, handed: 0, open: 0 }
+
+  for (const insight of insights) {
+    const outcome = outcomeOf(insight)
+    outcomeCounts[outcome] += 1
+
+    const bucket = daily[dayIndexOf(insight.updatedAt) - firstDayIndex]
+    if (bucket) {
+      bucket[outcome] += 1
+    }
+  }
+
   const total = insights.length
   const resolved = insights.filter((insight) => insight.wasResolved).length
   const escalated = insights.filter((insight) => insight.wasEscalated).length
@@ -150,12 +210,39 @@ export const getAnalyticsOverviewForOrganization = async (
       .slice(0, 8),
     channelMetrics: [byChannel("chat"), byChannel("voice")],
     recentInsights: insights.slice(0, 8),
+    outcomeCounts,
+    daily,
+    previous: {
+      isComplete: isPreviousComplete,
+      totalConversations: previousInsights.length,
+      resolutionRate: percentage(
+        previousInsights.filter((insight) => insight.wasResolved).length,
+        previousInsights.length
+      ),
+      escalationRate: percentage(
+        previousInsights.filter((insight) => insight.wasEscalated).length,
+        previousInsights.length
+      ),
+      unansweredRate: percentage(
+        previousInsights.filter((insight) => insight.isUnanswered).length,
+        previousInsights.length
+      ),
+      averageHumanResponseMs: average(previousResponseTimes),
+      humanSavedMinutes: Math.round(
+        previousInsights.reduce(
+          (totalMinutes, insight) => totalMinutes + insight.humanSavedMinutes,
+          0
+        )
+      ),
+    },
   }
 }
 
 export const getOverview = query({
   args: {
     windowDays: v.optional(v.number()),
+    // Minutes ahead of UTC on the viewer's clock, for day boundaries.
+    utcOffsetMinutes: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const organizationId = await getOrganizationId(ctx)

@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
 import { useOrganization } from "@clerk/nextjs"
 import { api } from "@workspace/backend/_generated/api"
@@ -7,12 +8,17 @@ import { useQuery, usePaginatedQuery } from "convex/react"
 import { format, formatDistanceToNowStrict } from "date-fns"
 import {
   ArrowRightIcon,
+  BookOpenIcon,
   CheckIcon,
   ChevronRightIcon,
   CircleHelpIcon,
   InboxIcon,
+  LayoutGridIcon,
   MessagesSquareIcon,
+  PlayIcon,
   SparklesIcon,
+  UserPlusIcon,
+  type LucideIcon,
 } from "lucide-react"
 
 import { Button } from "@workspace/ui/components/button"
@@ -22,8 +28,11 @@ import { richMessagePreview } from "@workspace/ui/components/ai/rich-message"
 import { cn } from "@workspace/ui/lib/utils"
 
 import { ONBOARDING_STEPS } from "@/modules/onboarding/lib/steps"
+import { ActivitySpark } from "../components/activity-chart"
 import { ConsolePage, Meter, Panel, PanelHeader } from "../components/console"
 import { ConversationPriorityBadge } from "../components/conversation-priority"
+import { Delta } from "../components/report"
+import "../styles/report.css"
 
 /**
  * Where an owner starts the day.
@@ -36,6 +45,41 @@ import { ConversationPriorityBadge } from "../components/conversation-priority"
 
 const WINDOW_DAYS = 7
 const WAITING_LIMIT = 6
+
+/** The jobs an owner comes back for most, one click from the first page. */
+const SHORTCUTS: {
+  title: string
+  body: string
+  icon: LucideIcon
+  href: string
+  newTab?: boolean
+}[] = [
+  {
+    title: "Try your assistant",
+    body: "Chat with it the way a customer would",
+    icon: PlayIcon,
+    href: "/widget-preview",
+    newTab: true,
+  },
+  {
+    title: "Add knowledge",
+    body: "Files, web pages and answers it can use",
+    icon: BookOpenIcon,
+    href: "/files",
+  },
+  {
+    title: "Connect a channel",
+    body: "Telegram, WhatsApp and Instagram",
+    icon: LayoutGridIcon,
+    href: "/integrations",
+  },
+  {
+    title: "Invite a teammate",
+    body: "Share the inbox with your team",
+    icon: UserPlusIcon,
+    href: "/organization-settings",
+  },
+]
 
 const greetingFor = (date: Date) => {
   const hour = date.getHours()
@@ -59,8 +103,11 @@ const humanizeIntent = (intent: string) => {
 export const HomeView = () => {
   const { organization } = useOrganization()
   const status = useQuery(api.private.onboarding.getStatus)
+  // Minutes ahead of UTC on this device, so the week's days are local days.
+  const [utcOffsetMinutes] = useState(() => -new Date().getTimezoneOffset())
   const overview = useQuery(api.private.analytics.getOverview, {
     windowDays: WINDOW_DAYS,
+    utcOffsetMinutes,
   })
   const leads = useQuery(api.private.leads.getSummary)
   const learning = useQuery(api.private.learning.counts)
@@ -86,6 +133,19 @@ export const HomeView = () => {
       ?.total ?? 0
   const topIntents = overview?.topIntents.slice(0, 5) ?? []
   const topIntentMax = Math.max(1, ...topIntents.map((intent) => intent.count))
+
+  // Last week, for the "compared with" chips. Rates need conversations on
+  // both sides to mean anything.
+  type Previous = NonNullable<typeof overview>["previous"]
+  const earlier = overview?.previous as Previous | undefined
+  const previous = earlier?.isComplete ? earlier : undefined
+  const previousRates =
+    previous &&
+    previous.totalConversations > 0 &&
+    (overview?.totalConversations ?? 0) > 0
+      ? previous
+      : undefined
+  const week = (overview?.daily as NonNullable<typeof overview>["daily"] | undefined) ?? []
 
   return (
     <ConsolePage>
@@ -219,12 +279,41 @@ export const HomeView = () => {
               </>
             ) : null
           }
+          delta={
+            <Delta
+              current={overview?.totalConversations}
+              goodWhen="neutral"
+              hint={
+                previous
+                  ? `${previous.totalConversations} the week before`
+                  : undefined
+              }
+              previous={previous?.totalConversations}
+            />
+          }
           label="Conversations"
           period="Last 7 days"
+          spark={
+            week.length && (overview?.totalConversations ?? 0) > 0 ? (
+              <ActivitySpark daily={week} />
+            ) : null
+          }
           value={overview?.totalConversations}
         />
         <Figure
           hint={<span>Resolved without a teammate</span>}
+          delta={
+            <Delta
+              current={overview?.resolutionRate}
+              hint={
+                previousRates
+                  ? `${previousRates.resolutionRate}% the week before`
+                  : undefined
+              }
+              kind="points"
+              previous={previousRates?.resolutionRate}
+            />
+          }
           label="Answered by AI"
           meter={overview?.resolutionRate}
           period="Last 7 days"
@@ -254,6 +343,35 @@ export const HomeView = () => {
           value={leads?.newcomerCount}
         />
       </section>
+
+      {/* ── shortcuts ────────────────────────────────────────────────────── */}
+      <nav
+        aria-label="Shortcuts"
+        className="grid grid-cols-2 gap-2.5 lg:grid-cols-4"
+      >
+        {SHORTCUTS.map((shortcut) => (
+          <Link
+            className="dash-tile group flex items-center gap-3 rounded-xl px-3.5 py-3"
+            href={shortcut.href}
+            key={shortcut.title}
+            rel={shortcut.newTab ? "noreferrer" : undefined}
+            target={shortcut.newTab ? "_blank" : undefined}
+          >
+            <span className="dash-mark">
+              <shortcut.icon className="size-4" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[13px] font-medium">
+                {shortcut.title}
+              </span>
+              <span className="block truncate text-xs text-muted-foreground">
+                {shortcut.body}
+              </span>
+            </span>
+            <ArrowRightIcon className="size-3.5 shrink-0 text-muted-foreground opacity-0 transition-[opacity,transform] duration-200 group-hover:translate-x-0.5 group-hover:opacity-100" />
+          </Link>
+        ))}
+      </nav>
 
       {/* ── work ─────────────────────────────────────────────────────────── */}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)] lg:items-start">
@@ -440,6 +558,8 @@ const Figure = ({
   value,
   hint,
   meter,
+  delta,
+  spark,
   tone = "neutral",
 }: {
   label: string
@@ -447,26 +567,38 @@ const Figure = ({
   value: React.ReactNode | undefined
   hint?: React.ReactNode
   meter?: number
+  /** A `Delta` against the week before, shown beside the number. */
+  delta?: React.ReactNode
+  /** A small chart of the period, in the corner of the cell. */
+  spark?: React.ReactNode
   tone?: "neutral" | "warning"
 }) => (
-  <div className="flex min-w-0 flex-col gap-1.5 bg-card px-4 py-4 sm:px-5">
+  <div className="relative flex min-w-0 flex-col gap-1.5 bg-card px-4 py-4 sm:px-5">
     <div className="flex items-start justify-between gap-2">
       {value === undefined ? (
         <Skeleton className="h-8 w-16 rounded-md" />
       ) : (
-        <span
-          className={cn(
-            "text-[1.75rem] leading-none font-medium tracking-[-0.03em] tabular-nums",
-            tone === "warning" && "text-[var(--console-warning)]"
-          )}
-        >
-          {value}
+        <span className="flex min-w-0 items-center gap-2">
+          <span
+            className={cn(
+              "text-[1.75rem] leading-none font-medium tracking-[-0.03em] tabular-nums",
+              tone === "warning" && "text-[var(--console-warning)]"
+            )}
+          >
+            {value}
+          </span>
+          {delta}
         </span>
       )}
       <span className="shrink-0 text-[10.5px] text-muted-foreground/80">
         {period}
       </span>
     </div>
+    {/* Tucked into the corner, so the cell keeps the height of its
+        neighbours. */}
+    {spark ? (
+      <span className="absolute right-4 bottom-4 sm:right-5">{spark}</span>
+    ) : null}
     <span className="mt-1 truncate text-[0.8125rem] text-muted-foreground">
       {label}
     </span>

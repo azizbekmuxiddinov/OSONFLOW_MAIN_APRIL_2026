@@ -2,7 +2,7 @@
 
 import { OrganizationSwitcher, UserButton, useAuth } from "@clerk/nextjs"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import {
   createContext,
   useCallback,
@@ -29,14 +29,20 @@ import { cn } from "@workspace/ui/lib/utils"
 import { LanguageSwitcher } from "@/components/i18n/language-switcher"
 import { useConversationView } from "../../hooks/use-conversation-view"
 import { DashboardThemeToggle } from "../dashboard-theme-toggle"
+import { AttentionMenu } from "./attention-menu"
 import { CommandMenu } from "./command-menu"
 import { ShortcutsDialog } from "./shortcuts-dialog"
 import {
+  GO_TO_SHORTCUTS,
   NAV_AREAS,
   areaForPath,
   type NavArea,
   type NavItem,
 } from "./navigation"
+import { recordRecentPage } from "./recent-pages"
+
+/** How long after "G" the second key still counts as a go-to shortcut. */
+const GO_TO_WINDOW_MS = 1200
 
 /** One easing and one spring for everything the shell moves. */
 const EASE_OUT = [0.16, 1, 0.3, 1] as const
@@ -135,6 +141,8 @@ const isFullBleed = (pathname: string) =>
 
 export const DashboardShell = ({ children }: { children: React.ReactNode }) => {
   const pathname = usePathname()
+  const router = useRouter()
+  const { setView } = useConversationView()
   const area = areaForPath(pathname)
   const { isLoaded, orgId } = useAuth()
   const hasOrganization = isLoaded && Boolean(orgId)
@@ -149,9 +157,10 @@ export const DashboardShell = ({ children }: { children: React.ReactNode }) => {
   }, [])
 
   // ⌘K / Ctrl+K opens search and actions from anywhere in the dashboard.
-  // "?" shows every shortcut.
+  // "?" shows every shortcut. "G" then a letter jumps to a page.
   const [isCommandOpen, setIsCommandOpen] = useState(false)
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false)
+  const goToArmedAt = useRef(0)
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
@@ -167,15 +176,58 @@ export const DashboardShell = ({ children }: { children: React.ReactNode }) => {
         target?.tagName === "TEXTAREA" ||
         target?.tagName === "SELECT"
 
-      if (event.key === "?" && !isTyping) {
+      if (isTyping || event.metaKey || event.ctrlKey || event.altKey) {
+        goToArmedAt.current = 0
+        return
+      }
+
+      if (event.key === "?") {
         event.preventDefault()
         setIsShortcutsOpen(true)
+        return
+      }
+
+      // With a dialog or menu open, letters belong to it, not to navigation.
+      if (document.querySelector('[role="dialog"], [role="menu"]')) {
+        goToArmedAt.current = 0
+        return
+      }
+
+      const key = event.key.toLowerCase()
+      const isArmed = Date.now() - goToArmedAt.current < GO_TO_WINDOW_MS
+      goToArmedAt.current = 0
+
+      if (isArmed) {
+        const destination = GO_TO_SHORTCUTS.find((item) => item.key === key)
+        if (destination) {
+          // The page's own single-key shortcuts (J/K in the inbox) must not
+          // also fire for the second key of this one.
+          event.preventDefault()
+          event.stopPropagation()
+          if (destination.view) {
+            setView(destination.view)
+          }
+          router.push(destination.url)
+        }
+        return
+      }
+
+      if (key === "g" && !event.shiftKey) {
+        goToArmedAt.current = Date.now()
       }
     }
 
-    window.addEventListener("keydown", onKeyDown)
-    return () => window.removeEventListener("keydown", onKeyDown)
-  }, [])
+    // Capture, so this runs before any page-level key handlers.
+    window.addEventListener("keydown", onKeyDown, true)
+    return () => window.removeEventListener("keydown", onKeyDown, true)
+    // `setView` only wraps stable atom setters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router])
+
+  // Remember the pages this browser visits, for "Recent" in the command menu.
+  useEffect(() => {
+    recordRecentPage(pathname)
+  }, [pathname])
 
   // The phone menu closes whenever the page changes.
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false)
@@ -234,6 +286,38 @@ export const DashboardShell = ({ children }: { children: React.ReactNode }) => {
     pathname,
     voiceUnreadCount,
   ])
+
+  // Unread messages show in the browser tab too — "(3) Home | Osonflow" — so
+  // they are noticed while the owner is working in another tab. The page
+  // title changes on every navigation, so the count is re-applied whenever
+  // the title does.
+  const unreadTotal = conversationUnreadCount + voiceUnreadCount
+  useEffect(() => {
+    const withoutCount = (title: string) => title.replace(/^\(\d+\+?\) /, "")
+    const apply = () => {
+      const base = withoutCount(document.title)
+      const next =
+        unreadTotal > 0
+          ? `(${unreadTotal > 99 ? "99+" : unreadTotal}) ${base}`
+          : base
+      if (document.title !== next) {
+        document.title = next
+      }
+    }
+
+    apply()
+    const observer = new MutationObserver(apply)
+    observer.observe(document.head, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    })
+
+    return () => {
+      observer.disconnect()
+      document.title = withoutCount(document.title)
+    }
+  }, [unreadTotal])
 
   const counts: Record<string, number> = {
     "/conversations": pathname.startsWith("/conversations")
@@ -316,6 +400,16 @@ export const DashboardShell = ({ children }: { children: React.ReactNode }) => {
             ))}
 
             <div className="mt-auto flex flex-col items-center gap-1">
+              {hasOrganization ? (
+                <AttentionMenu
+                  counts={{
+                    unreadConversations: conversationUnreadCount,
+                    unreadCalls: voiceUnreadCount,
+                    answersWaiting,
+                    setup,
+                  }}
+                />
+              ) : null}
               <Hint align="center" keys={["⌘", "K"]} side="right" text="Search">
                 <button
                   aria-label="Search and actions"

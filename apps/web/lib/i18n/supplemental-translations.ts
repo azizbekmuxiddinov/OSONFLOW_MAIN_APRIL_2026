@@ -5229,4 +5229,168 @@ export const supplementalTranslations: Record<string, TranslationValue> = {
     uz: "Saqlangan javobni qo'yish (javob oynasida)",
     ru: "Вставить сохранённый ответ (в поле ответа)",
   },
+  "a day on average": {
+    uz: "kuniga o'rtacha",
+    ru: "в день в среднем",
+  },
+  "a week on average": {
+    uz: "haftasiga o'rtacha",
+    ru: "в неделю в среднем",
+  },
+  "Day": {
+    uz: "Kun",
+    ru: "День",
+  },
+  "Week": {
+    uz: "Hafta",
+    ru: "Неделя",
+  },
+  "This week": {
+    uz: "Shu hafta",
+    ru: "Эта неделя",
+  },
+  "Handed over": {
+    uz: "O'tkazilgan",
+    ru: "Передано",
+  },
+  "Chart": {
+    uz: "Diagramma",
+    ru: "График",
+  },
+  "Show as": {
+    uz: "Ko'rinish",
+    ru: "Показать как",
+  },
+  "No conversations in this period yet. Each day gets a column here as soon as customers start writing in.": {
+    uz: "Bu davrda hali suhbatlar yo'q. Mijozlar yoza boshlashi bilan har bir kun bu yerda alohida ustun bo'lib ko'rinadi.",
+    ru: "За этот период диалогов пока нет. Как только клиенты начнут писать, каждый день появится здесь отдельным столбцом.",
+  },
+  "Conversations over time": {
+    uz: "Suhbatlar vaqt bo'yicha",
+    ru: "Диалоги по времени",
+  },
+  "How many conversations came in, and how each one ended.": {
+    uz: "Qancha suhbat kelgani va har biri qanday yakunlangani.",
+    ru: "Сколько диалогов поступило и чем закончился каждый.",
+  },
+  "Up": {
+    uz: "Oshdi",
+    ru: "Рост",
+  },
+  "Down": {
+    uz: "Kamaydi",
+    ru: "Снижение",
+  },
+  "No change": {
+    uz: "O'zgarmadi",
+    ru: "Без изменений",
+  },
+  "Shortcuts": {
+    uz: "Tezkor havolalar",
+    ru: "Быстрые действия",
+  },
+  "Try your assistant": {
+    uz: "Yordamchini sinab ko'ring",
+    ru: "Попробовать ассистента",
+  },
+  "Chat with it the way a customer would": {
+    uz: "U bilan mijoz kabi suhbatlashing",
+    ru: "Напишите ему так, как написал бы клиент",
+  },
+  "Files, web pages and answers it can use": {
+    uz: "U foydalana oladigan fayllar, veb-sahifalar va javoblar",
+    ru: "Файлы, веб-страницы и ответы, которыми он может пользоваться",
+  },
+  "Connect a channel": {
+    uz: "Kanal ulash",
+    ru: "Подключить канал",
+  },
+  "Telegram, WhatsApp and Instagram": {
+    uz: "Telegram, WhatsApp va Instagram",
+    ru: "Telegram, WhatsApp и Instagram",
+  },
+  "Invite a teammate": {
+    uz: "Hamkasbni taklif qilish",
+    ru: "Пригласить коллегу",
+  },
+  "Share the inbox with your team": {
+    uz: "Suhbatlarni jamoangiz bilan bo'lishing",
+    ru: "Работайте с входящими вместе с командой",
+  },
+  "Recent": {
+    uz: "So'nggi",
+    ru: "Недавние",
+  },
+  "Opens your chat in a new tab": {
+    uz: "Chatingizni yangi oynada ochadi",
+    ru: "Откроет ваш чат в новой вкладке",
+  },
+  "Mark everything as read": {
+    uz: "Hammasini o'qilgan deb belgilash",
+    ru: "Отметить всё как прочитанное",
+  },
+  "Conversations and voice calls": {
+    uz: "Suhbatlar va ovozli qo'ng'iroqlar",
+    ru: "Диалоги и голосовые звонки",
+  },
+  "Search pages, people, conversations and actions…": {
+    uz: "Sahifalar, odamlar, suhbatlar va amallarni qidiring…",
+    ru: "Ищите страницы, людей, диалоги и действия…",
+  },
+  "Search pages, people, conversations and actions": {
+    uz: "Sahifalar, odamlar, suhbatlar va amallarni qidirish",
+    ru: "Поиск страниц, людей, диалогов и действий",
+  },
+  "Everything is marked as read": {
+    uz: "Hammasi o'qilgan deb belgilandi",
+    ru: "Всё отмечено как прочитанное",
+  },
+  "Couldn't mark everything as read": {
+    uz: "Hammasini o'qilgan deb belgilab bo'lmadi",
+    ru: "Не удалось отметить всё как прочитанное",
+  },
+  "Go to a page": {
+    uz: "Sahifaga o'tish",
+    ru: "Перейти на страницу",
+  },
+  "Press G, then the letter.": {
+    uz: "G tugmasini, keyin harfni bosing.",
+    ru: "Нажмите G, затем букву.",
+  },
+  "Needs you": {
+    uz: "Sizni kutmoqda",
+    ru: "Требует внимания",
+  },
+  "Nothing right now": {
+    uz: "Hozircha hech narsa yo'q",
+    ru: "Сейчас ничего",
+  },
+  "You're all caught up": {
+    uz: "Hammasi ko'rib chiqilgan",
+    ru: "Вы всё разобрали",
+  },
+  "Hand-offs, unread messages and unanswered questions show up here.": {
+    uz: "O'tkazilgan suhbatlar, o'qilmagan xabarlar va javobsiz savollar shu yerda ko'rinadi.",
+    ru: "Здесь появляются переданные диалоги, непрочитанные сообщения и вопросы без ответа.",
+  },
+  "See everyone who is waiting": {
+    uz: "Kutayotganlarning barchasini ko'rish",
+    ru: "Показать всех, кто ждёт",
+  },
+  "Open the inbox to read them": {
+    uz: "O'qish uchun suhbatlarni oching",
+    ru: "Откройте входящие, чтобы прочитать",
+  },
+  "Listen back or read the transcript": {
+    uz: "Qayta tinglang yoki matnini o'qing",
+    ru: "Прослушайте запись или прочитайте расшифровку",
+  },
+  "Teach it the answer for next time": {
+    uz: "Keyingi safar uchun javobni o'rgating",
+    ru: "Научите его ответу на будущее",
+  },
+  "Needs you, nothing new": {
+    uz: "Sizni kutmoqda, yangilik yo'q",
+    ru: "Требует внимания, нового нет",
+  },
 }

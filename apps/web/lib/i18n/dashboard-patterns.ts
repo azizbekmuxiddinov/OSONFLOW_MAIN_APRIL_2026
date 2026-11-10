@@ -169,6 +169,81 @@ const PATTERNS: PatternSpec[] = [
     "Экспортировано лидов: {0}",
   ],
   [
+    "Busiest week {x} with {n}",
+    "Eng band hafta — {0}, {1} ta",
+    "Самая загруженная неделя — {0}, {1}",
+  ],
+  [
+    "Conversations per day, {n} in total. Use the arrow keys to read each day.",
+    "Kunlik suhbatlar, jami {0} ta. Har bir kunni o'qish uchun strelka tugmalaridan foydalaning.",
+    "Диалоги по дням, всего {0}. Используйте стрелки, чтобы прочитать каждый день.",
+  ],
+  [
+    "Conversations per week, {n} in total. Use the arrow keys to read each week.",
+    "Haftalik suhbatlar, jami {0} ta. Har bir haftani o'qish uchun strelka tugmalaridan foydalaning.",
+    "Диалоги по неделям, всего {0}. Используйте стрелки, чтобы прочитать каждую неделю.",
+  ],
+  [
+    "{n} pts",
+    "{0} punkt",
+    "{0} п.п.",
+  ],
+  [
+    "{x} in the {n} days before",
+    "Oldingi {1} kunda: {0}",
+    "За предыдущие {1} дн.: {0}",
+  ],
+  [
+    "{n}% the week before",
+    "Oldingi haftada: {0}%",
+    "Неделей ранее: {0}%",
+  ],
+  [
+    "{n} the week before",
+    "Oldingi haftada: {0}",
+    "Неделей ранее: {0}",
+  ],
+  [
+    "Needs you, {n} new",
+    "Sizni kutmoqda, {0} ta yangi",
+    "Требует внимания, новых: {0}",
+  ],
+  [
+    "{n} conversation has new messages",
+    "{0} ta suhbatda yangi xabarlar bor",
+    "Новые сообщения в {0} {0:диалоге|диалогах|диалогах}",
+  ],
+  [
+    "{n} conversations have new messages",
+    "{0} ta suhbatda yangi xabarlar bor",
+    "Новые сообщения в {0} {0:диалоге|диалогах|диалогах}",
+  ],
+  [
+    "{n} new voice call",
+    "{0} ta yangi ovozli qo'ng'iroq",
+    "{0} {0:новый голосовой звонок|новых голосовых звонка|новых голосовых звонков}",
+  ],
+  [
+    "{n} new voice calls",
+    "{0} ta yangi ovozli qo'ng'iroq",
+    "{0} {0:новый голосовой звонок|новых голосовых звонка|новых голосовых звонков}",
+  ],
+  [
+    "{n} question needs an answer",
+    "{0} ta savolga javob kerak",
+    "{0} {0:вопрос ждёт|вопроса ждут|вопросов ждут} ответа",
+  ],
+  [
+    "{n} questions need an answer",
+    "{0} ta savolga javob kerak",
+    "{0} {0:вопрос ждёт|вопроса ждут|вопросов ждут} ответа",
+  ],
+  [
+    "{n} of {n} steps done",
+    "{1} qadamdan {0} tasi bajarildi",
+    "Выполнено шагов: {0} из {1}",
+  ],
+  [
     "Busiest day {x} with {n}",
     "Eng band kun — {0}, {1} ta",
     "Самый загруженный день — {0}, {1}",

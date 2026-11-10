@@ -41,3 +41,7 @@ export const openConversationIdAtom = atom<Id<"conversations"> | null>(null);
 
 export const openAiConversationIdAtom =
   atom<Id<"aiVoiceConversations"> | null>(null);
+
+// A search handed to the Leads page from elsewhere (the command menu). The
+// page applies it once and clears it, so nothing personal goes in the URL.
+export const pendingLeadSearchAtom = atom<string | null>(null);

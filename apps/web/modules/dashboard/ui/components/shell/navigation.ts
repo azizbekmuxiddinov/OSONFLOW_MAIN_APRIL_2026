@@ -224,3 +224,33 @@ export const areaForPath = (pathname: string) =>
       (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
     )
   ) ?? NAV_AREAS[0]!
+
+/**
+ * "Go to" shortcuts, Linear-style: press G, then the letter. The letters are
+ * the page's initial wherever that is free.
+ */
+export const GO_TO_SHORTCUTS: {
+  key: string
+  title: string
+  url: string
+  view?: ConversationView
+}[] = [
+  { key: "h", title: "Home", url: "/home" },
+  { key: "i", title: "Inbox", url: "/conversations", view: "all" },
+  { key: "v", title: "Voice calls", url: "/ai-conversations" },
+  { key: "k", title: "Knowledge", url: "/files" },
+  { key: "a", title: "Answers", url: "/teach" },
+  { key: "t", title: "Tools", url: "/assistant-tools" },
+  { key: "f", title: "Workflows", url: "/workflows" },
+  { key: "l", title: "Leads", url: "/leads" },
+  { key: "r", title: "Analytics", url: "/analytics" },
+  { key: "w", title: "Widget", url: "/customization" },
+  { key: "s", title: "Settings", url: "/settings" },
+]
+
+/** The G-then-letter shortcut for a page, if it has one. */
+export const goToKeyFor = (url: string, view?: ConversationView) =>
+  GO_TO_SHORTCUTS.find(
+    (shortcut) =>
+      shortcut.url === url && (shortcut.view ?? undefined) === (view ?? undefined)
+  )?.key
