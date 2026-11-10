@@ -4,7 +4,7 @@ import * as React from "react"
 import { MonitorIcon, MoonIcon, SunIcon } from "lucide-react"
 import { useTheme } from "next-themes"
 
-import { Button } from "@workspace/ui/components/button"
+import { Hint } from "@workspace/ui/components/hint"
 import { SidebarMenuButton } from "@workspace/ui/components/sidebar"
 
 type DashboardThemeToggleProps = {
@@ -29,11 +29,11 @@ export const DashboardThemeToggle = ({
     : "Theme"
 
   const icon = !mounted ? (
-    <MonitorIcon className="size-4" />
+    <MonitorIcon className="size-[18px]" strokeWidth={1.8} />
   ) : nextTheme === "dark" ? (
-    <MoonIcon className="size-4" />
+    <MoonIcon className="size-[18px]" strokeWidth={1.8} />
   ) : (
-    <SunIcon className="size-4" />
+    <SunIcon className="size-[18px]" strokeWidth={1.8} />
   )
 
   const handleToggle = () => {
@@ -58,15 +58,18 @@ export const DashboardThemeToggle = ({
   }
 
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon-sm"
-      onClick={handleToggle}
-      aria-label={`Switch to ${label.toLowerCase()}`}
-      title={`Switch to ${label.toLowerCase()}`}
-    >
-      {icon}
-    </Button>
+    <Hint side="right" text={label}>
+      <button
+        aria-label={`Switch to ${label.toLowerCase()}`}
+        className="dash-rail-item flex size-9 items-center justify-center rounded-[10px] text-muted-foreground hover:bg-[var(--canvas-strong)] hover:text-foreground"
+        onClick={handleToggle}
+        type="button"
+      >
+        {/* The icon turns as it swaps, so the change reads as one gesture. */}
+        <span className="dash-theme-icon" key={mounted ? nextTheme : "idle"}>
+          {icon}
+        </span>
+      </button>
+    </Hint>
   )
 }

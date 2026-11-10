@@ -36,7 +36,7 @@ import {
   StripFigure,
 } from "@/modules/dashboard/ui/components/report"
 import "../styles/team-alerts.css"
-import { AnalyticsSkeleton } from "@/modules/dashboard/ui/components/report-skeleton"
+import { TeamAlertsSkeleton } from "@/modules/dashboard/ui/components/report-skeleton"
 import "@/modules/dashboard/ui/styles/report.css"
 
 type State = FunctionReturnType<typeof api.private.teamAlerts.getState>
@@ -360,7 +360,7 @@ export const TeamAlertsView = () => {
   const state = useQuery(api.private.teamAlerts.getState)
 
   if (state === undefined) {
-    return <AnalyticsSkeleton />
+    return <TeamAlertsSkeleton />
   }
 
   const alertsOn = state.myLink

@@ -2,6 +2,10 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import {
+  ConsoleHeader,
+  ConsolePage,
+} from "@/modules/dashboard/ui/components/console"
 import { useAction } from "convex/react"
 import { api } from "@workspace/backend/_generated/api"
 import type { Id } from "@workspace/backend/_generated/dataModel"
@@ -12,7 +16,6 @@ import {
   GlobeIcon,
   Loader2Icon,
   PaletteIcon,
-  SparklesIcon,
   WrenchIcon,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -237,18 +240,15 @@ export const AiSetupView = () => {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 sm:px-6">
-      <header className="flex flex-col gap-4">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <SparklesIcon className="size-4" />
-          Set up with AI
+    <ConsolePage className="gap-6" width="narrow">
+      <ConsoleHeader title="Set up with AI" />
+      <header className="flex flex-col gap-4 pt-2">
+        <div>
+          <h2 className="dash-greeting">{STAGE_COPY[stage].title}</h2>
+          <p className="dash-page-lede mt-1.5 max-w-xl">
+            {STAGE_COPY[stage].blurb}
+          </p>
         </div>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          {STAGE_COPY[stage].title}
-        </h1>
-        <p className="max-w-xl text-sm leading-6 text-muted-foreground">
-          {STAGE_COPY[stage].blurb}
-        </p>
         <Rail stage={stage} />
       </header>
 
@@ -517,6 +517,6 @@ export const AiSetupView = () => {
           </div>
         </section>
       ) : null}
-    </div>
+    </ConsolePage>
   )
 }

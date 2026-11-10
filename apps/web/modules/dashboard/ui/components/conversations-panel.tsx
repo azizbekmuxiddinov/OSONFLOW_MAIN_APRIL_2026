@@ -69,6 +69,7 @@ import {
   statusFilterAtom,
 } from "../../atoms"
 import { downloadConversationExport } from "../lib/conversation-export"
+import { InboxListEmpty } from "./inbox-empty-pane"
 import { SubnavToggle } from "./shell/subnav-toggle"
 import {
   CONVERSATION_PRIORITIES,
@@ -417,7 +418,7 @@ export const ConversationsPanel = () => {
           <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             aria-label="Search conversations"
-            className="h-8 rounded-lg border border-[var(--console-hairline-soft)] bg-background pr-14 pl-8 text-sm text-foreground shadow-none transition-colors placeholder:text-muted-foreground focus-visible:border-[var(--console-hairline)] focus-visible:ring-0"
+            className="h-8 rounded-lg border border-[var(--console-hairline-soft)] bg-background pr-14 pl-8 text-sm text-foreground shadow-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/20"
             onChange={(event) => setSearchQuery(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Escape" && searchQuery) {
@@ -431,7 +432,7 @@ export const ConversationsPanel = () => {
                 router.push(`/conversations/${firstMatchingConversation._id}`)
               }
             }}
-            placeholder="Search..."
+            placeholder="Search conversations"
             ref={searchInputRef}
             value={searchQuery}
           />
@@ -495,52 +496,42 @@ export const ConversationsPanel = () => {
             {!conversations.results.length &&
             !normalizedSearchQuery &&
             !hasActiveFilters ? (
-              <div className="mx-auto mt-10 flex max-w-[220px] flex-col items-center gap-3 text-center">
-                <div className="flex size-12 items-center justify-center rounded-2xl border border-[var(--console-hairline-soft)] bg-muted/60">
-                  <InboxIcon className="size-5 text-muted-foreground" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-foreground">
-                    No conversations yet
-                  </p>
-                  <p className="mt-1 text-[12px] text-muted-foreground">
-                    Customer messages from your widget will appear here.
-                  </p>
-                </div>
-              </div>
+              <InboxListEmpty
+                description="Customer messages from your widget will appear here."
+                icon={InboxIcon}
+                title="No conversations yet"
+              />
             ) : !hasSearchResults && (normalizedSearchQuery || hasActiveFilters) ? (
-              <div className="mx-auto mt-10 flex max-w-[200px] flex-col items-center gap-3 text-center">
-                <div className="flex size-11 items-center justify-center rounded-2xl border border-[var(--console-hairline-soft)] bg-muted/60">
-                  <InboxIcon className="size-5 text-muted-foreground" />
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-foreground">
-                    {normalizedSearchQuery
-                      ? "No results found"
-                      : "No conversations match this view"}
-                  </p>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">
-                    {normalizedSearchQuery
-                      ? "Try searching by name, email, or message"
-                      : "Reset the filters to see every conversation."}
-                  </p>
-                </div>
-                <Button
-                  onClick={() => {
-                    setSearchQuery("")
-                    setAssignmentFilter("all")
-                    setStatusFilter("all")
-                    setSourceFilter("all")
-                    setPriorityFilter("all")
-                  }}
-                  size="sm"
-                  type="button"
-                  variant="outline"
-                  className="h-7 text-xs"
-                >
-                  {normalizedSearchQuery ? "Clear search" : "Reset filters"}
-                </Button>
-              </div>
+              <InboxListEmpty
+                action={
+                  <Button
+                    className="h-7 text-xs"
+                    onClick={() => {
+                      setSearchQuery("")
+                      setAssignmentFilter("all")
+                      setStatusFilter("all")
+                      setSourceFilter("all")
+                      setPriorityFilter("all")
+                    }}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    {normalizedSearchQuery ? "Clear search" : "Show all conversations"}
+                  </Button>
+                }
+                description={
+                  normalizedSearchQuery
+                    ? "Try searching by name, email, or message."
+                    : "Nothing matches this view right now."
+                }
+                icon={InboxIcon}
+                title={
+                  normalizedSearchQuery
+                    ? "No results found"
+                    : "No conversations here"
+                }
+              />
             ) : (
               filteredConversations.map((conversation) => {
                 const isLastMessageFromOperator =
@@ -580,8 +571,8 @@ export const ConversationsPanel = () => {
                         className={cn(
                           "group relative flex cursor-pointer items-start gap-2.5 rounded-lg px-2.5 py-2.5 text-sm leading-tight transition-colors duration-150",
                           isActive
-                            ? "bg-background text-foreground shadow-[0_1px_2px_rgb(0_0_0/0.06)] ring-1 ring-[var(--console-hairline-soft)]"
-                            : "hover:bg-background/70"
+                            ? "dash-pill text-foreground"
+                            : "hover:bg-background/70 active:bg-background"
                         )}
                         href={`/conversations/${conversation._id}`}
                       >

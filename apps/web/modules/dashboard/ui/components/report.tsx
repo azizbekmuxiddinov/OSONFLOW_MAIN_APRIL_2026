@@ -40,30 +40,24 @@ export const PageBar = ({
   actions?: React.ReactNode
   className?: string
 }) => (
-  <header
-    className={cn(
-      "report-page-bar flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between",
-      className
-    )}
-  >
-    <div className="min-w-0">
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+  <>
+    {/* The bar stays put while the page scrolls under it, the way Intercom's
+        and Attio's page headers do: where you are and what you can do here
+        are always in reach. */}
+    <header className={cn("dash-topbar", className)}>
+      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
         <SubnavToggle className="-ml-1.5" />
-        <h1 className="report-page-title">{title}</h1>
+        <h1 className="dash-topbar-title">{title}</h1>
         {meta}
       </div>
-      {hint ? (
-        <p className="mt-1 line-clamp-2 max-w-[86ch] text-[0.8125rem] leading-relaxed text-muted-foreground">
-          {hint}
-        </p>
+      {actions ? (
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {actions}
+        </div>
       ) : null}
-    </div>
-    {actions ? (
-      <div className="flex shrink-0 flex-wrap items-center gap-2">
-        {actions}
-      </div>
-    ) : null}
-  </header>
+    </header>
+    {hint ? <p className="dash-page-lede">{hint}</p> : null}
+  </>
 )
 
 /**

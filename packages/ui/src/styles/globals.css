@@ -699,7 +699,7 @@
   --canvas-strong: oklch(0.935 0.005 85);
   --accent-blue: oklch(0.53 0.2 262);
   --bubble-operator: oklch(0.93 0.035 262);
-  --console-radius: 14px;
+  --console-radius: 12px;
   --console-radius-sm: 10px;
   --console-hairline: color-mix(in srgb, var(--border) 86%, transparent);
   --console-hairline-soft: color-mix(in srgb, var(--border) 52%, transparent);
@@ -1055,4 +1055,455 @@
     display: block;
     white-space: pre;
   }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Dashboard interaction layer.
+
+   What every click and every opening shares: one focus colour, one press
+   response, one elevation scale and one easing. Scoped to pages that render the
+   dashboard shell (`.dash-shell`), so the widget and the marketing site, which
+   load this same stylesheet, are untouched. Everything sits in the components
+   layer, so a utility class on an element still wins.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  --ease-out-quint: cubic-bezier(0.16, 1, 0.3, 1);
+  --elevation-page:
+    0 0 0 1px var(--console-hairline), 0 1px 2px rgb(0 0 0 / 0.04),
+    0 10px 28px -14px rgb(0 0 0 / 0.1);
+  --elevation-tile:
+    0 0 0 1px var(--console-hairline-soft), 0 1px 2px rgb(0 0 0 / 0.07);
+}
+
+.dark {
+  --elevation-page:
+    0 0 0 1px var(--console-hairline), 0 12px 32px -14px rgb(0 0 0 / 0.6);
+  --elevation-tile: 0 0 0 1px rgb(255 255 255 / 0.07);
+}
+
+/* Focus rings are the dashboard's blue rather than a grey that reads as
+   disabled. `--ring` feeds every `ring-ring` / `border-ring` utility. */
+:root:has(.dash-shell) {
+  --ring: oklch(0.62 0.17 262);
+}
+
+:root.dark:has(.dash-shell) {
+  --ring: oklch(0.68 0.14 262);
+}
+
+@layer components {
+  /* ── shell ───────────────────────────────────────────────────────────── */
+
+  /* The active tile behind a rail icon or a sidebar item. */
+  .dash-pill {
+    background: var(--background);
+    box-shadow: var(--elevation-tile);
+  }
+
+  .dark .dash-pill {
+    background: rgb(255 255 255 / 0.08);
+  }
+
+  .dash-rail-item,
+  .dash-nav-item {
+    transition:
+      background-color 140ms ease,
+      color 140ms ease,
+      transform 120ms ease;
+  }
+
+  .dash-rail-item:active {
+    transform: scale(0.92);
+  }
+
+  .dash-nav-item:active {
+    transform: scale(0.985);
+  }
+
+  .dash-theme-icon {
+    display: inline-flex;
+    animation: dash-theme-turn 420ms var(--ease-out-quint) backwards;
+  }
+
+  .dash-dot {
+    animation: dash-dot-in 420ms var(--ease-out-quint) backwards;
+  }
+
+  /* The page panel: a hairline and a soft, wide shadow instead of a border,
+     so it reads as a sheet resting on the canvas. */
+  @media (min-width: 48rem) {
+    .dash-page {
+      box-shadow: var(--elevation-page);
+    }
+  }
+
+  .dash-setup {
+    background: linear-gradient(180deg, #26262b, #18181b);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.09),
+      0 1px 2px rgb(0 0 0 / 0.2),
+      0 10px 22px -12px rgb(0 0 0 / 0.5);
+    transition:
+      filter 180ms ease,
+      transform 120ms ease;
+  }
+
+  .dash-setup:hover {
+    filter: brightness(1.14);
+  }
+
+  .dash-setup:active {
+    transform: scale(0.985);
+  }
+
+  /* ── controls ────────────────────────────────────────────────────────── */
+
+  :root:has(.dash-shell) [data-slot="button"] {
+    transition:
+      background-color 150ms ease,
+      border-color 150ms ease,
+      color 150ms ease,
+      box-shadow 150ms ease,
+      opacity 150ms ease,
+      transform 100ms ease;
+  }
+
+  /* Pressing a button gives a little under the finger. */
+  :root:has(.dash-shell)
+    [data-slot="button"]:active:not(:disabled):not([aria-disabled="true"]) {
+    transform: scale(0.97);
+  }
+
+  :root:has(.dash-shell) [data-slot="button"][data-variant="outline"] {
+    box-shadow: 0 1px 1px rgb(0 0 0 / 0.04);
+  }
+
+  :root:has(.dash-shell) [data-slot="button"][data-variant="default"] {
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.12),
+      0 1px 1px rgb(0 0 0 / 0.12);
+  }
+
+  /* Fields darken their edge on hover so they read as editable before the
+     click; the utility that draws the border reads `--input`. */
+  :root:has(.dash-shell)
+    :is(
+      [data-slot="input"],
+      [data-slot="textarea"],
+      [data-slot="select-trigger"]
+    ) {
+    transition:
+      border-color 150ms ease,
+      box-shadow 150ms ease,
+      background-color 150ms ease;
+  }
+
+  :root:has(.dash-shell)
+    :is(
+      [data-slot="input"],
+      [data-slot="textarea"],
+      [data-slot="select-trigger"]
+    ):hover:not(:disabled):not(:focus-visible) {
+    --input: color-mix(in srgb, var(--foreground) 24%, transparent);
+  }
+
+  :root:has(.dash-shell) [data-slot="select-trigger"] > svg:last-child {
+    transition: transform 200ms var(--ease-out-quint);
+  }
+
+  :root:has(.dash-shell)
+    [data-slot="select-trigger"][data-state="open"]
+    > svg:last-child {
+    transform: rotate(180deg);
+  }
+
+  /* Rows that open something: a quiet wash on hover, a chevron that nudges. */
+  .dash-row {
+    transition: background-color 120ms ease;
+  }
+
+  .dash-row:hover {
+    background: color-mix(in srgb, var(--foreground) 3.5%, transparent);
+  }
+
+  .dash-row .dash-row-chevron {
+    opacity: 0;
+    transform: translateX(-4px);
+    transition:
+      opacity 160ms ease,
+      transform 200ms var(--ease-out-quint);
+  }
+
+  .dash-row:hover .dash-row-chevron,
+  .dash-row:focus-visible .dash-row-chevron {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  /* A clickable card: hairline at rest, a firmer edge and a short shadow on
+     hover, a slight give when pressed. */
+  .dash-tile {
+    background: var(--card);
+    box-shadow: 0 0 0 1px var(--console-hairline);
+    transition:
+      box-shadow 180ms ease,
+      background-color 120ms ease,
+      transform 120ms ease;
+  }
+
+  .dash-tile:hover {
+    background: var(--card);
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--foreground) 16%, transparent),
+      0 6px 16px -8px rgb(0 0 0 / 0.14);
+  }
+
+  .dash-tile:active,
+  .dash-press:active {
+    transform: scale(0.985);
+  }
+
+  .dash-press {
+    transition-property: border-color, box-shadow, background-color, transform;
+  }
+
+  /* A small raised tile holding an icon, for explainer cards and list rows. */
+  .dash-mark {
+    display: inline-flex;
+    width: 1.875rem;
+    height: 1.875rem;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    color: var(--foreground);
+    background: var(--card);
+    box-shadow:
+      0 0 0 1px var(--console-hairline),
+      0 1px 2px rgb(0 0 0 / 0.05);
+  }
+
+  /* The mark above an empty state: a soft disc with a ring that fades out. */
+  .dash-empty-mark {
+    position: relative;
+    display: inline-flex;
+    width: 3rem;
+    height: 3rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    color: var(--muted-foreground);
+    background: color-mix(in srgb, var(--muted) 80%, transparent);
+    box-shadow:
+      0 0 0 1px var(--console-hairline-soft),
+      0 0 0 7px color-mix(in srgb, var(--muted) 45%, transparent);
+  }
+
+  /* ── page frame ──────────────────────────────────────────────────────── */
+
+  /* The padded column every page lays its sections out in. The top bar reads
+     these two values to pull itself flush with the panel's edges. */
+  .dash-page-body {
+    --page-pad-x: 1rem;
+    --page-pad-y: 1.25rem;
+  }
+
+  @media (min-width: 40rem) {
+    .dash-page-body {
+      --page-pad-x: 1.5rem;
+      --page-pad-y: 1.75rem;
+    }
+  }
+
+  /* Title on the left, the page's actions on the right, pinned to the top of
+     the panel. The background and the rule under it bleed past the column to
+     the panel's edges however wide the screen is. */
+  .dash-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 0.75rem;
+    min-height: 3.25rem;
+    margin: calc(-1 * var(--page-pad-y, 0px)) calc(-1 * var(--page-pad-x, 0px))
+      0;
+    padding: 0.5rem var(--page-pad-x, 0px);
+    background: var(--background);
+    box-shadow: 0 0 0 100vmax var(--background);
+    clip-path: inset(0 -100vmax);
+  }
+
+  .dash-topbar::after {
+    content: "";
+    position: absolute;
+    inset: auto -100vmax 0;
+    height: 1px;
+    background: var(--console-hairline-soft);
+  }
+
+  .dash-topbar-title {
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.5rem;
+    letter-spacing: -0.012em;
+    color: var(--foreground);
+  }
+
+  /* The one large line on Home and Getting started. */
+  .dash-greeting {
+    font-size: 1.5rem;
+    font-weight: 600;
+    line-height: 1.25;
+    letter-spacing: -0.025em;
+    color: var(--foreground);
+  }
+
+  /* One or two lines under the bar saying what the page is for. */
+  .dash-page-lede {
+    max-width: 78ch;
+    font-size: 0.8125rem;
+    line-height: 1.55;
+    color: var(--muted-foreground);
+    text-wrap: pretty;
+  }
+
+  /* A page's sections arrive one after another the first time it paints. The
+     bar itself never moves. */
+  .dash-stagger > :not(.report):not(.dash-topbar),
+  .dash-stagger > .report > :not(.dash-topbar) {
+    animation: dash-rise 380ms var(--ease-out-quint) backwards;
+  }
+
+  .dash-stagger > :nth-child(3),
+  .dash-stagger > .report > :nth-child(3) {
+    animation-delay: 40ms;
+  }
+
+  .dash-stagger > :nth-child(4),
+  .dash-stagger > .report > :nth-child(4) {
+    animation-delay: 80ms;
+  }
+
+  .dash-stagger > :nth-child(n + 5),
+  .dash-stagger > .report > :nth-child(n + 5) {
+    animation-delay: 120ms;
+  }
+
+  /* Content that arrives after loading rises into place, staggered by --i. */
+  .dash-rise {
+    animation: dash-rise 420ms var(--ease-out-quint) backwards;
+    animation-delay: calc(var(--i, 0) * 45ms);
+  }
+}
+
+/* ── toasts ────────────────────────────────────────────────────────────── */
+
+[data-sonner-toaster] [data-sonner-toast].cn-toast[data-styled="true"] {
+  gap: 0.625rem;
+  padding: 0.75rem 0.875rem;
+  border: 0;
+  border-radius: 12px;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 0.06),
+    0 4px 10px -4px rgb(0 0 0 / 0.1),
+    0 18px 40px -14px rgb(0 0 0 / 0.24);
+}
+
+.dark [data-sonner-toaster] [data-sonner-toast].cn-toast[data-styled="true"] {
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.09),
+    0 18px 40px -14px rgb(0 0 0 / 0.8);
+}
+
+[data-sonner-toast].cn-toast [data-title] {
+  font-weight: 550;
+  letter-spacing: -0.005em;
+}
+
+[data-sonner-toast].cn-toast [data-description] {
+  color: var(--muted-foreground);
+}
+
+[data-sonner-toast].cn-toast[data-type="success"] [data-icon] {
+  color: var(--console-positive);
+}
+
+[data-sonner-toast].cn-toast[data-type="error"] [data-icon] {
+  color: var(--console-critical);
+}
+
+[data-sonner-toast].cn-toast[data-type="warning"] [data-icon] {
+  color: var(--console-warning);
+}
+
+[data-sonner-toast].cn-toast [data-button] {
+  height: 1.625rem;
+  border-radius: 7px;
+  padding-inline: 0.625rem;
+  font-weight: 550;
+}
+
+@keyframes dash-dot-in {
+  from {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes dash-theme-turn {
+  from {
+    opacity: 0;
+    transform: rotate(-70deg) scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(0) scale(1);
+  }
+}
+
+@keyframes dash-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dash-rise,
+  .dash-dot {
+    animation: none;
+  }
+
+  :root:has(.dash-shell) [data-slot="button"]:active,
+  .dash-rail-item:active,
+  .dash-nav-item:active,
+  .dash-setup:active {
+    transform: none;
+  }
+}
+
+
+
+/* A primary button that cannot be pressed yet steps back to a pale tile with
+   quiet text, instead of a half-transparent black that reads as muddy grey.
+   Unlayered on purpose: it has to beat the `disabled:opacity-50` utility. */
+:root:has(.dash-shell) [data-slot="button"][data-variant="default"]:disabled {
+  opacity: 1;
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  color: color-mix(in srgb, var(--foreground) 40%, transparent);
+  box-shadow: none;
 }

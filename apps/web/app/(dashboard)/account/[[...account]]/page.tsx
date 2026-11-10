@@ -1,10 +1,24 @@
 import { UserProfile } from "@clerk/nextjs"
 
+import {
+  ConsoleHeader,
+  ConsolePage,
+} from "@/modules/dashboard/ui/components/console"
+import { clerkProfileAppearance } from "@/modules/dashboard/ui/lib/clerk-profile-appearance"
+
 const AccountPage = () => {
   return (
-    <div className="flex min-h-0 flex-1 overflow-auto p-4 md:p-6">
-      <UserProfile path="/account" routing="path" />
-    </div>
+    <ConsolePage>
+      <ConsoleHeader
+        description="Name, email, password and how you sign in."
+        title="Your account"
+      />
+      <UserProfile
+        appearance={clerkProfileAppearance}
+        path="/account"
+        routing="path"
+      />
+    </ConsolePage>
   )
 }
 

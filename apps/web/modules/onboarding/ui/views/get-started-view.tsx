@@ -156,19 +156,8 @@ export const GetStartedView = () => {
   return (
     <ConsolePage>
       {/* ── welcome ──────────────────────────────────────────────────────── */}
-      <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between lg:gap-8">
-        <div className="min-w-0">
-          <p className="console-eyebrow">Getting started</p>
-          <h1 className="console-title mt-2">
-            {orgName ? `Welcome, ${orgName}` : "Welcome to Osonflow"}
-          </h1>
-          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-            {isSetupComplete
-              ? "Everything is connected and your assistant is answering customers. This page stays here as a map of the dashboard."
-              : "Five short steps, all of them done right here. Leave whenever you like — your progress is saved as you go."}
-          </p>
-        </div>
-
+      <header className="dash-topbar">
+        <h1 className="dash-topbar-title">Getting started</h1>
         {!hasFinishedGuide ? (
           <Button
             className="shrink-0"
@@ -182,6 +171,17 @@ export const GetStartedView = () => {
           </Button>
         ) : null}
       </header>
+
+      <div className="min-w-0 pt-1">
+        <h2 className="dash-greeting">
+          {orgName ? `Welcome, ${orgName}` : "Welcome to Osonflow"}
+        </h2>
+        <p className="dash-page-lede mt-1.5">
+          {isSetupComplete
+            ? "Everything is connected and your assistant is answering customers. This page stays here as a map of the dashboard."
+            : "Five short steps, all of them done right here. Leave whenever you like — your progress is saved as you go."}
+        </p>
+      </div>
 
       {/* Only shown while the account is still empty — once someone is two
           steps in, explaining the product again is noise. */}

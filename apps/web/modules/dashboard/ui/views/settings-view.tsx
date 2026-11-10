@@ -8,6 +8,7 @@ import {
   BracesIcon,
   Building2Icon,
   CircleUserIcon,
+  ChevronRightIcon,
   CreditCardIcon,
   GitBranchIcon,
   GraduationCapIcon,
@@ -178,7 +179,7 @@ export const SettingsView = () => (
             {group.tiles.map((tile) => (
               <li key={tile.href}>
                 <Link
-                  className="flex h-full items-start gap-3 rounded-[10px] border border-[var(--console-hairline)] bg-card px-3.5 py-3.5 transition-[border-color,box-shadow] hover:border-[color-mix(in_srgb,var(--foreground)_18%,transparent)] hover:shadow-[0_2px_6px_rgb(0_0_0/0.05)]"
+                  className="dash-tile dash-row group flex h-full items-start gap-3 rounded-xl px-3.5 py-3.5"
                   href={tile.href}
                 >
                   <span
@@ -190,7 +191,7 @@ export const SettingsView = () => (
                   >
                     <tile.icon className="size-4" />
                   </span>
-                  <span className="min-w-0">
+                  <span className="min-w-0 flex-1">
                     <span className="block text-[0.8125rem] font-medium">
                       {tile.title}
                     </span>
@@ -198,6 +199,7 @@ export const SettingsView = () => (
                       {tile.description}
                     </span>
                   </span>
+                  <ChevronRightIcon className="dash-row-chevron mt-0.5 size-4 shrink-0 text-muted-foreground" />
                 </Link>
               </li>
             ))}

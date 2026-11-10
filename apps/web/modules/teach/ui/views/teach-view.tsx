@@ -378,8 +378,8 @@ export const TeachView = () => {
                       className="console-inset flex items-start gap-3 p-4"
                       key={step.title}
                     >
-                      <span className="report-stat-icon" data-tone="accent">
-                        <step.icon className="size-3.5" />
+                      <span className="dash-mark">
+                        <step.icon className="size-4" />
                       </span>
                       <div className="min-w-0">
                         <p className="text-xs font-medium text-muted-foreground tabular-nums">

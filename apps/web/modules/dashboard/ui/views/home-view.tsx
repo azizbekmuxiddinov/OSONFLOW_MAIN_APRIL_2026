@@ -8,6 +8,7 @@ import { format, formatDistanceToNowStrict } from "date-fns"
 import {
   ArrowRightIcon,
   CheckIcon,
+  ChevronRightIcon,
   CircleHelpIcon,
   InboxIcon,
   MessagesSquareIcon,
@@ -89,14 +90,8 @@ export const HomeView = () => {
   return (
     <ConsolePage>
       {/* ── greeting ─────────────────────────────────────────────────────── */}
-      <header className="flex flex-col gap-4 pb-1 sm:flex-row sm:items-end sm:justify-between">
-        <div className="min-w-0">
-          <p className="console-eyebrow">{format(now, "EEEE, d MMMM")}</p>
-          <h1 className="console-title mt-2 truncate">
-            {greetingFor(now)}
-            {orgName ? <span className="text-muted-foreground">, {orgName}</span> : null}
-          </h1>
-        </div>
+      <header className="dash-topbar">
+        <h1 className="dash-topbar-title">Home</h1>
         <div className="flex shrink-0 items-center gap-2">
           <Button asChild size="sm" variant="outline">
             <Link href="/customization">Edit widget</Link>
@@ -109,6 +104,18 @@ export const HomeView = () => {
           </Button>
         </div>
       </header>
+
+      <div className="min-w-0 pt-1">
+        <p className="text-[0.8125rem] text-muted-foreground">
+          {format(now, "EEEE, d MMMM")}
+        </p>
+        <h2 className="dash-greeting mt-1 truncate">
+          {greetingFor(now)}
+          {orgName ? (
+            <span className="text-muted-foreground">, {orgName}</span>
+          ) : null}
+        </h2>
+      </div>
 
       {/* ── setup, until it is done ──────────────────────────────────────── */}
       {status && !status.isSetupComplete ? (
@@ -150,7 +157,7 @@ export const HomeView = () => {
                   <li className="min-w-0" key={step.id}>
                     <Link
                       className={cn(
-                        "console-interactive flex h-full flex-col gap-2 rounded-[var(--console-radius-sm)] border px-3 py-2.5",
+                        "console-interactive dash-press flex h-full flex-col gap-2 rounded-[var(--console-radius-sm)] border px-3 py-2.5",
                         isNext
                           ? "border-[color-mix(in_srgb,var(--foreground)_22%,transparent)] bg-card"
                           : "border-[var(--console-hairline-soft)] bg-[color-mix(in_srgb,var(--muted)_40%,transparent)]"
@@ -203,7 +210,7 @@ export const HomeView = () => {
       ) : null}
 
       {/* ── the week in four figures ─────────────────────────────────────── */}
-      <section className="grid grid-cols-2 gap-px overflow-hidden rounded-[10px] border border-[var(--console-hairline)] bg-[var(--console-hairline-soft)] lg:grid-cols-4">
+      <section className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-[var(--console-hairline)] bg-[var(--console-hairline-soft)] shadow-[var(--console-shadow)] lg:grid-cols-4">
         <Figure
           hint={
             overview ? (
@@ -303,7 +310,7 @@ export const HomeView = () => {
                 return (
                   <li key={conversation._id}>
                     <Link
-                      className="console-row flex items-center gap-3 px-4 py-2.5 sm:px-5"
+                      className="dash-row flex items-center gap-3 px-4 py-2.5 sm:px-5"
                       href={`/conversations/${conversation._id}`}
                     >
                       <DicebearAvatar
@@ -331,6 +338,7 @@ export const HomeView = () => {
                       <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
                         {formatDistanceToNowStrict(new Date(activityAt))}
                       </span>
+                      <ChevronRightIcon className="dash-row-chevron -mr-1 size-4 shrink-0 text-muted-foreground" />
                     </Link>
                   </li>
                 )
@@ -448,7 +456,7 @@ const Figure = ({
       ) : (
         <span
           className={cn(
-            "text-[1.875rem] leading-none font-[450] tracking-[-0.03em] tabular-nums",
+            "text-[1.75rem] leading-none font-medium tracking-[-0.03em] tabular-nums",
             tone === "warning" && "text-[var(--console-warning)]"
           )}
         >

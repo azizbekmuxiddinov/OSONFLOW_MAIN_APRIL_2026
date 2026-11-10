@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@workspace/ui/components/dialog"
+import { Hint } from "@workspace/ui/components/hint"
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
 import {
@@ -121,7 +122,7 @@ export const AgentSwitcher = ({
 
   if (agentsState === undefined) {
     return (
-      <div className="flex h-10 items-center gap-2 rounded-xl border border-[var(--console-hairline-soft)] bg-card px-3 text-sm text-muted-foreground">
+      <div className="flex h-8 items-center gap-2 rounded-lg border border-[var(--console-hairline-soft)] bg-card px-3 text-[0.8125rem] text-muted-foreground">
         <Loader2Icon className="size-3.5 animate-spin" />
         Loading agents...
       </div>
@@ -130,61 +131,67 @@ export const AgentSwitcher = ({
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="min-w-[220px] flex-1 space-y-1.5">
-          <Label className="text-[10px] font-semibold tracking-[0.12em] text-muted-foreground uppercase">
-            Agent
-          </Label>
-          <div className="flex items-center gap-2">
-            <Select value={agentId} onValueChange={onAgentIdChange}>
-              <SelectTrigger className="h-10 bg-card">
-                <div className="flex min-w-0 items-center gap-2">
-                  <BotIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                  <SelectValue placeholder="Select agent" />
-                </div>
-              </SelectTrigger>
-              <SelectContent>
-                {agents.map((agent) => (
-                  <SelectItem key={agent.agentId} value={agent.agentId}>
-                    {agent.name}
-                    {agent.isDefault ? " (default)" : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+      {/* One compact row so it sits in the page's top bar: which agent, then
+          rename and add. */}
+      <div className="flex items-center gap-1.5">
+        <span className="hidden text-xs text-muted-foreground tabular-nums lg:inline">
+          {agents.length}/{limit} agents
+          {!canCreateAgent && limit === 1 ? " · Upgrade to Pro for up to 5" : null}
+        </span>
+        <Select value={agentId} onValueChange={onAgentIdChange}>
+          <SelectTrigger
+            aria-label="Agent"
+            className="h-8 max-w-[240px] min-w-[180px] bg-card"
+            size="sm"
+          >
+            <div className="flex min-w-0 items-center gap-2">
+              <BotIcon className="size-3.5 shrink-0 text-muted-foreground" />
+              <SelectValue placeholder="Select agent" />
+            </div>
+          </SelectTrigger>
+          <SelectContent align="end" position="popper">
+            {agents.map((agent) => (
+              <SelectItem key={agent.agentId} value={agent.agentId}>
+                {agent.name}
+                {agent.isDefault ? " (default)" : ""}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Hint side="bottom" text="Rename agent">
+          <Button
+            aria-label="Rename agent"
+            className="size-8 shrink-0"
+            onClick={openRename}
+            size="icon"
+            type="button"
+            variant="outline"
+          >
+            <PencilIcon className="size-3.5" />
+          </Button>
+        </Hint>
+        <Hint
+          side="bottom"
+          text={
+            canCreateAgent
+              ? "Create agent"
+              : `Plan limit reached (${limit} agents)`
+          }
+        >
+          <span className="inline-flex">
             <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className="size-10 shrink-0"
-              onClick={openRename}
-              title="Rename agent"
-            >
-              <PencilIcon className="size-3.5" />
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className="size-10 shrink-0"
-              onClick={() => setIsCreateOpen(true)}
+              aria-label="Create agent"
+              className="size-8 shrink-0"
               disabled={!canCreateAgent}
-              title={
-                canCreateAgent
-                  ? "Create agent"
-                  : `Plan limit reached (${limit} agents)`
-              }
+              onClick={() => setIsCreateOpen(true)}
+              size="icon"
+              type="button"
+              variant="outline"
             >
               <PlusIcon className="size-3.5" />
             </Button>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {agents.length}/{limit} agents
-            {!canCreateAgent && limit === 1
-              ? " · Upgrade to Pro for up to 5"
-              : null}
-          </p>
-        </div>
+          </span>
+        </Hint>
       </div>
 
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>

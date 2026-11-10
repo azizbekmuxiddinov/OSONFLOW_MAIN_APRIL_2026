@@ -47,33 +47,32 @@ const Frame = ({
 
 /** The page title and its description, actions on the right. */
 export const SkeletonHero = ({ className }: { className?: string }) => (
-  <div className={cn("flex items-end justify-between gap-3", className)}>
-    <div className="space-y-2.5">
-      <Skeleton className="h-7 w-48 rounded-lg" />
-      <Line className="h-3 w-80 max-w-[60vw]" />
+  <>
+    <div className={cn("dash-topbar", className)}>
+      <Skeleton className="h-5 w-40 rounded-md" />
+      <Skeleton className="hidden h-8 w-28 rounded-lg sm:block" />
     </div>
-    <Skeleton className="hidden h-8 w-28 rounded-lg sm:block" />
-  </div>
+    <Line className="h-3 w-80 max-w-[60vw]" />
+  </>
 )
 
 /** The row of figure cards. */
 export const SkeletonFigures = ({ count = 4 }: { count?: number }) => (
   <div
     className={cn(
-      "grid grid-cols-2 gap-3",
+      "report-strip grid grid-cols-2",
       count === 3 && "md:grid-cols-3",
       count === 4 && "md:grid-cols-4",
       count === 5 && "md:grid-cols-3 xl:grid-cols-5",
       count === 6 && "md:grid-cols-3 xl:grid-cols-6"
     )}
   >
+    {/* One joined strip, the shape the loaded figures take, so nothing moves
+        when the numbers arrive. */}
     {Array.from({ length: count }).map((_, index) => (
-      <div className="console-card flex flex-col gap-2.5 px-4 py-3.5" key={index}>
-        <div className="flex items-center gap-2">
-          <Skeleton className="size-6 rounded-[7px]" />
-          <Line className="h-3 w-24" />
-        </div>
+      <div className="flex flex-col gap-2.5 px-4 py-4 sm:px-5" key={index}>
         <Skeleton className="h-7 w-14 rounded-md" />
+        <Line className="h-3 w-24" />
         <Line className="h-2.5 w-3/4 max-w-[10rem]" />
       </div>
     ))}
@@ -88,7 +87,7 @@ export const SkeletonSection = ({
   children: React.ReactNode
   className?: string
 }) => (
-  <section className={cn("console-card overflow-hidden", className)}>
+  <section className={cn("report-panel overflow-hidden", className)}>
     <div className="space-y-2 px-5 pt-4">
       <Skeleton className="h-4 w-36 rounded-md" />
       <Line className="h-2.5 w-56 max-w-full" />
@@ -226,6 +225,25 @@ export const AnalyticsSkeleton = () => (
       </SkeletonSection>
       <SkeletonSection>
         <SkeletonBars count={2} />
+      </SkeletonSection>
+    </div>
+  </Frame>
+)
+
+/** Telegram alerts: three figures, then setup, switches and the preview. */
+export const TeamAlertsSkeleton = () => (
+  <Frame label="Loading Telegram alerts">
+    <SkeletonHero />
+    <SkeletonFigures count={3} />
+    <div className="grid gap-4 lg:grid-cols-3">
+      <SkeletonSection>
+        <SkeletonRows avatar={false} count={3} trailing={0} />
+      </SkeletonSection>
+      <SkeletonSection>
+        <SkeletonRows avatar={false} count={4} />
+      </SkeletonSection>
+      <SkeletonSection>
+        <Skeleton className="h-48 w-full rounded-[10px]" />
       </SkeletonSection>
     </div>
   </Frame>

@@ -86,8 +86,8 @@
 /* Big, light figures with the label underneath, the way Intercom reports
    read: the number first, then what it counts. */
 .report-stat-value {
-  font-size: 1.875rem;
-  font-weight: 450;
+  font-size: 1.75rem;
+  font-weight: 500;
   line-height: 1;
   letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
@@ -96,14 +96,24 @@
 
 /* Nothing yet: the shape stays, the number steps back. */
 .report-stat-value[data-empty] {
-  color: color-mix(in srgb, var(--muted-foreground) 55%, transparent);
+  color: color-mix(in srgb, var(--muted-foreground) 62%, transparent);
+}
+
+.report-stat {
+  transition: background-color 160ms ease;
+}
+
+.report-stat:hover {
+  background: color-mix(in srgb, var(--muted) 38%, transparent);
 }
 
 /* ── empty states ──────────────────────────────────────────────────────── */
 
+/* A quiet well rather than a dashed outline, which reads as a drop zone. */
 .report-empty {
-  border-radius: var(--console-radius-sm);
-  border: 1px dashed var(--console-hairline);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--muted) 42%, transparent);
+  box-shadow: inset 0 0 0 1px var(--console-hairline-soft);
 }
 
 .report-empty-icon {
@@ -114,14 +124,17 @@
   justify-content: center;
   border-radius: 999px;
   color: var(--muted-foreground);
-  background: color-mix(in srgb, var(--muted) 60%, transparent);
+  background: var(--card);
+  box-shadow:
+    0 0 0 1px var(--console-hairline),
+    0 1px 2px rgb(0 0 0 / 0.05);
 }
 
 /* The figure strip: one card, its cells divided by hairlines. The dividers are
    shadows clipped at the card edge, so an uneven last row stays clean. */
 .report-strip {
   overflow: hidden;
-  border-radius: 10px;
+  border-radius: 12px;
   border: 1px solid var(--console-hairline);
   background: var(--card);
   box-shadow: var(--console-shadow);
@@ -129,8 +142,8 @@
 
 .report-strip > * {
   box-shadow:
-    1px 0 0 var(--report-rule),
-    0 1px 0 var(--report-rule);
+    1px 0 0 var(--report-rule, var(--console-hairline-soft)),
+    0 1px 0 var(--report-rule, var(--console-hairline-soft));
 }
 
 .report-strip.report-strip-flat {
@@ -227,9 +240,10 @@
 /* ── panels ────────────────────────────────────────────────────────────── */
 
 .report-panel {
-  border-radius: 10px;
+  border-radius: 12px;
   border: 1px solid var(--console-hairline);
   background: var(--card);
+  box-shadow: var(--console-shadow);
 }
 
 .report-section-title {

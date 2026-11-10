@@ -33,7 +33,7 @@ import { Skeleton } from "@workspace/ui/components/skeleton"
 import { format, isToday, isYesterday } from "date-fns"
 import { DicebearAvatar } from "@workspace/ui/components/dicebear-avatar"
 import {
-  BotIcon,
+  PhoneIcon,
   CircleIcon,
   DownloadIcon,
   SearchIcon,
@@ -49,6 +49,8 @@ import {
   AI_CONVERSATION_PROVIDER_LABELS,
 } from "../../constants"
 import { downloadConversationExport } from "../lib/conversation-export"
+import { InboxListEmpty } from "./inbox-empty-pane"
+import { SubnavToggle } from "./shell/subnav-toggle"
 
 type SessionFilterValue = "all" | "live" | "ended"
 
@@ -316,11 +318,12 @@ export const AIConversationsPanel = () => {
   }
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-background">
-      <div className="shrink-0 border-b border-[var(--console-hairline-soft)] px-3 pt-3 pb-2.5">
-        <div className="flex h-7 items-center justify-between gap-3 px-1">
-          <div className="min-w-0">
-            <h2 className="truncate text-sm font-semibold tracking-tight">
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[color-mix(in_srgb,var(--canvas)_60%,var(--background))] text-foreground">
+      <div className="shrink-0 px-3 pt-3 pb-2">
+        <div className="mb-2.5 flex h-7 items-center justify-between gap-3 px-1">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <SubnavToggle className="-ml-1.5" />
+            <h2 className="truncate text-[1.0625rem] font-semibold tracking-tight">
               Voice calls
             </h2>
           </div>
@@ -338,11 +341,11 @@ export const AIConversationsPanel = () => {
           </span>
         </div>
 
-        <div className="relative mt-2.5">
-          <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+        <div className="relative">
+          <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             aria-label="Search voice calls"
-            className="h-8 rounded-lg border border-[var(--console-hairline-soft)] bg-muted/50 pr-14 pl-9 text-sm shadow-none transition-colors focus-visible:border-[var(--console-hairline)] focus-visible:bg-background focus-visible:ring-0"
+            className="h-8 rounded-lg border border-[var(--console-hairline-soft)] bg-background pr-14 pl-8 text-sm shadow-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/20"
             onChange={(event) => setSearchQuery(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Escape" && searchQuery) {
@@ -382,7 +385,7 @@ export const AIConversationsPanel = () => {
           </div>
         </div>
 
-        <div className="console-segment mt-3 flex gap-1">
+        <div className="console-segment mt-2.5 flex gap-1 bg-[var(--canvas-strong)]/60!">
           {SESSION_FILTER_OPTIONS.map((option) => {
             const isActive = sessionFilter === option.value
             const count =
@@ -419,47 +422,32 @@ export const AIConversationsPanel = () => {
         <ScrollArea className="min-h-0 flex-1">
           <div className="p-2 sm:p-2.5">
             {!conversations.results.length && !normalizedSearchQuery ? (
-              <div className="mx-auto mt-10 flex max-w-[220px] flex-col items-center gap-3 text-center">
-                <span className="console-medallion size-12">
-                  <BotIcon className="size-5" />
-                </span>
-                <div>
-                  <p className="text-sm font-medium text-foreground">
-                    No voice calls yet
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    When a visitor talks to your assistant, the transcript
-                    appears here.
-                  </p>
-                </div>
-              </div>
+              <InboxListEmpty
+                description="When a visitor talks to your assistant, the transcript appears here."
+                icon={PhoneIcon}
+                title="No voice calls yet"
+              />
             ) : !hasSearchResults &&
               (normalizedSearchQuery || hasActiveFilters) ? (
-              <div className="mx-auto mt-10 flex max-w-[220px] flex-col items-center gap-3 text-center">
-                <span className="console-medallion size-12">
-                  <BotIcon className="size-5" />
-                </span>
-                <div>
-                  <p className="text-sm font-medium text-foreground">
-                    No results found
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Try a wider search or reset the filters.
-                  </p>
-                </div>
-                <Button
-                  onClick={() => {
-                    setSearchQuery("")
-                    setSessionFilter("all")
-                  }}
-                  size="sm"
-                  type="button"
-                  variant="outline"
-                  className="h-8 rounded-full px-3 text-xs"
-                >
-                  Reset filters
-                </Button>
-              </div>
+              <InboxListEmpty
+                action={
+                  <Button
+                    className="h-7 text-xs"
+                    onClick={() => {
+                      setSearchQuery("")
+                      setSessionFilter("all")
+                    }}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    Show all calls
+                  </Button>
+                }
+                description="Try a wider search or show every call."
+                icon={PhoneIcon}
+                title="No results found"
+              />
             ) : (
               <div className="space-y-4">
                 {groupedConversations.map((group) => (
@@ -498,7 +486,9 @@ export const AIConversationsPanel = () => {
                               <Link
                                 className={cn(
                                   "group relative block rounded-lg px-2.5 py-2.5 transition-colors duration-150",
-                                  isActive ? "bg-muted" : "hover:bg-muted/55"
+                                  isActive
+                                    ? "dash-pill"
+                                    : "hover:bg-background/70 active:bg-background"
                                 )}
                                 href={`/ai-conversations/${conversation._id}`}
                               >

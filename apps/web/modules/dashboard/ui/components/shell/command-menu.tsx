@@ -96,7 +96,7 @@ export const CommandMenu = ({
           id: `go-${key}`,
           group: "Go to",
           label: page.title,
-          hint: area.label,
+          hint: area.label === page.title ? undefined : area.label,
           icon: page.icon,
           keywords: `${area.label} ${page.title}`,
           run: () => go(page.url, "view" in page ? page.view : undefined),
@@ -239,16 +239,16 @@ export const CommandMenu = ({
   return (
     <Dialog onOpenChange={handleOpenChange} open={open}>
       <DialogContent
-        className="top-[18%] max-w-[560px] translate-y-0 gap-0 overflow-hidden p-0 sm:rounded-xl"
+        className="top-[15%] max-w-[calc(100%-2rem)] translate-y-0 gap-0 overflow-hidden p-0 sm:max-w-[620px]"
         showCloseButton={false}
       >
         <DialogTitle className="sr-only">Search and actions</DialogTitle>
-        <div className="flex items-center gap-2.5 border-b border-[var(--console-hairline-soft)] px-4">
-          <SearchIcon className="size-4 shrink-0 text-muted-foreground" />
+        <div className="flex items-center gap-3 border-b border-foreground/[0.07] px-4">
+          <SearchIcon className="size-[18px] shrink-0 text-muted-foreground" />
           <input
             aria-label="Search pages, conversations and actions"
             autoFocus
-            className="h-12 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            className="h-[52px] min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-muted-foreground/80"
             onChange={(event) => {
               setQuery(event.target.value)
               setActiveIndex(0)
@@ -257,22 +257,28 @@ export const CommandMenu = ({
             placeholder="Search pages, conversations and actions…"
             value={query}
           />
-          <kbd className="rounded border border-[var(--console-hairline)] px-1.5 py-0.5 text-[10px] text-muted-foreground">
-            Esc
-          </kbd>
+          <Key>Esc</Key>
         </div>
 
-        <div className="max-h-[min(420px,60vh)] overflow-y-auto p-1.5" ref={listRef}>
+        <div
+          className="max-h-[min(440px,58vh)] scroll-py-1.5 overflow-y-auto p-1.5"
+          ref={listRef}
+        >
           {groups.length === 0 ? (
-            <p className="px-3 py-8 text-center text-sm text-muted-foreground">
-              {search.length >= 2 && conversations.isLoading
-                ? "Searching…"
-                : "Nothing matches that."}
-            </p>
+            <div className="flex flex-col items-center gap-2 px-3 py-10 text-center">
+              <span className="flex size-9 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                <SearchIcon className="size-4" />
+              </span>
+              <p className="text-[13px] text-muted-foreground">
+                {search.length >= 2 && conversations.isLoading
+                  ? "Searching…"
+                  : "Nothing matches that."}
+              </p>
+            </div>
           ) : (
             groups.map(({ group, items: groupItems }) => (
               <div className="pb-1" key={group}>
-                <p className="px-2.5 pt-2 pb-1 text-[11px] font-medium text-muted-foreground">
+                <p className="px-2.5 pt-2.5 pb-1.5 text-[11px] font-medium text-muted-foreground">
                   {group}
                 </p>
                 {groupItems.map((item) => {
@@ -283,8 +289,10 @@ export const CommandMenu = ({
                   return (
                     <button
                       className={cn(
-                        "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px]",
-                        isActive ? "bg-muted text-foreground" : "text-foreground/85"
+                        "flex h-9 w-full items-center gap-3 rounded-lg px-2.5 text-left text-[13px] outline-none",
+                        isActive
+                          ? "bg-foreground/[0.06] text-foreground"
+                          : "text-foreground/80"
                       )}
                       data-index={index}
                       key={item.id}
@@ -295,19 +303,32 @@ export const CommandMenu = ({
                       {item.avatarSeed ? (
                         <DicebearAvatar seed={item.avatarSeed} size={20} />
                       ) : item.icon ? (
-                        <item.icon className="size-4 shrink-0 text-muted-foreground" />
+                        <item.icon
+                          className={cn(
+                            "size-4 shrink-0",
+                            isActive
+                              ? "text-foreground"
+                              : "text-muted-foreground"
+                          )}
+                          strokeWidth={1.8}
+                        />
                       ) : null}
-                      <span className="min-w-0 flex-1 truncate">
+                      <span className="shrink-0 truncate font-medium">
                         {item.label}
-                        {item.hint ? (
-                          <span className="ml-2 text-xs text-muted-foreground">
-                            {item.hint}
-                          </span>
-                        ) : null}
                       </span>
-                      {isActive ? (
-                        <CornerDownLeftIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                      ) : null}
+                      {item.hint ? (
+                        <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+                          {item.hint}
+                        </span>
+                      ) : (
+                        <span className="flex-1" />
+                      )}
+                      <CornerDownLeftIcon
+                        className={cn(
+                          "size-3.5 shrink-0 text-muted-foreground transition-opacity duration-100",
+                          isActive ? "opacity-100" : "opacity-0"
+                        )}
+                      />
                     </button>
                   )
                 })}
@@ -316,12 +337,29 @@ export const CommandMenu = ({
           )}
         </div>
 
-        <div className="flex items-center gap-4 border-t border-[var(--console-hairline-soft)] px-4 py-2 text-[11px] text-muted-foreground">
-          <span>↑↓ to move</span>
-          <span>↵ to open</span>
-          <span className="ml-auto">⌘K anywhere</span>
+        <div className="flex items-center gap-4 border-t border-foreground/[0.07] bg-muted/40 px-4 py-2.5 text-[11px] text-muted-foreground">
+          <span className="flex items-center gap-1.5">
+            <Key>↑</Key>
+            <Key>↓</Key>
+            to move
+          </span>
+          <span className="flex items-center gap-1.5">
+            <Key>↵</Key>
+            to open
+          </span>
+          <span className="ml-auto flex items-center gap-1.5">
+            <Key>⌘</Key>
+            <Key>K</Key>
+            anywhere
+          </span>
         </div>
       </DialogContent>
     </Dialog>
   )
 }
+
+const Key = ({ children }: { children: React.ReactNode }) => (
+  <kbd className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-[5px] bg-background px-1 font-sans text-[10px] font-medium text-muted-foreground shadow-[0_0_0_1px_rgb(0_0_0/0.09),0_1px_0_rgb(0_0_0/0.08)] dark:bg-white/10 dark:shadow-[0_0_0_1px_rgb(255_255_255/0.1)]">
+    {children}
+  </kbd>
+)

@@ -1035,8 +1035,8 @@ export const LeadsView = () => {
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {LEAD_SOURCES.map((source) => (
                 <div className="console-inset flex items-start gap-3 p-3.5" key={source.title}>
-                  <span className="report-stat-icon" data-tone="info">
-                    <source.icon className="size-3.5" />
+                  <span className="dash-mark">
+                    <source.icon className="size-4" />
                   </span>
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-foreground">

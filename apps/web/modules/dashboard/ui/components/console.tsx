@@ -51,7 +51,7 @@ export const ConsolePage = ({
   <div className="console-page h-full min-h-0 overflow-x-hidden overflow-y-auto">
     <div
       className={cn(
-        "mx-auto flex w-full min-w-0 flex-col gap-5 px-4 py-5 sm:px-6 sm:py-7",
+        "dash-page-body dash-stagger mx-auto flex w-full min-w-0 flex-col gap-5 px-4 py-5 sm:px-6 sm:py-7",
         width === "default" && "max-w-[1400px]",
         width === "wide" && "max-w-[1600px]",
         width === "narrow" && "max-w-3xl",
@@ -83,38 +83,35 @@ export const ConsoleHeader = ({
   actions?: React.ReactNode
   className?: string
 }) => (
-  <header
-    className={cn(
-      "flex flex-col gap-3 pb-1 lg:flex-row lg:items-center lg:justify-between lg:gap-8",
-      className
-    )}
-  >
-    {/* `icon` stays in the signature so callers keep compiling; the compact
-        header no longer draws a medallion beside the title. */}
-    <div className="min-w-0" data-icon={Icon ? "" : undefined}>
-      {eyebrow ? <p className="console-eyebrow mb-1.5">{eyebrow}</p> : null}
-      <div className="flex items-center gap-2">
+  <>
+    {/* `icon` stays in the signature so callers keep compiling; the bar does
+        not draw a medallion beside the title. */}
+    <header
+      className={cn("dash-topbar", className)}
+      data-icon={Icon ? "" : undefined}
+    >
+      <div className="flex min-w-0 items-center gap-2">
         <SubnavToggle className="-ml-1.5" />
-        <h1 className="console-title">{title}</h1>
+        <h1 className="dash-topbar-title">{title}</h1>
       </div>
-      {description ? (
-        <p className="mt-1 line-clamp-2 max-w-3xl text-[0.8125rem] leading-relaxed text-muted-foreground">
-          {description}
-        </p>
-      ) : null}
-      {meta ? (
-        <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-2">
-          {meta}
+      {actions ? (
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {actions}
         </div>
       ) : null}
-    </div>
-
-    {actions ? (
-      <div className="flex shrink-0 flex-wrap items-center gap-2 lg:justify-end">
-        {actions}
+    </header>
+    {eyebrow || description || meta ? (
+      <div className="min-w-0">
+        {eyebrow ? <p className="console-eyebrow mb-1.5">{eyebrow}</p> : null}
+        {description ? <p className="dash-page-lede">{description}</p> : null}
+        {meta ? (
+          <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-2">
+            {meta}
+          </div>
+        ) : null}
       </div>
     ) : null}
-  </header>
+  </>
 )
 
 /** A single label/value fact for `ConsoleHeader`'s `meta` slot. */
@@ -303,7 +300,7 @@ export const PanelBody = ({
 
 /** Wrap a `TabsList` in this to get the segmented-control treatment. */
 export const consoleTabsListClass =
-  "console-segment flex w-full min-w-0 justify-start gap-1 overflow-x-auto group-data-horizontal/tabs:h-auto"
+  "console-segment flex w-full min-w-0 justify-start gap-1 overflow-x-auto overflow-y-hidden [scrollbar-width:none] group-data-horizontal/tabs:h-auto [&::-webkit-scrollbar]:hidden"
 
 export const consoleTabsTriggerClass =
   "console-segment-item h-8 flex-none gap-1.5 border border-transparent px-3 text-[0.8rem] font-medium data-active:shadow-none"
@@ -353,7 +350,7 @@ export const ConsoleSearch = ({
     {value ? (
       <button
         aria-label="Clear search"
-        className="absolute top-1/2 right-2.5 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+        className="absolute top-1/2 right-2 flex size-5 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
         onClick={() => onChange("")}
         type="button"
       >
@@ -424,13 +421,15 @@ export const EmptyState = ({
     )}
   >
     {Icon ? (
-      <span className="console-medallion size-12">
+      <span className="dash-empty-mark">
         <Icon className="size-5" />
       </span>
     ) : null}
-    <p className="mt-4 text-sm font-semibold text-foreground">{title}</p>
+    <p className="mt-4 text-sm font-semibold tracking-[-0.01em] text-foreground">
+      {title}
+    </p>
     {description ? (
-      <p className="mt-1.5 max-w-sm text-sm leading-relaxed text-muted-foreground">
+      <p className="mt-1.5 max-w-sm text-[0.8125rem] leading-relaxed text-pretty text-muted-foreground">
         {description}
       </p>
     ) : null}
@@ -448,27 +447,35 @@ export const ConsoleSkeleton = ({
   rows?: number
 }) => (
   <ConsolePage>
-    <div className="flex flex-col gap-5">
-      <div className="flex items-start gap-3.5">
-        <Skeleton className="size-10 rounded-[10px]" />
-        <div className="flex-1 space-y-2.5">
-          <Skeleton className="h-3 w-24 rounded-full" />
-          <Skeleton className="h-7 w-64 rounded-lg" />
-          <Skeleton className="h-4 w-full max-w-md rounded-full" />
-        </div>
-      </div>
-      <div className="console-rule" />
+    <div className="dash-topbar">
+      <Skeleton className="h-5 w-40 rounded-md" />
+      <Skeleton className="hidden h-8 w-28 rounded-lg sm:block" />
     </div>
+    <Skeleton className="h-3 w-full max-w-md rounded-full" />
     {stats > 0 ? (
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <div className="report-strip grid grid-cols-2 xl:grid-cols-4">
         {Array.from({ length: stats }).map((_, index) => (
-          <Skeleton key={index} className="h-[6.5rem] rounded-[14px]" />
+          <div className="flex flex-col gap-2.5 px-4 py-4 sm:px-5" key={index}>
+            <Skeleton className="h-7 w-14 rounded-md" />
+            <Skeleton className="h-3 w-24 rounded-full" />
+            <Skeleton className="h-2.5 w-32 max-w-full rounded-full" />
+          </div>
         ))}
       </div>
     ) : null}
-    <div className="space-y-3">
+    {/* Outlined panels with a few lines in them, the way the loaded page is
+        built, rather than solid grey blocks. */}
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
       {Array.from({ length: rows }).map((_, index) => (
-        <Skeleton key={index} className="h-24 rounded-[14px]" />
+        <div className="report-panel space-y-3 px-5 py-4" key={index}>
+          <Skeleton className="h-4 w-36 rounded-md" />
+          <Skeleton className="h-2.5 w-56 max-w-full rounded-full" />
+          <div className="space-y-2.5 pt-2">
+            <Skeleton className="h-3 w-full rounded-full" />
+            <Skeleton className="h-3 w-4/5 rounded-full" />
+            <Skeleton className="h-3 w-2/3 rounded-full" />
+          </div>
+        </div>
       ))}
     </div>
   </ConsolePage>
