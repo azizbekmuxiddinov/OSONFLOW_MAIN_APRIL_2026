@@ -3,11 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useForm } from "react-hook-form"
-import {
-  useSmoothText,
-  useThreadMessages,
-  toUIMessages,
-} from "@convex-dev/agent/react"
+import { useThreadMessages, toUIMessages } from "@convex-dev/agent/react"
 import { WidgetHeader } from "@/modules/widget/ui/components/widget-header"
 import { Button } from "@workspace/ui/components/button"
 import { useAtomValue, useSetAtom } from "jotai"
@@ -96,6 +92,7 @@ import { cn } from "@workspace/ui/lib/utils"
 import { WidgetEmailCapture } from "../components/widget-email-capture"
 import { getWidgetMetadata } from "../../lib/widget-metadata"
 import { useHelpTopics } from "../../hooks/use-help-articles"
+import { useMessageReveal } from "../../hooks/use-message-reveal"
 import { useEnsureVoiceContactSession } from "../../hooks/use-ensure-voice-contact-session"
 
 // The composer can also be sent with images and no text, so emptiness is
@@ -151,8 +148,8 @@ const withoutUnclosedFence = (text: string) => {
 }
 
 /**
- * The text of one message, revealed at reading speed rather than appearing
- * whole.
+ * The text of one message, typed into view quickly (a fixed ~350ms however
+ * long it is) rather than appearing whole.
  *
  * Two things animate: a reply that is genuinely mid-flight from the model,
  * and one that lands complete while the visitor is watching — a scripted
@@ -174,10 +171,7 @@ const MessageText = ({
   richActions?: ComponentProps<typeof AIResponse>["richActions"]
   text: string
 }) => {
-  const [revealsOnArrival] = useState(revealOnMount)
-  const [visibleText] = useSmoothText(text, {
-    startStreaming: isStreaming || revealsOnArrival,
-  })
+  const visibleText = useMessageReveal(text, isStreaming || revealOnMount)
   const isRevealing = visibleText.length < text.length
   const shownText = isRevealing ? withoutUnclosedFence(visibleText) : visibleText
 
@@ -804,7 +798,7 @@ export const WidgetChatScreen = () => {
   /**
    * Creation time of the newest message that was already in the thread when
    * the widget opened. Anything stamped after it is new to this visitor and
-   * is revealed at reading speed.
+   * is typed into view.
    *
    * A watermark rather than "mounted after we finished loading", because
    * scrolling up loads older messages that also mount late — they must not
