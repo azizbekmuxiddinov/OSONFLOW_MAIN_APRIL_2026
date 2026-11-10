@@ -1,3 +1,5 @@
+import { translateDashboardPattern } from "./dashboard-patterns"
+import { dashboardTranslations } from "./dashboard-translations"
 import { landingTranslations } from "./landing-translations"
 import { supplementalTranslations } from "./supplemental-translations"
 
@@ -1832,9 +1834,19 @@ export function translateText(
     (context
       ? landingTranslations[`${context}|${normalized}`]?.[language]
       : undefined) ??
-    landingTranslations[normalized]?.[language] ??
-    translations[normalized]?.[language] ??
-    supplementalTranslations[normalized]?.[language]
+    lookupExact(normalized, language) ??
+    translateDashboardPattern(normalized, language, (text) =>
+      lookupExact(text, language)
+    )
 
   return translated ?? value
+}
+
+function lookupExact(normalized: string, language: Exclude<Language, "en">) {
+  return (
+    landingTranslations[normalized]?.[language] ??
+    translations[normalized]?.[language] ??
+    supplementalTranslations[normalized]?.[language] ??
+    dashboardTranslations[normalized]?.[language]
+  )
 }

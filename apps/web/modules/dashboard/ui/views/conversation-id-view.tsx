@@ -840,7 +840,10 @@ export const ConversationIdView = ({
                   key={message.id}
                 >
                   <AIMessageTime timestamp={message._creationTime} />
-                  <AIMessageContent className="rounded-xl border-0 bg-muted shadow-none group-[.is-user]:bg-[var(--bubble-operator)] group-[.is-user]:text-foreground">
+                  <AIMessageContent
+                    translate="no"
+                    className="rounded-xl border-0 bg-muted shadow-none group-[.is-user]:bg-[var(--bubble-operator)] group-[.is-user]:text-foreground"
+                  >
                     {messageText.trim() ? (
                       <AIResponse>{messageText}</AIResponse>
                     ) : null}

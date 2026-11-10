@@ -353,6 +353,7 @@ export const AIConversationIdView = ({
                       </div>
 
                       <AIMessageContent
+                        translate="no"
                         className={cn(
                           "rounded-[14px] border px-3.5 py-2.5 text-[0.78rem] leading-relaxed sm:px-4 sm:text-[0.82rem]",
                           message.role === "assistant"

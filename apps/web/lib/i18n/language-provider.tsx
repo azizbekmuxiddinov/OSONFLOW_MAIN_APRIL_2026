@@ -112,9 +112,18 @@ function isInsideMotionWord(node: Node) {
   )
 }
 
-/** Code samples and identifiers opt out with the standard `translate="no"`. */
+/**
+ * Code samples, identifiers and customer messages opt out with the standard
+ * `translate="no"`. Editable text is never touched: the workflow and article
+ * editors save their DOM, so a translated node would overwrite what the
+ * merchant typed.
+ */
 function isTranslationOptedOut(node: Node) {
-  return node.parentElement?.closest('[translate="no"]') != null
+  return (
+    node.parentElement?.closest(
+      '[translate="no"], [contenteditable=""], [contenteditable="true"], [contenteditable="plaintext-only"]'
+    ) != null
+  )
 }
 
 /** The nearest `data-i18n-context`, for words whose meaning depends on where they sit. */

@@ -108,6 +108,10 @@ const openAIRealtimeModels: ModelOption[] = [
 
 const geminiLiveModels: ModelOption[] = [
   {
+    value: "gemini-3.8-live",
+    label: "gemini-3.8-live",
+  },
+  {
     value: "gemini-3.1-flash-live-preview",
     label: "gemini-3.1-flash-live-preview",
   },
